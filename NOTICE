@@ -1,0 +1,39 @@
+schemanator
+Copyright (C) 2026 Headwall Hosting
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See LICENSE.
+
+================================================================================
+Third-party material
+================================================================================
+
+data/schema-subclasses.json
+---------------------------
+
+NOT covered by the AGPL-3.0 above.
+
+Derived from the schema.org vocabulary, which is licensed under the Creative
+Commons Attribution-ShareAlike License version 3.0:
+
+    https://schema.org/docs/terms.html
+    http://creativecommons.org/licenses/by-sa/3.0/
+
+The file contains the rdfs:subClassOf edges of the vocabulary with all other
+content removed. As a derivative of a CC BY-SA 3.0 work it is itself licensed
+CC BY-SA 3.0.
+
+Attribution: schema.org — https://schema.org/
+
+The two licences sit side by side as mere aggregation. Neither reaches the
+other: the vocabulary derivative is data read at runtime, not a component
+linked into the program.
+
+Regenerate with:
+
+    node tools/fetch-schema-hierarchy.ts
+
+The file records the SHA-256 of the exact source document it was derived from,
+so the derivation is verifiable.

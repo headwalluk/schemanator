@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "generated": "2026-08-01",
+  "corpus": "9 sites, 795 pages, 4 generators (Yoast, RankMath, SlimSEO, The SEO Framework)",
+
+  "_method": [
+    "Measurement can only rule properties OUT, never in. A property observed",
+    "carrying two values somewhere in the corpus is definitively not functional.",
+    "A property never observed multi-valued proves nothing: `image` appears 2,098",
+    "times across 7 sites and is never multi-valued here, yet a product gallery",
+    "makes it plural, and treating it as functional would manufacture",
+    "contradictions on the first site with two photos.",
+    "",
+    "So `basis: observed` entries are empirical and settled. `basis: asserted`",
+    "entries are a deliberate policy choice, stricter than RDF allows, made",
+    "because a divergence under one @id is a finding worth reporting. That",
+    "assertion is the product (see dev-notes/00), not a discovery."
+  ],
+
+  "_default": [
+    "Anything absent from this file is treated as MULTI-VALUED, and therefore",
+    "never raises entity.contradiction. Silence is the safe default: the cost of",
+    "a missing functional property is one unreported finding, while the cost of a",
+    "wrongly-functional property is a false contradiction on every site that uses",
+    "it legitimately. The corpus has 122 distinct properties and only 11 are",
+    "listed as functional; that ratio is deliberate."
+  ],
+
+  "_keys": [
+    "Keys are full IRIs, because extraction compares post-expansion IRIs rather",
+    "than as-written names. Normalise http://schema.org to https://schema.org",
+    "before lookup (dev-notes/03) or mixed-vintage markup will miss.",
+    "A same-named property in another vocabulary is a different IRI and",
+    "correctly does not match."
+  ],
+
+  "default_cardinality": "multi-valued",
+
+  "properties": {
+    "https://schema.org/name": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 6257, "multi_valued": 0, "sites": 7 },
+      "note": "The most-used property in the corpus and never plural. An entity with two names under one @id is an identity problem."
+    },
+    "https://schema.org/url": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 5266, "multi_valued": 0, "sites": 7 },
+      "note": "The M0 flagship finding: a corpus site carries two url values under one @id across 150 pages."
+    },
+    "https://schema.org/logo": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 732, "multi_valued": 0, "sites": 5 },
+      "note": "Distinct from `image`, which is legitimately plural."
+    },
+    "https://schema.org/address": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 336, "multi_valued": 0, "sites": 2 },
+      "note": "A multi-site business would break this. Revisit if one appears in the corpus."
+    },
+    "https://schema.org/telephone": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 154, "multi_valued": 0, "sites": 2 },
+      "note": "Stricter than RDF on purpose. A business genuinely can have two numbers, but publishing different ones under one @id on different pages is the flagship contradiction this tool exists to catch."
+    },
+    "https://schema.org/email": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 154, "multi_valued": 0, "sites": 2 },
+      "note": "Same reasoning as telephone."
+    },
+    "https://schema.org/legalName": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 150, "multi_valued": 0, "sites": 1 },
+      "note": "A registered legal identity is singular by definition."
+    },
+    "https://schema.org/geo": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 2, "multi_valued": 0, "sites": 1 },
+      "note": "Thin evidence, but one entity has one set of coordinates."
+    },
+    "https://schema.org/priceRange": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 2, "multi_valued": 0, "sites": 1 },
+      "note": "Thin evidence. Semantically a single band."
+    },
+    "https://schema.org/vatID": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 0, "multi_valued": 0, "sites": 0 },
+      "note": "Not observed in the corpus. Singular by definition."
+    },
+    "https://schema.org/faxNumber": {
+      "cardinality": "functional",
+      "basis": "asserted",
+      "observed": { "occurrences": 0, "multi_valued": 0, "sites": 0 },
+      "note": "Not observed. Included for symmetry with telephone."
+    },
+
+    "https://schema.org/sameAs": {
+      "cardinality": "multi-valued",
+      "basis": "observed",
+      "observed": { "occurrences": 429, "multi_valued": 383, "max_length": 6, "sites": 4 },
+      "note": "Plural 89% of the time. Compare as a set — order is never a finding."
+    },
+    "https://schema.org/image": {
+      "cardinality": "multi-valued",
+      "basis": "observed",
+      "observed": { "occurrences": 2098, "multi_valued": 1, "max_length": 2, "sites": 7 },
+      "note": "Observed plural only once in 2,098, which is exactly why measurement alone is untrustworthy: the semantics are plural regardless of what this corpus happens to contain."
+    },
+    "https://schema.org/keywords": {
+      "cardinality": "multi-valued",
+      "basis": "observed",
+      "observed": { "occurrences": 370, "multi_valued": 318, "sites": 5 }
+    },
+    "https://schema.org/itemListElement": {
+      "cardinality": "multi-valued",
+      "basis": "observed",
+      "observed": { "occurrences": 593, "multi_valued": 590, "sites": 6 },
+      "note": "Ordered. Breadcrumb checks care about order; contradiction checks must not."
+    },
+    "https://schema.org/articleSection": {
+      "cardinality": "multi-valued",
+      "basis": "observed",
+      "observed": { "occurrences": 401, "multi_valued": 51, "sites": 5 }
+    },
+    "https://schema.org/offers": {
+      "cardinality": "multi-valued",
+      "basis": "observed",
+      "observed": { "occurrences": 243, "multi_valued": 15, "sites": 4 }
+    },
+    "https://schema.org/areaServed": {
+      "cardinality": "multi-valued",
+      "basis": "observed",
+      "observed": { "occurrences": 5, "multi_valued": 2, "sites": 1 }
+    },
+    "https://schema.org/knowsAbout": {
+      "cardinality": "multi-valued",
+      "basis": "observed",
+      "observed": { "occurrences": 2, "multi_valued": 2, "max_length": 6, "sites": 1 }
+    },
+    "https://schema.org/contactPoint": {
+      "cardinality": "multi-valued",
+      "basis": "asserted",
+      "observed": { "occurrences": 152, "multi_valued": 0, "sites": 2 },
+      "note": "Never plural in this corpus, but an organisation legitimately has several — sales, support, press. Asserted plural despite the data, which is the mirror image of the telephone case."
+    },
+    "https://schema.org/member": {
+      "cardinality": "multi-valued",
+      "basis": "asserted",
+      "observed": { "occurrences": 0, "multi_valued": 0, "sites": 0 }
+    },
+    "https://schema.org/department": {
+      "cardinality": "multi-valued",
+      "basis": "asserted",
+      "observed": { "occurrences": 0, "multi_valued": 0, "sites": 0 }
+    },
+    "https://schema.org/openingHoursSpecification": {
+      "cardinality": "multi-valued",
+      "basis": "asserted",
+      "observed": { "occurrences": 0, "multi_valued": 0, "sites": 0 },
+      "note": "One entry per day band is the normal shape."
+    }
+  },
+
+  "_candidates": [
+    "Considered and deliberately left non-functional, to be revisited at M1",
+    "shakedown against real findings rather than now:",
+    "",
+    "  description (1,874 occurrences, never plural) — divergence is far more",
+    "    likely to be truncation or page context than a genuine contradiction.",
+    "  headline, datePublished, dateModified — page-scoped, so they rarely have",
+    "    cross-page observations of one @id, which is when this list applies.",
+    "  price, sku, brand — product-scoped and worth revisiting once the corpus",
+    "    contains a store with a real duplicate-product problem."
+  ]
+}

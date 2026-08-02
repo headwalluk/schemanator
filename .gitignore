@@ -1,0 +1,37 @@
+# Runtime crawl output — contains other people's website content. Never commit.
+work/
+
+# Internal design notes. Not published.
+#
+# dev-notes/ names real client sites and describes the structured-data defects
+# found on them, which is exactly what makes it useful while building and
+# exactly what must not become public. It stays on the private remote.
+#
+# Source comments and docs/dev/ cite it as `dev-notes/NN` — those are citations
+# to an archive you may not have, not broken links. The substance is always in
+# the comment itself.
+dev-notes/
+
+# The corpus target list. Client hostnames, one per line.
+sites.txt
+sites.txt~
+
+# Local agent configuration. Also covered by most users' global gitignore, but
+# not everyone has one, and this file records paths and hostnames from whatever
+# was last worked on.
+#
+# Deliberately this one file and NOT `.claude/`. That directory is mixed rather
+# than private: `settings.json`, `agents/`, `commands/`, `skills/` and `hooks/`
+# are all project configuration meant to be shared. Ignoring the directory would
+# silently drop anything added there later — the file would simply never appear
+# in the repository, with nothing to say so.
+.claude/settings.local.json
+
+node_modules/
+dist/
+*.log
+
+.env
+.env.*
+!.env.example
+*~

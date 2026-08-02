@@ -1,0 +1,51 @@
+{
+  "name": "@headwall/schemanator",
+  "version": "1.0.0",
+  "description": "Whole-site structured-data integrity checking",
+  "keywords": [
+    "schema.org",
+    "structured-data",
+    "json-ld",
+    "seo",
+    "crawler",
+    "validator"
+  ],
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "bin": {
+    "schemanator": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "data",
+    "docs",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "schemanator": "node src/cli.ts",
+    "crawl": "node src/cli.ts crawl",
+    "typecheck": "tsc --noEmit",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "refresh-schema": "node tools/fetch-schema-hierarchy.ts",
+    "test": "node --test 'src/**/*.test.ts' 'test/**/*.test.ts'"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "fast-xml-parser": "^5.10.1",
+    "jsonld": "^9.0.0",
+    "robots-parser": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/jsonld": "^1.5.15",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

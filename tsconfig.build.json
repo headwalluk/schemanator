@@ -1,0 +1,24 @@
+{
+  // Publishing only. Development runs `.ts` directly on Node >= 22.18, which
+  // strips types natively — see `dev-notes/06`. This build exists so a consumer
+  // on Node 22.0-22.17, where stripping is still behind a flag, is not broken.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    // The flag this whole file exists for (TypeScript >= 5.7): rewrites
+    // `./foo.ts` import specifiers to `./foo.js` on the way out, so the source
+    // can keep the real extension that `allowImportingTsExtensions` requires.
+    "rewriteRelativeImportExtensions": true,
+
+    // Emitting means these two no longer apply as they do in development.
+    "allowImportingTsExtensions": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

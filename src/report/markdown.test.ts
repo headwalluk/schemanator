@@ -1,0 +1,144 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+import type { Finding } from '../checks/run.ts';
+import type { Report } from './build.ts';
+import { renderMarkdown } from './markdown.ts';
+
+function report(overrides: Partial<Report> = {}): Report {
+  return {
+    schemanator: { version: '0.1.0', report_schema: 1 },
+    run: {
+      run_id: '20260801T120000Z',
+      site_slug: 'example.com',
+      site_origin: 'https://example.com',
+      started_at: '2026-08-01T12:00:00Z',
+      finished_at: '2026-08-01T12:05:00Z',
+    },
+    coverage: {
+      complete: true,
+      urls_discovered: 47,
+      urls_queued: 47,
+      pages_fetched: 47,
+      pages_extracted: 47,
+      truncated: null,
+      sample_strategy: 'spread',
+      caveat: null,
+    },
+    graph: { nodes: 766, entities: 198, pages_with_data: 47, json_ld_blocks: 60, malformed_blocks: 0 },
+    summary: { by_severity: {}, by_check: {}, silenced: {}, checks_run: ['entity.contradiction'], checks_disabled: [] },
+    findings: [],
+    ...overrides,
+  };
+}
+
+function finding(overrides: Partial<Finding> = {}): Finding {
+  return {
+    finding_id: 'abc123def456',
+    check: 'entity.contradiction',
+    severity: 'error',
+    origin: 'check',
+    title: 'url has 2 different values under one @id',
+    subject: { kind: 'entity', id: 'https://example.com/#organization', property: 'http://schema.org/url' },
+    summary: 'The same @id carries 2 different values.',
+    expected: 'One url value.',
+    observed: [
+      {
+        value: JSON.stringify([JSON.stringify({ '@id': 'https://example.com/about/' })]),
+        observation_count: 120,
+        page_count: 120,
+        provenance: [
+          { page_id: 'about-1', url: 'https://example.com/about/', syntax: 'json-ld', block: 0, pointer: '/5' },
+        ],
+      },
+    ],
+    pages_affected: 150,
+    coverage_qualified: false,
+    remediation: 'Emit a single url.',
+    tradeoff: null,
+    ...overrides,
+  };
+}
+
+test('renders a clean report when nothing was found', () => {
+  const output = renderMarkdown(report());
+  assert.match(output, /# schemanator — https:\/\/example\.com/);
+  assert.match(output, /None\. Every check ran and found nothing to report\./);
+});
+
+test('the coverage caveat comes before any finding', () => {
+  const output = renderMarkdown(
+    report({
+      coverage: { ...report().coverage, complete: false, caveat: '60 of 8341 URLs were audited.' },
+      findings: [finding()],
+    }),
+  );
+
+  // The single most misleading thing about a partial report, so it leads.
+  assert.match(output, /Partial coverage/);
+  assert.equal(output.indexOf('Partial coverage') < output.indexOf('## Errors'), true);
+});
+
+test('no caveat appears when coverage is complete', () => {
+  assert.equal(renderMarkdown(report()).includes('Partial coverage'), false);
+});
+
+test('findings are grouped by severity with correct English plurals', () => {
+  const output = renderMarkdown(
+    report({
+      findings: [
+        finding({ severity: 'error' }),
+        finding({ finding_id: 'b', severity: 'opportunity' }),
+        finding({ finding_id: 'c', severity: 'opportunity' }),
+      ],
+    }),
+  );
+
+  assert.match(output, /## Errors \(1\)/);
+  assert.match(output, /## Opportunities \(2\)/);
+  assert.equal(output.includes('Opportunitys'), false);
+  // Errors first: the reader's attention is the scarce resource.
+  assert.equal(output.indexOf('## Errors') < output.indexOf('## Opportunities'), true);
+});
+
+test('provenance is rendered so a finding can be traced to source', () => {
+  const output = renderMarkdown(report({ findings: [finding()] }));
+  assert.match(output, /https:\/\/example\.com\/about\//);
+  assert.match(output, /`json-ld` block 0, pointer `\/5`/);
+});
+
+test('an @id-typed value is unwrapped for display', () => {
+  const output = renderMarkdown(report({ findings: [finding()] }));
+  // Not the raw JSON-encoded set the check produced.
+  assert.match(output, /`https:\/\/example\.com\/about\/` — on 120 page\(s\)/);
+  assert.equal(output.includes('\\"@id\\"'), false);
+});
+
+test('silenced counts are shown, so silence reads as a decision', () => {
+  const output = renderMarkdown(report({ summary: { ...report().summary, silenced: { 'entity.partiality': 1847 } } }));
+  assert.match(output, /Considered and not reported/);
+  assert.match(output, /entity\.partiality` — 1847 instance/);
+});
+
+test('a trade-off is surfaced rather than presented as a fix', () => {
+  const output = renderMarkdown(
+    report({ findings: [finding({ severity: 'opportunity', tradeoff: 'Content-matching versus entity consistency.' })] }),
+  );
+  assert.match(output, /\*\*Trade-off:\*\* Content-matching versus entity consistency\./);
+});
+
+test('a coverage-qualified finding says so', () => {
+  const output = renderMarkdown(report({ findings: [finding({ coverage_qualified: true })] }));
+  assert.match(output, /Qualified by coverage/);
+});
+
+test('the finding id is shown, so two runs can be compared by eye', () => {
+  assert.match(renderMarkdown(report({ findings: [finding()] })), /`abc123def456`/);
+});
+
+test('output survives being pasted into a chat window', () => {
+  const output = renderMarkdown(report({ findings: [finding()] }));
+  // No ANSI colour, no box drawing.
+  assert.equal(/\[/.test(output), false);
+  assert.equal(/[┌┐└┘│─├┤]/.test(output), false);
+});

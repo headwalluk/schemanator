@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "generated": "2026-08-01",
+  "corpus": "22 sites, 1838 pages",
+
+  "_about": [
+    "Two tunable lists of strings we recognise. Both are deliberately data",
+    "rather than code, for the same reason as data/functional-properties.json:",
+    "they will be tuned for the life of the project, and an operator with an",
+    "unusual site needs to override them without waiting for a release.",
+    "",
+    "Neither will ever be complete. That is fine — this is the cheap majority",
+    "of what would otherwise need a language model, and the cost of a missing",
+    "entry is one unreported finding rather than a false one."
+  ],
+
+  "_placeholders": [
+    "Values a generator or theme emits when a setting was never configured.",
+    "Each entry records where it was actually seen, so a future reader can tell",
+    "an evidenced pattern from a guessed one.",
+    "",
+    "Matching is case-insensitive and against the TRIMMED whole value. Anchor",
+    "every pattern: 'Lorem Ipsum Generator' is a legitimate product name, and a",
+    "site that sells one would otherwise be told its product is a placeholder.",
+    "",
+    "The one deliberate exception is 'unexecuted template code', which cannot",
+    "anchor because template code is a fragment by nature — it turns up wrapped",
+    "in whatever text surrounded it. It is safe unanchored because no legitimate",
+    "value contains '<?php'. Do not add a second exception without the same",
+    "argument."
+  ],
+
+  "placeholders": [
+    {
+      "pattern": "^my website$",
+      "label": "WordPress/Yoast default site name",
+      "basis": "observed",
+      "note": "One corpus site publishes this as both the Organization name and the logo caption on all 150 pages. The site is telling consumers it is called 'My Website'."
+    },
+    {
+      "pattern": "^just another wordpress site$",
+      "label": "WordPress default tagline",
+      "basis": "asserted",
+      "note": "The stock tagline. Not seen in this corpus but universally recognised."
+    },
+    { "pattern": "^(your|company|business|site) (name|title|website)$", "label": "template placeholder", "basis": "asserted" },
+    { "pattern": "^(untitled|no title|title here|site title|page title)$", "label": "unset title", "basis": "asserted" },
+    { "pattern": "^(john|jane) doe$", "label": "placeholder person", "basis": "asserted" },
+    { "pattern": "^(lorem ipsum|lorem ipsum dolor sit amet\\.?)$", "label": "lorem ipsum", "basis": "asserted",
+      "note": "Whole-value only. power-plugins.com legitimately sells a lorem ipsum generator, and substring matching would flag it." },
+    { "pattern": "^(admin|test|user|email|youremail)@", "label": "placeholder email", "basis": "asserted" },
+    { "pattern": "^\\+?1?[\\s-]?\\(?555\\)?[\\s-]?", "label": "fake 555 telephone", "basis": "asserted" },
+    { "pattern": "^(123 |1234 |123 main|123 fake|1 example)", "label": "placeholder street address", "basis": "asserted" },
+    { "pattern": "^(description|enter .* here|add .* here|edit this|change me|tbc|tba|n/?a)$", "label": "unfilled field", "basis": "asserted" },
+    { "pattern": "^https?://(www\\.)?example\\.(com|org|net)", "label": "example.com", "basis": "asserted" },
+    {
+      "pattern": "<\\?php|\\?>|\\{\\{.*\\}\\}|%%[a-z_]+%%|\\$\\{.*\\}",
+      "label": "unexecuted template code",
+      "basis": "observed",
+      "note": "One corpus site publishes '<?php the_author(); ?>' as the author name on all 150 pages — the theme emits the PHP literally instead of running it. Deliberately the one substring rule in this file: template code is a fragment by nature and never anchors, and no legitimate value contains '<?php'. Also covers Yoast's %%title%% replacement variables and Mustache/Twig braces."
+    }
+  ],
+
+  "_benign_media_hosts": [
+    "Hosts that legitimately serve media for somebody else's site, so an image",
+    "pointing at one is not a finding.",
+    "",
+    "A subdomain of the site's own registrable domain is always benign and is",
+    "handled in code rather than listed here — cdn.example.com serving",
+    "example.com's images is the normal shape of a CDN, and headwall-hosting.com",
+    "does exactly that for 35 URLs.",
+    "",
+    "Gravatar dominates: it appears on 7 of 22 corpus sites as the author avatar",
+    "of every WordPress user. Without it here, this check would fire on most",
+    "WordPress sites and be worthless."
+  ],
+
+  "benign_media_hosts": [
+    "secure.gravatar.com",
+    "www.gravatar.com",
+    "gravatar.com",
+    "i0.wp.com",
+    "i1.wp.com",
+    "i2.wp.com",
+    "i3.wp.com",
+    "res.cloudinary.com",
+    "imgix.net",
+    "cloudfront.net",
+    "akamaized.net",
+    "cdn.shopify.com",
+    "static.wixstatic.com",
+    "images.squarespace-cdn.com",
+    "lh3.googleusercontent.com",
+    "youtube.com",
+    "www.youtube.com",
+    "i.ytimg.com",
+    "img.youtube.com",
+    "player.vimeo.com",
+    "i.vimeocdn.com"
+  ],
+
+  "_media_properties": [
+    "Properties whose value is a media resource. A foreign host on one of these",
+    "is a finding; a foreign host on `sameAs` is the entire point of `sameAs`."
+  ],
+
+  "media_properties": [
+    "image",
+    "logo",
+    "contentUrl",
+    "thumbnailUrl",
+    "thumbnail",
+    "primaryImageOfPage",
+    "photo",
+    "screenshot",
+    "embedUrl"
+  ]
+}
