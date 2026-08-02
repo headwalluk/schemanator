@@ -41,6 +41,7 @@ function page(id: string, overrides: Partial<PageRecord> = {}): PageRecord {
     content_sha256: 'x',
     bytes: 1,
     html_purged: false,
+    microdata_types: [],
     extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: 0, rdfa_items: 0, nodes: 1 },
     errors: [],
     ...overrides,
@@ -391,4 +392,69 @@ test('missing-expected-entity is suppressed under partial coverage', () => {
     true,
   );
   assert.deepEqual(findings, []);
+});
+
+// --- coverage.competing-syntax: types come from THIS site --------------------
+
+test('the microdata types reported are the ones found on this site', () => {
+  // Until 1.1.0 the summary named WPHeader, SiteNavigationElement and Blog —
+  // types measured on two other sites — as an illustration of what microdata
+  // usually is. An agent consuming the report repeated them as fact about a
+  // site where nothing had checked.
+  const withMicrodata = (id: string, types: string[]): PageRecord =>
+    page(id, {
+      microdata_types: types,
+      extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: types.length, rdfa_items: 0, nodes: 1 },
+    });
+
+  const findings = only(
+    'coverage.competing-syntax',
+    [node({ id: 'https://example.com/a#page', page: 'a', types: [S('WebPage')], props: { [S('name')]: [{ '@value': 'A' }] } })],
+    [withMicrodata('a', ['WPFooter', 'Recipe']), withMicrodata('b', ['Recipe'])],
+  );
+
+  assert.equal(findings.length, 1);
+  const summary = findings[0]?.summary ?? '';
+
+  // What was actually found, with per-page counts.
+  assert.match(summary, /Recipe \(2 pages\)/);
+  assert.match(summary, /WPFooter \(1 page\)/);
+
+  // And nothing borrowed from another site's markup.
+  for (const borrowed of ['SiteNavigationElement', 'WPHeader', 'Blog']) {
+    assert.equal(summary.includes(borrowed), false, `summary cites ${borrowed}, which is not on this site`);
+  }
+});
+
+test('a type present in both syntaxes is distinguished from one that is not', () => {
+  const findings = only(
+    'coverage.competing-syntax',
+    [node({ id: 'https://example.com/a#page', page: 'a', types: [S('WebPage')], props: { [S('name')]: [{ '@value': 'A' }] } })],
+    [
+      page('a', {
+        microdata_types: ['WebPage', 'WPFooter'],
+        extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: 2, rdfa_items: 0, nodes: 1 },
+      }),
+    ],
+  );
+
+  const observed = findings[0]?.observed.map((entry) => entry.value) ?? [];
+  assert.equal(observed.includes('WebPage — also in the JSON-LD'), true);
+  assert.equal(observed.includes('WPFooter — not in the JSON-LD'), true);
+});
+
+test('a crawl predating type recording says so rather than guessing', () => {
+  const findings = only(
+    'coverage.competing-syntax',
+    [node({ id: 'https://example.com/a#page', page: 'a', types: [S('WebPage')], props: { [S('name')]: [{ '@value': 'A' }] } })],
+    [
+      page('a', {
+        microdata_types: [],
+        extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: 4, rdfa_items: 0, nodes: 1 },
+      }),
+    ],
+  );
+
+  assert.match(findings[0]?.summary ?? '', /types are not known/);
+  assert.match(findings[0]?.summary ?? '', /analyse/);
 });

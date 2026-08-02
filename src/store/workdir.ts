@@ -73,6 +73,19 @@ export interface PageRecord {
   html_purged: boolean;
   /** Null until extraction has run (`dev-notes/03`). */
   extraction: null | Record<string, number>;
+  /**
+   * `itemtype` values seen on the page, read from attributes rather than parsed.
+   *
+   * Separate from `extraction` because that map is counts only, and this is the
+   * one piece of extraction output that is not a number. Kept because
+   * `coverage.competing-syntax` has to name the types it found on **this** site:
+   * without it the finding could only cite types measured on other sites, and a
+   * downstream agent will repeat those as though they were observed here.
+   *
+   * Empty on records written before this field existed. Re-running `analyse`
+   * fills it in, since that re-runs extraction over the stored HTML.
+   */
+  microdata_types: string[];
   errors: string[];
 }
 

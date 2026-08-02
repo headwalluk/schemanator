@@ -82,6 +82,9 @@ export async function runExtraction(options: ExtractionRunOptions): Promise<Extr
       rdfa_items: result.counts.rdfa_items,
       nodes: result.counts.nodes,
     };
+    // Sorted and de-duplicated: one page emitting `WPHeader` six times says the
+    // same thing as emitting it once, and the manifest is read by humans.
+    record.microdata_types = [...new Set(result.microdata_types)].sort();
     // Structural faults only extraction can see belong on the page record
     // (`03`), but must not clobber the crawl's own errors.
     const blockErrors = result.blocks

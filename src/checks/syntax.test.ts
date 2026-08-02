@@ -29,6 +29,7 @@ function page(id: string, errors: string[]): PageRecord {
     content_sha256: 'x',
     bytes: 1,
     html_purged: false,
+    microdata_types: [],
     extraction: { json_ld_blocks: 1, json_ld_failed: 1, microdata_items: 0, rdfa_items: 0, nodes: 0 },
     errors,
   };

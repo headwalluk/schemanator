@@ -420,6 +420,7 @@ async function storeResult(
     bytes: record.bytes,
     html_purged: false,
     extraction: null,
+    microdata_types: [],
     errors,
   };
 

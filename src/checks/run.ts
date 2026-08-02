@@ -690,6 +690,25 @@ const foreignMediaHost: Check = {
 
 // --- coverage.competing-syntax -----------------------------------------------
 
+/**
+ * Microdata sitting alongside a purpose-built JSON-LD graph.
+ *
+ * Site-level, one finding. Both corpus sites carrying microdata carry it on
+ * every page; per-page this would emit 242 findings saying only "these two
+ * things coexist" — the drowning rule 2 exists to prevent.
+ *
+ * **The types are read from this site, never cited from another.** Until 1.1.0
+ * the summary named `WPHeader`, `SiteNavigationElement` and `Blog` — types
+ * measured on two corpus sites — as an illustration of what microdata usually
+ * turns out to be. It read as though they had been found on the site in hand,
+ * and an agent consuming the report repeated them as fact about a site where
+ * nothing had checked.
+ *
+ * `microdata_types` was already extracted per page and then discarded before it
+ * reached the manifest. Now it is kept, so the finding can name what is actually
+ * there and say which of it the JSON-LD already covers — the distinction that
+ * tells an operator whether they are looking at dilution or at duplication.
+ */
 const competingSyntax: Check = {
   id: 'coverage.competing-syntax',
   group: 'coverage',
@@ -697,12 +716,49 @@ const competingSyntax: Check = {
     const microdataPages = pages.filter((page) => (page.extraction?.['microdata_items'] ?? 0) > 0);
     if (microdataPages.length === 0) return [];
 
+    // Both sides must be short names before they can be compared. `itemtype` is
+    // a raw attribute and arrives as a full IRI; node types are full IRIs too,
+    // but of the `http://` spelling. Comparing either as-is matches nothing, and
+    // the finding then claims every type is absent from the JSON-LD — including
+    // `WebPage` on a site whose JSON-LD is mostly WebPage nodes.
     const jsonLdTypes = new Set<string>();
-    for (const node of graph.index.values()) for (const type of node.types) jsonLdTypes.add(shortIri(type));
+    for (const node of graph.allNodes) for (const type of node.types) jsonLdTypes.add(shortIri(type));
 
-    // Site-level, one finding. Both corpus sites carrying microdata carry it on
-    // every page; per-page this would emit 242 findings saying only "these two
-    // things coexist" — the drowning rule 2 exists to prevent.
+    // How many pages carry each microdata type, and does the JSON-LD say it too?
+    const typePages = new Map<string, number>();
+    for (const page of microdataPages) {
+      for (const type of page.microdata_types ?? []) {
+        const short = shortIri(type);
+        typePages.set(short, (typePages.get(short) ?? 0) + 1);
+      }
+    }
+
+    const ranked = [...typePages.entries()].sort(
+      ([leftType, leftCount], [rightType, rightCount]) =>
+        rightCount - leftCount || leftType.localeCompare(rightType),
+    );
+    const absent = ranked.filter(([type]) => !jsonLdTypes.has(type));
+
+    // A crawl predating `microdata_types` has the counts but not the types.
+    // Saying so beats inventing them, and re-running `analyse` fills it in.
+    const measured = ranked.length > 0;
+
+    const describe = measured
+      ? `The microdata declares ${ranked.length} type(s): ` +
+        `${ranked
+          .slice(0, 6)
+          .map(([type, count]) => `${type} (${count} page${count === 1 ? '' : 's'})`)
+          .join(', ')}${ranked.length > 6 ? ', and others' : ''}. ` +
+        (absent.length === 0
+          ? `Every one of them also appears in the JSON-LD, so the two syntaxes are describing the ` +
+            `same things twice.`
+          : `${absent.length} of them appear nowhere in the JSON-LD — ` +
+            `${absent.slice(0, 4).map(([type]) => type).join(', ')}${absent.length > 4 ? ', and others' : ''} — ` +
+            `which is the signature of theme boilerplate rather than a competing description of your ` +
+            `business.`)
+      : `This crawl predates per-page microdata type recording, so the types are not known. ` +
+        `Re-run \`schemanator analyse\` to fill them in — it needs no network.`;
+
     return [
       {
         finding_id: findingId(competingSyntax.id, 'site'),
@@ -712,19 +768,25 @@ const competingSyntax: Check = {
         title: 'Microdata sits alongside the JSON-LD graph',
         subject: { kind: 'site', id: 'site' },
         summary:
-          `${microdataPages.length} of ${pages.length} pages emit microdata as well as JSON-LD. On the ` +
-          `sites measured so far this is theme boilerplate — WPHeader, SiteNavigationElement, Blog — ` +
-          `which adds nothing and competes with a purpose-built graph. The entity-level comparison ` +
-          `has not been performed.`,
+          `${microdataPages.length} of ${pages.length} pages emit microdata as well as JSON-LD. ` +
+          `${describe} The entity-level comparison — whether the two syntaxes ever *disagree* about ` +
+          `one entity — has not been performed.`,
         expected: null,
-        observed: [
-          {
-            value: `microdata on ${microdataPages.length} page(s)`,
-            observation_count: microdataPages.length,
-            page_count: microdataPages.length,
-            provenance: [],
-          },
-        ],
+        observed: measured
+          ? ranked.slice(0, 10).map(([type, count]) => ({
+              value: `${type} — ${jsonLdTypes.has(type) ? 'also in the JSON-LD' : 'not in the JSON-LD'}`,
+              observation_count: count,
+              page_count: count,
+              provenance: [],
+            }))
+          : [
+              {
+                value: `microdata on ${microdataPages.length} page(s), types not recorded`,
+                observation_count: microdataPages.length,
+                page_count: microdataPages.length,
+                provenance: [],
+              },
+            ],
         pages_affected: microdataPages.length,
         coverage_qualified: true,
         remediation:
