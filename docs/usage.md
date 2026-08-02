@@ -6,6 +6,8 @@
 schemanator <site> [options]           # crawl, extract, check, report
 schemanator crawl <site> [options]     # crawl only, no analysis
 schemanator analyse <site> [options]   # re-analyse a stored crawl, no network
+schemanator sites                      # what has been crawled, and what it costs
+schemanator purge <site> [--html]      # reclaim disk
 ```
 
 `<site>` may be a bare hostname. `example.com` is read as `https://example.com`.
@@ -179,8 +181,59 @@ Keep `--max-pages` the same across runs you intend to compare.
 | `--no-sort-query` | Do not sort query parameters when canonicalising |
 | `--log-level <level>` | `silent`, `error`, `warn`, `info`, `debug`. Default `info` |
 | `--quiet` / `--verbose` | Aliases for `--log-level error` / `debug` |
+| `--html` | `purge` only: remove stored HTML, keep reports and nodes |
+| `--yes` | `purge` only: actually delete. Without it, `purge` is a dry run |
 | `--help` | Show usage |
 | `--version` | Print the version and exit. One bare line, so it parses |
+
+## Housekeeping
+
+Crawls accumulate. Stored HTML runs to roughly 250 KB a page, so twenty sites is
+comfortably half a gigabyte, and after a few months nobody remembers which
+directories are still wanted.
+
+### What is here
+
+```sh
+schemanator sites
+```
+
+```
+SITE                       PAGES    SIZE    HTML    RUNS  CRAWLED
+example.com                149/150  81 MB   76 MB   11    2026-08-01
+shop.example               150/150  64 MB   57 MB   12    2026-08-01
+small.example              5/5      575 KB  389 KB  8     2026-07-28
+
+3 site(s), 146 MB total, 133 MB of it reclaimable stored HTML
+```
+
+Largest first, because the question this usually answers is *"what is eating my
+disk"*. `PAGES` is 200-responses over total fetched; `HTML` is the part you can
+reclaim without losing your audit history, and reads `purged` once you have.
+
+`--json` for scripting.
+
+### Reclaiming space
+
+```sh
+schemanator purge example.com --html      # stored pages only
+schemanator purge example.com             # the whole site
+```
+
+**Both print what they would remove and delete nothing.** Add `--yes` to go
+ahead.
+
+That is not generic caution. A crawl costs an hour of somebody else's bandwidth,
+one polite request at a time — so deleting one by accident is not merely your
+inconvenience, it means going back and taking it again.
+
+| | Keeps | Loses |
+| --- | --- | --- |
+| `--html` | Reports, extracted nodes, the manifest | Re-analysis, until you re-crawl |
+| *(no flag)* | Nothing | Everything for that site |
+
+`--html` also sets `html_purged` in the manifest. Deleting the files by hand
+works but leaves `pages.jsonl` claiming the HTML is still there.
 
 ## Interrupted crawls
 

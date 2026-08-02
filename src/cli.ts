@@ -18,9 +18,13 @@ import { createLogger, resolveLogLevel, LOG_LEVELS } from './log.ts';
 import { defaultWorkRoot, DEFAULT_VERBOSE_ERRORS, MODE, VERSION } from './runtime.ts';
 import { siteSlugFor } from './store/workdir.ts';
 import { coerceToUrl, looksLikeTarget, UrlCanonicalisationError } from './url/canonical.ts';
+import { applyPurge, formatBytes, listSites, planPurge } from './store/inventory.ts';
 
 /** Subcommands. Anything not in here, and not hostname-shaped, is an error. */
-const KNOWN_COMMANDS = new Set(['scan', 'crawl', 'analyse', 'analyze']);
+const KNOWN_COMMANDS = new Set(['scan', 'crawl', 'analyse', 'analyze', 'sites', 'purge']);
+
+/** Commands that operate on the work directory rather than on one site. */
+const WORKDIR_COMMANDS = new Set(['sites']);
 
 const USAGE = `schemanator — whole-site structured-data integrity checking
 
@@ -30,6 +34,10 @@ Usage:
   schemanator analyse <site> [options]  Re-analyse a stored crawl. No network,
                                         so rule changes can be re-evaluated
                                         against real sites in seconds.
+  schemanator sites                     List what has been crawled, and what it
+                                        is costing on disk.
+  schemanator purge <site> [--html]     Remove a crawl. Prints what it would
+                                        remove; needs --yes to act.
 
 <site> may be a bare hostname — "example.com" is read as "https://example.com".
 
@@ -66,6 +74,10 @@ Options:
                          recent previous run. Findings are matched by id, so a
                          half-fixed problem shows as Changed, not as one
                          resolved plus one new.
+  --html                 purge only: remove stored HTML, keep reports and nodes.
+  --yes                  purge only: actually delete. Without it, purge is a
+                         dry run — re-crawling costs the site's bandwidth, not
+                         just your time.
   --log-level <level>    ${LOG_LEVELS.join(' | ')}. Default info.
   --quiet                Alias for --log-level error.
   --verbose              Alias for --log-level debug.
@@ -113,6 +125,8 @@ async function main(argv: string[]): Promise<number> {
       verbose: { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
       version: { type: 'boolean', default: false },
+      yes: { type: 'boolean', default: false },
+      html: { type: 'boolean', default: false },
     },
   });
 
@@ -157,7 +171,10 @@ async function main(argv: string[]): Promise<number> {
     process.stderr.write(`unknown command ${JSON.stringify(command)}\n\n${USAGE}`);
     return 1;
   }
-  if (target === undefined) {
+  // `sites` operates on the whole work directory, so it is the one command that
+  // takes no target. Everything else is checked once the housekeeping commands
+  // have had their turn, below.
+  if (target === undefined && !WORKDIR_COMMANDS.has(command ?? '')) {
     process.stderr.write(`${command} needs a site\n\n${USAGE}`);
     return 1;
   }
@@ -177,6 +194,111 @@ async function main(argv: string[]): Promise<number> {
   // Aliases resolve to a level here so there is exactly one precedence chain.
   const levelFlag = values.quiet === true ? 'error' : values.verbose === true ? 'debug' : values['log-level'];
   const logger = createLogger(resolveLogLevel({ flag: levelFlag, env: process.env['LOG_LEVEL'] }));
+
+  const workRoot = values['work-dir'] ?? defaultWorkRoot();
+
+  // --- housekeeping ----------------------------------------------------------
+
+  if (command === 'sites') {
+    const sites = await listSites(workRoot);
+
+    if (format === 'json') {
+      process.stdout.write(`${JSON.stringify({ work_dir: workRoot, sites }, null, 2)}\n`);
+      return 0;
+    }
+
+    if (sites.length === 0) {
+      process.stdout.write(`Nothing crawled yet under ${workRoot}\n`);
+      return 0;
+    }
+
+    const rows = sites.map((site) => ({
+      slug: site.slug,
+      pages: site.pages === null ? '—' : `${site.pages_ok ?? site.pages}/${site.pages}`,
+      size: formatBytes(site.usage.total_bytes),
+      html: site.html_purged ? 'purged' : formatBytes(site.usage.html_bytes),
+      runs: String(site.runs),
+      crawled: site.last_crawled === null ? '—' : (site.last_crawled.slice(0, 10) ?? '—'),
+    }));
+
+    const width = (key: keyof (typeof rows)[number], heading: string): number =>
+      Math.max(heading.length, ...rows.map((row) => row[key].length));
+
+    const columns = [
+      { key: 'slug' as const, heading: 'SITE' },
+      { key: 'pages' as const, heading: 'PAGES' },
+      { key: 'size' as const, heading: 'SIZE' },
+      { key: 'html' as const, heading: 'HTML' },
+      { key: 'runs' as const, heading: 'RUNS' },
+      { key: 'crawled' as const, heading: 'CRAWLED' },
+    ].map((column) => ({ ...column, width: width(column.key, column.heading) }));
+
+    const line = (cells: string[]): string =>
+      cells.map((cell, index) => cell.padEnd(columns[index]?.width ?? 0)).join('  ').trimEnd();
+
+    process.stdout.write(`${line(columns.map((column) => column.heading))}\n`);
+    for (const row of rows) process.stdout.write(`${line(columns.map((column) => row[column.key]))}\n`);
+
+    const total = sites.reduce((sum, site) => sum + site.usage.total_bytes, 0);
+    const html = sites.reduce((sum, site) => sum + site.usage.html_bytes, 0);
+    process.stdout.write(
+      `\n${sites.length} site(s), ${formatBytes(total)} total` +
+        (html > 0 ? `, ${formatBytes(html)} of it reclaimable stored HTML` : '') +
+        `\n${workRoot}\n`,
+    );
+
+    for (const site of sites) {
+      for (const note of site.notes) logger.warn(`${site.slug}: ${note}`);
+    }
+    return 0;
+  }
+
+  // Everything past here needs a target. `sites` has already returned, so this
+  // both reports the error and narrows the type for the rest of the function.
+  if (target === undefined) {
+    process.stderr.write(`${command} needs a site\n\n${USAGE}`);
+    return 1;
+  }
+
+  if (command === 'purge') {
+    const slug = values.site ?? siteSlugFor(coerceToUrl(target));
+    const scope = values.html === true ? 'html' : 'all';
+    const plan = await planPurge(workRoot, slug, scope);
+
+    if (plan.missing) {
+      process.stderr.write(`nothing to purge: ${plan.root} does not exist\n`);
+      return 1;
+    }
+    if (plan.files === 0) {
+      process.stdout.write(
+        scope === 'html' ? `${slug}: no stored HTML — already purged?\n` : `${slug}: nothing to remove\n`,
+      );
+      return 0;
+    }
+
+    const what =
+      scope === 'html'
+        ? `${plan.files} stored page(s), ${formatBytes(plan.bytes)}, from ${slug}`
+        : `all of ${slug} — ${plan.files} file(s), ${formatBytes(plan.bytes)}`;
+
+    // Dry by default, and the reason is not generic caution. Re-crawling costs
+    // somebody else's bandwidth, an hour of it, one polite request at a time.
+    // An accidental purge is not merely your inconvenience.
+    if (values.yes !== true) {
+      process.stdout.write(`Would remove ${what}.\n`);
+      if (scope === 'all') {
+        process.stdout.write(`Reports and extracted nodes go too. Re-crawling means hitting the site again.\n`);
+      } else {
+        process.stdout.write(`Reports and extracted nodes are kept, but re-analysis needs the HTML.\n`);
+      }
+      process.stdout.write(`\nNothing has been deleted. Add --yes to go ahead.\n`);
+      return 0;
+    }
+
+    await applyPurge(plan);
+    process.stdout.write(`Removed ${what}.\n`);
+    return 0;
+  }
 
   const maxPages = numeric('max-pages', values['max-pages']);
   const maxDepth = numeric('max-depth', values['max-depth']);
@@ -270,6 +392,26 @@ async function main(argv: string[]): Promise<number> {
   if (summary.aborted !== null) return 2;
   return 0;
 }
+
+/**
+ * A reader that stops reading is not an error.
+ *
+ * `schemanator example.com | less` and quitting before the end, or `| head -1`,
+ * closes the pipe while we are still writing to it. Node's default response is
+ * an unhandled `'error'` event and a stack trace, which is an unhelpful answer
+ * to a command this tool's own documentation recommends.
+ *
+ * Whether it fires at all is a race between the reader exiting and the next
+ * write, so it is intermittent — which makes it worse rather than better,
+ * because it will surface once, for somebody else, at a bad moment.
+ *
+ * Exit quietly: the consumer got what it asked for. Anything that is *not*
+ * EPIPE is still a real failure and still rethrown.
+ */
+process.stdout.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code === 'EPIPE') process.exit(0);
+  throw error;
+});
 
 try {
   process.exitCode = await main(process.argv.slice(2));

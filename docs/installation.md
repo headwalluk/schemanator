@@ -79,15 +79,18 @@ The stored HTML is what lets you re-analyse a crawl without re-fetching it, but
 it is disposable:
 
 ```sh
-find ~/.local/state/schemanator -name page.html -delete
+schemanator sites                        # what is here, and what it costs
+schemanator purge example.com --html     # shows what it would remove
+schemanator purge example.com --html --yes
 ```
 
-Everything except re-analysis still works afterwards.
+Reports and extracted nodes survive; only the stored pages go. Re-analysis needs
+the HTML, so that is what you give up.
 
-One wrinkle worth knowing: `pages.jsonl` carries an `html_purged` flag, and
-deleting the files by hand does not set it. The manifest will still say the HTML
-is there. Nothing reads that flag today, so nothing breaks — but do not trust it
-after a manual purge.
+Deleting the files by hand works too, but leaves `pages.jsonl` insisting the HTML
+is still there. `purge` updates the manifest.
+
+See [housekeeping](usage.md#housekeeping) for the full set.
 
 ## Before you crawl anything you do not own
 

@@ -2,6 +2,56 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.2.0 — 2026-08-02
+
+Housekeeping. A crawl is expensive in a way that is easy to forget once it has
+finished, and the work directory accumulates: stored HTML runs to roughly 250 KB
+a page, so twenty sites is comfortably half a gigabyte and nobody remembers which
+directories are still wanted.
+
+### Added
+
+- **`schemanator sites`** — what has been crawled, and what it costs. Pages
+  fetched against 200-responses, disk usage, how much of that is reclaimable
+  stored HTML, how many runs, and when it was last crawled. Largest first,
+  because the question this usually answers is *"what is eating my disk"*.
+  `--json` for scripting.
+
+  It reads the directory rather than keeping an index, so there is no state to
+  fall out of step: a work directory copied from another machine, or half-deleted
+  by hand, still reports honestly. A crawl that died before writing its summary
+  is listed with a note rather than skipped — the forgotten directories are
+  exactly the ones a crash left incomplete.
+
+- **`schemanator purge <site>`** — remove a crawl. `--html` removes only the
+  stored pages, keeping the reports, the extracted nodes and the manifest.
+
+  **Both print what they would remove and delete nothing without `--yes`.** Not
+  generic caution: a crawl is an hour of somebody else's bandwidth, taken one
+  polite request at a time, so an accidental purge is not merely your
+  inconvenience — it means going back and taking it again.
+
+- `--html` and `--yes` flags, for `purge` only.
+
+### Fixed
+
+- **`html_purged` finally means something.** The field has been in `pages.jsonl`
+  since 1.0.0 and was never set true; the `find … -delete` one-liner previously
+  documented reclaimed the space and left the manifest insisting the HTML was
+  still there. `purge --html` updates it, and `sites` shows `purged` rather than
+  a size once it has.
+
+- **Piping into a reader that exits early no longer crashes.** `schemanator
+  example.com | less` — which this tool's own documentation recommends — would
+  throw an unhandled `EPIPE` and a stack trace if you quit the pager before the
+  end. Same for `| head`. It exits quietly now; the consumer got what it asked
+  for.
+
+  Present since 1.0.0 and in every command, not just the new ones. It surfaced
+  by accident here, and only intermittently: whether it fires is a race between
+  the reader exiting and the next write, which makes it worse rather than
+  better — it would have shown up once, for somebody else, at a bad moment.
+
 ## 1.1.0 — 2026-08-02
 
 ### Added
