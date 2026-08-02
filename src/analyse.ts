@@ -20,6 +20,7 @@ import { readGraph, runExtraction } from './extract/run.ts';
 import { SILENT_LOGGER, type Logger } from './log.ts';
 import { buildReport, type Report } from './report/build.ts';
 import { renderMarkdown } from './report/markdown.ts';
+import { renderHtml } from './report/html.ts';
 import { diffReports, type ReportDiff } from './report/diff.ts';
 import { renderDiffMarkdown } from './report/diff-markdown.ts';
 import { DEFAULT_EMIT_BY_TYPE, VERSION } from './runtime.ts';
@@ -39,6 +40,7 @@ export interface AnalyseOptions {
 export interface AnalyseResult {
   report: Report;
   markdown: string;
+  html: string;
   reportDir: string;
   diff: ReportDiff | null;
   diffMarkdown: string | null;
@@ -138,6 +140,7 @@ export async function runAnalysis(options: AnalyseOptions): Promise<AnalyseResul
   });
 
   const markdown = renderMarkdown(report);
+  const html = renderHtml(report);
 
   // Resolve --since BEFORE writing this run, or `last` would find itself.
   let previous: Report | null = null;
@@ -151,6 +154,7 @@ export async function runAnalysis(options: AnalyseOptions): Promise<AnalyseResul
 
   await workDir.writeReport(report.run.run_id, 'report.json', `${JSON.stringify(report, null, 2)}\n`);
   await workDir.writeReport(report.run.run_id, 'report.md', markdown);
+  await workDir.writeReport(report.run.run_id, 'report.html', html);
 
   let diff: ReportDiff | null = null;
   let diffMarkdown: string | null = null;
@@ -161,5 +165,5 @@ export async function runAnalysis(options: AnalyseOptions): Promise<AnalyseResul
     await workDir.writeReport(report.run.run_id, 'diff.md', diffMarkdown);
   }
 
-  return { report, markdown, reportDir: workDir.reportsDir(report.run.run_id), diff, diffMarkdown };
+  return { report, markdown, html, reportDir: workDir.reportsDir(report.run.run_id), diff, diffMarkdown };
 }

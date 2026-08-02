@@ -57,7 +57,10 @@ Options:
   --resume               Continue from an existing frontier rather than starting over.
   --no-sort-query        Do not sort query parameters when canonicalising.
   --disable <check>      Disable a check or a whole group. Repeatable.
-  --json                 Emit report.json to stdout instead of markdown.
+  --format <fmt>         md (default), json, or html. All three are written to
+                         the run directory regardless; this picks what goes to
+                         stdout.
+  --json                 Alias for --format json.
   --since <run-id>       Diff this run against an earlier one and print the
                          diff instead of the report. "last" picks the most
                          recent previous run. Findings are matched by id, so a
@@ -102,6 +105,7 @@ async function main(argv: string[]): Promise<number> {
       resume: { type: 'boolean', default: false },
       'no-sort-query': { type: 'boolean', default: false },
       disable: { type: 'string', multiple: true, default: [] },
+      format: { type: 'string' },
       json: { type: 'boolean', default: false },
       since: { type: 'string' },
       'log-level': { type: 'string' },
@@ -123,6 +127,22 @@ async function main(argv: string[]): Promise<number> {
   if (values.help === true || positionals.length === 0) {
     process.stdout.write(USAGE);
     return values.help === true ? 0 : 1;
+  }
+
+  /**
+   * `--format` is the surface; `--json` is kept as an alias for it.
+   *
+   * Removing `--json` would be a breaking change to a published CLI, and the
+   * documented CI and fleet snippets all use it. It costs one line to keep, and
+   * `--json` is the near-universal convention besides.
+   *
+   * If both are given, the explicit `--format` wins — someone who typed it meant
+   * it, and silently preferring the alias would be surprising.
+   */
+  const format = values.format ?? (values.json === true ? 'json' : 'md');
+  if (format !== 'md' && format !== 'json' && format !== 'html') {
+    process.stderr.write(`unknown --format ${JSON.stringify(format)}. Expected md, json or html.\n`);
+    return 1;
   }
 
   // `schemanator example.com` and `schemanator crawl example.com` both work.
@@ -188,11 +208,21 @@ async function main(argv: string[]): Promise<number> {
     });
 
     if (result.diff !== null) {
+      // No HTML renderer for a diff yet, so `--format html` falls back to
+      // markdown rather than pretending. Saying so beats emitting the wrong
+      // document silently.
+      if (format === 'html') logger.warn('--format html does not cover diffs yet; printing markdown.');
       process.stdout.write(
-        values.json === true ? `${JSON.stringify(result.diff, null, 2)}\n` : (result.diffMarkdown ?? ''),
+        format === 'json' ? `${JSON.stringify(result.diff, null, 2)}\n` : (result.diffMarkdown ?? ''),
       );
     } else {
-      process.stdout.write(values.json === true ? `${JSON.stringify(result.report, null, 2)}\n` : result.markdown);
+      process.stdout.write(
+        format === 'json'
+          ? `${JSON.stringify(result.report, null, 2)}\n`
+          : format === 'html'
+            ? result.html
+            : result.markdown,
+      );
     }
     logger.info(`\nReport: ${result.reportDir}`);
     return 0;
@@ -207,7 +237,13 @@ async function main(argv: string[]): Promise<number> {
 
     // Report to stdout, logs to stderr, so this pipes into a pager, a file or
     // an agent without commentary corrupting the output.
-    process.stdout.write(values.json === true ? `${JSON.stringify(result.report, null, 2)}\n` : result.markdown);
+    process.stdout.write(
+      format === 'json'
+        ? `${JSON.stringify(result.report, null, 2)}\n`
+        : format === 'html'
+          ? result.html
+          : result.markdown,
+    );
     logger.info(`\nReport: ${result.reportDir}`);
     return result.crawl.aborted !== null ? 2 : 0;
   }

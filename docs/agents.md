@@ -74,7 +74,7 @@ to be copied across, or the crawl has to happen there. There is no remote mode.
 filtering or aggregating rather than reading:
 
 ```sh
-schemanator analyse example.com --json
+schemanator analyse example.com --format json    # or --json, the alias
 ```
 
 Pin against `report_schema`, which is an integer and bumps on any breaking

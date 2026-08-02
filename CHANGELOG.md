@@ -2,6 +2,44 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.1.0 — 2026-08-02
+
+### Added
+
+- **`--format md|json|html`.** `md` remains the default and still pipes; `json`
+  is the contract; `html` is new.
+
+  **`--json` is kept as an alias for `--format json`.** Removing it would have
+  been a breaking change to a CLI published the same day, and every documented
+  CI and fleet snippet uses it. It costs one line and it is the near-universal
+  convention.
+
+- **The HTML report.** One self-contained file — inline CSS, no stylesheet, no
+  webfont, no image, **no JavaScript**, no network request of any kind. It has
+  to survive being emailed, attached to a ticket, or opened from an archive in
+  five years, and in each of those a fetch either fails or quietly reports that
+  the file was opened. The no-JavaScript rule is the load-bearing one: a file
+  that arrives by email and runs script is indistinguishable from something a
+  mail client should block, and half of them will.
+
+  It follows the reader's light or dark theme and carries print rules, because
+  these become PDFs attached to tickets. Severity is a word as well as a colour,
+  so nothing is lost on a mono printer.
+
+  Every interpolated string is escaped without exception. Titles, values and
+  provenance URLs are all copied out of somebody else's markup, and a site
+  publishing `<script>` in a `name` must not get it executed in a report the
+  operator opens. There is no field that is safe by construction.
+
+- `report.html` is written to the run directory on **every** run, alongside
+  `report.json` and `report.md`. `--format` only picks what goes to stdout, so
+  the HTML can be sent on later without re-running anything.
+
+### Notes
+
+The diff (`--since`) has no HTML renderer. Asking for one prints markdown and
+says so, rather than silently emitting the wrong document.
+
 ## 1.0.1 — 2026-08-02
 
 ### Fixed

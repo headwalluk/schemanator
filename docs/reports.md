@@ -6,9 +6,13 @@ Every run writes a timestamped directory:
 <work-dir>/<site>/reports/<run-id>/
     report.json     the contract
     report.md       generated from it
+    report.html     generated from it — one self-contained file
     diff.json       only when --since was used
     diff.md         only when --since was used
 ```
+
+All three report files are written on every run, whatever `--format` you asked
+for. That flag only picks what goes to stdout.
 
 `report.json` is the primary artefact. The markdown is a rendering of it, and so
 is anything you build — an email, a dashboard, a spreadsheet. If a renderer

@@ -12,6 +12,7 @@ import { readGraph, runExtraction } from './extract/run.ts';
 import { SILENT_LOGGER, type Logger } from './log.ts';
 import { buildReport, type Report } from './report/build.ts';
 import { renderMarkdown } from './report/markdown.ts';
+import { renderHtml } from './report/html.ts';
 import { DEFAULT_EMIT_BY_TYPE, VERSION } from './runtime.ts';
 import { siteSlugFor, WorkDir } from './store/workdir.ts';
 
@@ -25,6 +26,7 @@ export interface PipelineResult {
   crawl: CrawlSummary;
   report: Report;
   markdown: string;
+  html: string;
   reportDir: string;
 }
 
@@ -72,9 +74,14 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
   });
 
   const markdown = renderMarkdown(report);
+  const html = renderHtml(report);
 
+  // All three are written regardless of --format (`05`), so the artefacts exist
+  // whichever way the command was invoked — you can email the HTML later without
+  // re-running anything.
   await workDir.writeReport(report.run.run_id, 'report.json', `${JSON.stringify(report, null, 2)}\n`);
   await workDir.writeReport(report.run.run_id, 'report.md', markdown);
+  await workDir.writeReport(report.run.run_id, 'report.html', html);
 
-  return { crawl, report, markdown, reportDir: workDir.reportsDir(report.run.run_id) };
+  return { crawl, report, markdown, html, reportDir: workDir.reportsDir(report.run.run_id) };
 }

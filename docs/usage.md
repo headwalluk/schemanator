@@ -16,7 +16,41 @@ schemanator analyse <site> [options]   # re-analyse a stored crawl, no network
 schemanator example.com > report.md
 schemanator example.com | less
 schemanator example.com --json | jq '.findings[] | select(.severity == "error")'
+schemanator example.com --format html > report.html
 ```
+
+## Output formats
+
+`--format` picks what goes to **stdout**. All three files are written to the run
+directory regardless, so the artefacts exist however the command was invoked —
+you can email the HTML later without re-running anything.
+
+| Format | For |
+| --- | --- |
+| `md` *(default)* | Terminal reading, and handing to a coding agent. Pipes cleanly |
+| `json` | The contract. Scripting, CI gates, fleet aggregation |
+| `html` | Sharing and archiving. One self-contained file |
+
+`--json` is kept as an alias for `--format json`, so existing scripts keep
+working.
+
+### The HTML report
+
+One file, and deliberately so: inline CSS, no stylesheet, no webfont, no image,
+**no JavaScript**, and no network request of any kind. It survives being emailed,
+attached to a ticket, or opened from an archive in five years — all cases where a
+fetch either fails or quietly reports that the file was opened.
+
+It follows the reader's light or dark theme, and has print rules, because these
+get turned into PDFs and attached to tickets. Severity is shown as a word as well
+as a colour, so nothing is lost on a mono printer.
+
+```sh
+schemanator example.com --format html > audit.html
+```
+
+The diff (`--since`) has no HTML renderer yet. Asking for one prints markdown and
+says so rather than silently emitting the wrong document.
 
 ## Start with a dry run
 
@@ -140,7 +174,8 @@ Keep `--max-pages` the same across runs you intend to compare.
 | `--site <slug>` | Site key under the work directory. Default: the hostname |
 | `--disable <check>` | Disable a check or a whole group. Repeatable |
 | `--since <run-id>` | Diff against an earlier run. `last` for the most recent |
-| `--json` | Emit JSON to stdout instead of markdown |
+| `--format <fmt>` | `md` (default), `json` or `html`. Picks what goes to stdout |
+| `--json` | Alias for `--format json` |
 | `--no-sort-query` | Do not sort query parameters when canonicalising |
 | `--log-level <level>` | `silent`, `error`, `warn`, `info`, `debug`. Default `info` |
 | `--quiet` / `--verbose` | Aliases for `--log-level error` / `debug` |
