@@ -1,9 +1,9 @@
 # schemanator
 
-[![licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue)](LICENSE)
-[![Node.js ≥ 22](https://img.shields.io/badge/node-%E2%89%A5%2022-brightgreen)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)](https://www.typescriptlang.org/)
-[![tests: 310](https://img.shields.io/badge/tests-310-success)](#)
+[![npm](https://img.shields.io/npm/v/@headwall/schemanator)](https://www.npmjs.com/package/@headwall/schemanator)
+[![licence](https://img.shields.io/npm/l/@headwall/schemanator)](LICENSE)
+[![node](https://img.shields.io/node/v/@headwall/schemanator)](https://nodejs.org/)
+[![tests: 312](https://img.shields.io/badge/tests-312-success)](#)
 [![checks: 27](https://img.shields.io/badge/checks-27-blue)](docs/checks.md)
 
 **Whole-site structured-data integrity checking.** Crawls a site, reconstructs

@@ -241,3 +241,33 @@ test('the README test-count badge matches reality', () => {
     `README claims ${claimed} tests but there are at least ${actual} test() calls`,
   );
 });
+
+test('the README check-count badge matches reality', () => {
+  // The other static badge. Exact rather than a floor: unlike the test count,
+  // this number cannot be undercounted by loop-generated cases, and a
+  // catalogue that grows without the badge moving is the drift that had this
+  // project claiming "13 of 23" while its own table listed 27.
+  const badge = /!\[checks: (\d+)\]/.exec(read('README.md'));
+  assert.notEqual(badge, null, 'the README check-count badge has gone missing');
+
+  assert.equal(
+    Number(badge?.[1]),
+    BUILT.size,
+    `README claims ${badge?.[1]} checks, the engine can emit ${BUILT.size}`,
+  );
+});
+
+test('only badges that cannot be sourced live are static', () => {
+  // npm serves version, licence and the engines floor, so those three are
+  // dynamic and cannot rot. Test and check counts have no live source without
+  // CI, so they are static and each has a test above. Anything else static is
+  // a badge nobody is watching.
+  const badges = [...read('README.md').matchAll(/!\[([^\]]+)\]\((https:\/\/img\.shields\.io[^)]+)\)/g)];
+  const stat = badges.filter(([, , url]) => (url ?? '').includes('/badge/'));
+
+  assert.deepEqual(
+    stat.map(([, label]) => (label ?? '').split(':')[0]).sort(),
+    ['checks', 'tests'],
+    'a static badge exists with nothing asserting it stays true',
+  );
+});

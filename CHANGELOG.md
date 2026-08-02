@@ -2,6 +2,61 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.0.1 — 2026-08-02
+
+### Fixed
+
+- **`coverage.competing-syntax` cited another site's microdata types as though
+  they were yours.** The summary named `WPHeader`, `SiteNavigationElement` and
+  `Blog` — types measured on two corpus sites and offered as an illustration.
+  Read in a report about a different site it looks like a measurement, and an AI
+  agent consuming the report repeated all three as fact about a site where
+  nothing had checked.
+
+  The real answer was being extracted and thrown away: `microdata_types` was
+  computed per page and dropped before reaching `pages.jsonl`. It is persisted
+  now, so the finding names the types actually present and says which of them the
+  JSON-LD already covers — the distinction between dilution and duplication.
+
+- **The type comparison matched nothing.** `itemtype` arrives as a full IRI and
+  node types are normalised, so every microdata type was reported as absent from
+  the JSON-LD — including `WebPage`, on a site whose JSON-LD is mostly `WebPage`
+  nodes. Both sides are shortened before comparison.
+
+### Added
+
+- **`docs/agents.md`** — using schemanator with an AI agent. The crawl/analyse
+  split (crawl is slow and network-bound; `analyse` is offline and idempotent,
+  which keeps an agent away from the one command that fetches other people's
+  servers), and the sandbox pitfall: crawling in a terminal and analysing from a
+  sandboxed desktop agent fails *silently*, because output lands in
+  `~/.local/state/schemanator` and sandboxed apps are routinely denied it.
+- `microdata_types` on each `pages.jsonl` record. Additive; older crawls carry an
+  empty list and the finding says the types are unknown rather than inventing
+  any. Re-running `analyse` fills them in, with no network.
+
+### Changed
+
+- **npm version, licence and Node floor badges are now live**, sourced from the
+  published package rather than hand-edited. Test and check counts stay static —
+  neither has a live source without CI — and both now have a test asserting they
+  have not drifted, along with a third asserting no *other* static badge creeps
+  in unwatched.
+
+### Note
+
+Persisting the types reopened a decision closed the same morning. `04` concluded
+microdata is theme chrome with "almost nothing to contradict", generalising from
+the only two sites examined by hand. Measured across all six microdata sites,
+four are chrome and **two are not** — one emitting `Organization` matching its
+JSON-LD plus `Rating` and `Review` present in neither, another emitting `Product`
+in both syntaxes across 20 pages.
+
+That last is verbatim the trigger condition recorded for revisiting full
+microdata extraction, and it was already in the corpus — unmeasurable because of
+the dropped field. Recorded, not acted on: the parser tension is unchanged, and
+overlap is not disagreement. A 1.1.0 question.
+
 ## 1.0.0 — 2026-08-02
 
 The check catalogue is complete and the package is publishable.
