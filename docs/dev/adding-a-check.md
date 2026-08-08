@@ -27,7 +27,15 @@ Questions worth answering before you write a rule:
 
 Checks live in `src/checks/`. Small related ones share a module —
 `structure.ts` holds seven — and a group large enough to need its own file gets
-one, as `breadcrumb.ts` did.
+one, as `breadcrumb.ts` and `google.ts` did.
+
+If the rule is really a *table* — a policy that will be edited more often than
+the code reading it — put the table in `data/` and keep the module to the
+mechanism. `cardinality.ts`, `hierarchy.ts`, `values.ts` and `google.ts` all
+work this way, and each validates its file strictly on load: a typo that
+silently degraded a rules file to "nothing is required" would produce a clean,
+confident, empty report, which is the worst failure available to a tool whose
+output people act on.
 
 A check is a pure function over the graph plus page records:
 

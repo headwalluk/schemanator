@@ -3,8 +3,8 @@
 [![npm](https://img.shields.io/npm/v/@headwall/schemanator)](https://www.npmjs.com/package/@headwall/schemanator)
 [![licence](https://img.shields.io/npm/l/@headwall/schemanator)](LICENSE)
 [![node](https://img.shields.io/node/v/@headwall/schemanator)](https://nodejs.org/)
-[![tests: 343](https://img.shields.io/badge/tests-343-success)](#)
-[![checks: 27](https://img.shields.io/badge/checks-27-blue)](docs/checks.md)
+[![tests: 363](https://img.shields.io/badge/tests-363-success)](#)
+[![checks: 30](https://img.shields.io/badge/checks-30-blue)](docs/checks.md)
 
 **Whole-site structured-data integrity checking.** Crawls a site, reconstructs
 its structured-data graph across every page, and reports the contradictions that
@@ -29,6 +29,19 @@ It matters most for **hybrid markup**: hand-written JSON-LD layered over
 plugin-generated JSON-LD, two sources describing one business, never reconciled,
 each individually valid. Increasingly common as sites outgrow what their SEO
 plugin emits.
+
+### And the per-page gaps, while it is in there
+
+Whole-site reconciliation is the reason this exists, but the crawl has already
+read every node by the time it runs — so the [`google`](docs/checks.md#google--googles-rich-result-requirements)
+group also reports the rich-result fields Google requires and recommends. Those
+are the warnings Search Console shows you *after* it has crawled you, aggregated
+by item type, with no pointer to the block they came from.
+
+Same findings, before deployment rather than weeks after it, across the whole
+site at once, and traced to the exact node. It is not a rich-results previewer
+and it does not re-implement vocabulary validation — validator.schema.org is free
+and already does that.
 
 ## The rule that makes it usable
 

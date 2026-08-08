@@ -19,6 +19,7 @@ import {
   matchPlaceholder,
 } from './values.ts';
 import { BREADCRUMB_CHECKS } from './breadcrumb.ts';
+import { GOOGLE_CHECKS, loadGoogleRules } from './google.ts';
 import { SYNTAX_CHECKS } from './syntax.ts';
 import { STRUCTURE_CHECKS } from './structure.ts';
 import {
@@ -860,6 +861,7 @@ export const ALL_CHECKS: Check[] = [
   ...STRUCTURE_CHECKS,
   ...BREADCRUMB_CHECKS,
   ...SYNTAX_CHECKS,
+  ...GOOGLE_CHECKS,
 ];
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, opportunity: 2 };
@@ -981,6 +983,7 @@ export function runChecks(options: {
     rules: loadCardinalityRules(),
     hierarchy: loadHierarchy(),
     heuristics: loadValueHeuristics(),
+    google: loadGoogleRules(),
     siteHost,
     partialCoverage: options.partialCoverage,
     silenced,

@@ -68,8 +68,8 @@ An invalid level is a loud error rather than a silent fallback — a typo in
 
 ## Tuning the rules
 
-Two data files ship with schemanator. Both are plain JSON, both are meant to be
-tuned, and both record *why* each entry is there so you can judge whether it
+Three data files ship with schemanator. All are plain JSON, all are meant to be
+tuned, and all record *why* each entry is there so you can judge whether it
 applies to your site.
 
 ### Functional properties
@@ -151,6 +151,45 @@ Gravatar and the common CDNs are listed because otherwise
 `url.foreign-media-host` fires on nearly every WordPress site and is worthless.
 Add your own image host here if you use one that is not covered — again, by
 editing the shipped file for now.
+
+### Google rich-result requirements
+
+`data/google-rich-results.json` holds the fields Google requires and recommends
+for each type the [`google` group](checks.md#google--googles-rich-result-requirements)
+checks.
+
+```jsonc
+{
+  "types": {
+    "Product": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/product-snippet",
+      "entry": true,                                   // judged wherever found
+      "required": ["name"],
+      "one_of": [["offers", "review", "aggregateRating"]],
+      "recommended": ["image", "aggregateRating", "review"],
+      "follow": ["offers", "review", "aggregateRating"]
+    }
+  }
+}
+```
+
+Every type must cite the Google page it came from — the loader refuses a rule
+without a `source`, because a requirement nobody can check against its origin is
+folklore rather than a rule.
+
+Two fields do more work than they look like they do:
+
+- **`entry`** — `false` means the type is judged only when reached from an entry
+  type along a `follow` property. An `Offer` nothing references is not a
+  finding; its price requirement belongs to the product snippet.
+- **`one_of`** — a set of which at least one must be present, reported by
+  `google.incomplete-alternative`. Entries may use one level of dotted path, so
+  `priceSpecification.price` satisfies the same requirement as `price`.
+
+Adding a type is the common edit — `Recipe` and `JobPosting` are absent only
+because no site in the test corpus has one. Rules are matched against a node's
+**most specific** type, so a new entry for a subclass overrides the one it
+inherits.
 
 ## Turning checks off
 

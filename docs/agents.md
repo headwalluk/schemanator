@@ -104,6 +104,27 @@ any finding asserting something is missing may simply be describing a page that
 was never fetched. Findings carry `coverage_qualified` for exactly this, and the
 markdown report leads with a warning when it applies.
 
+**A `google.missing-recommended` finding is not a work order.** This is the one
+that will bite, because the group reads like a checklist and an agent that fixes
+markup can satisfy every item without leaving the file.
+
+`Product omits review` means *no review is marked up*. It does not mean a review
+exists and the markup forgot it. Writing a `Review` node, or an
+`aggregateRating` of 4.8 from 127 ratings, makes the finding disappear and the
+markup false — and fabricated review markup is a Google guidelines violation
+that risks a manual action against the whole site. A business rating itself is
+ineligible for stars however the markup is written, so the fabrication does not
+even buy the result it was invented for.
+
+Every finding in that group carries a `tradeoff` field saying so. **Treat it as
+a hard precondition:** act on these only where the underlying fact already
+exists somewhere on the site, and where it does not, report the gap to a human
+rather than closing it.
+
+The two error checks — `google.missing-required` and
+`google.incomplete-alternative` — are safer, but the same test applies. An
+`Event` with no `location` needs the real venue, not a plausible one.
+
 ## The fix-and-verify loop
 
 The loop the tool is built around, with the agent doing the middle step:
@@ -139,3 +160,13 @@ Worth stating in the prompt, so the agent does not invent it:
 - **It never fetches off-site media.** `url.foreign-media-host` reports that your
   images depend on somebody else's server; it does not and cannot tell you
   whether they still resolve.
+- **It cannot read the page.** The `google` group knows a `Product` node has no
+  `review` property. It has no idea whether the page displays fifty customer
+  reviews the markup never captured, or whether the product has never been
+  reviewed by anyone. Those need opposite fixes, and only a human — or an agent
+  that has actually looked at the rendered page — can tell them apart.
+- **It does not check whether Google agrees.** These are Google's documented
+  requirements applied offline. Eligibility also depends on content quality,
+  policy and indexing, so a clean `google` group is a necessary condition for a
+  rich result, never a sufficient one. Confirm with the Rich Results Test before
+  telling anyone the problem is solved.

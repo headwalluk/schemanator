@@ -2,6 +2,82 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.3.0 — 2026-08-08
+
+The findings Search Console raises, found before it raises them.
+
+Everything this tool did until now needed two pages to see a problem. That is
+the point of it, and it means a whole class of defect went unreported: markup
+that is valid, self-consistent, identical sitewide, and still missing a field
+Google needs before it will show a rich result. The prompt was a real GSC report
+against a `Product` block that all 27 existing checks pass in silence, correctly.
+
+### Added
+
+- **Check group `google`** — Google's documented rich-result requirements,
+  applied across the whole site at once.
+
+  | Check | Severity | Reports |
+  | --- | --- | --- |
+  | `google.missing-required` | Error | A required field absent — no rich result at all |
+  | `google.incomplete-alternative` | Error | None of a required set, such as `offers`/`review`/`aggregateRating` on a `Product` |
+  | `google.missing-recommended` | Opportunity | A recommended field absent — the class Search Console lists as warnings |
+
+  Covers `Product`, `Offer`, `AggregateOffer`, `Event`, `Place`,
+  `VirtualLocation`, `LocalBusiness`, `Review`, `AggregateRating`, `Rating`,
+  `VideoObject`, `FAQPage`, `Question` and `Answer`. Requirements live in
+  `data/google-rich-results.json`, and every type cites the Google page it came
+  from. Disable the lot with `--disable google`.
+
+  Against the 22-site corpus: 30 findings, 2 of them errors, most sites
+  producing two to four lines and twelve producing none.
+
+- **`data/google-rich-results.json`** — the requirement table. Hand-curated
+  rather than generated, because Google's documentation is prose with no
+  machine-readable form; the file says so, and records what was deliberately
+  left out.
+
+### Changed
+
+- **The "not a per-page validator" non-goal is narrower, and honest.** It was
+  justified by attributing Google's rich-result requirements to
+  validator.schema.org, which does not check them and never has — that tool
+  checks whether a property is legal on a type. The requirements are a publisher
+  policy on top of the vocabulary, and the only things applying them are Search
+  Console after the fact and the Rich Results Test one URL at a time.
+
+  Vocabulary validity and rich-result previews remain out of scope, and nothing
+  here re-implements either.
+
+- **Partiality is still silenced everywhere except group `google`**, which
+  evaluates per observation because Google judges a page rather than an `@id`.
+  A corpus `LocalBusiness` has two observations, one carrying `address` and one
+  not; that is a real error on a real page, and grouping by `@id` hid it. Both
+  readings are correct — they answer different questions — and `docs/checks.md`
+  now says so rather than leaving it looking like an inconsistency.
+
+### Notes
+
+Three false-positive classes were caught by running the rules against the corpus
+before writing them, and none was visible from reading the rules:
+
+- Five `AggregateOffer` nodes reported as missing `Offer`'s required `price`.
+  `AggregateOffer` is a subclass of `Offer` and carries `lowPrice` instead — so
+  rules now dispatch on a node's most specific declared type, never on every
+  match in its class closure.
+- One `Offer` pricing itself through `priceSpecification.price`, which Google
+  accepts and the rule did not know about.
+- `AggregateRating` reported as missing `bestRating` and `worstRating` on 14
+  nodes. Both default to 5 and 1, so the finding amounted to telling an operator
+  that five is the best of five. Removed, and it is now the general test: a
+  recommended field whose documented default already says what the site means is
+  not a gap.
+
+Every finding in this group carries the trade-off it cannot resolve. It reports
+an absence and cannot tell whether you have anything true to put there — ratings
+nobody gave and reviews nobody wrote are a guidelines violation, and a business
+reviewing itself is ineligible for stars however the markup is written.
+
 ## 1.2.0 — 2026-08-02
 
 Housekeeping. A crawl is expensive in a way that is easy to forget once it has

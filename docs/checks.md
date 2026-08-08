@@ -30,11 +30,18 @@ from others. Plugins do this constantly — a rich node on the homepage, a lean
 one sitewide — and nothing is broken: the statements union. Counted, never
 listed.
 
+*The one exception is the [`google`](#google--googles-rich-result-requirements)
+group, which reports per page because that is the unit Google judges. A field
+present on one page and absent on another is a real defect on the second page,
+even though the site-level statements still union.*
+
 **Set order.** `sameAs: [A, B]` and `[B, A]` are the same statement.
 
-**Per-page validity.** Whether a `Product` has the properties Google wants is
-validator.schema.org's job, and it is free. The only per-page checks here are
-the structural ones that stop extraction working at all.
+**Vocabulary validity.** Whether a property is legal on a type is
+validator.schema.org's job, and it is free. Nothing here re-implements it.
+
+**Rich-result previews.** What the search result will look like is Google's own
+tool. Nothing here guesses at it.
 
 ---
 
@@ -355,6 +362,82 @@ else on it is still extracted.
 An `@context` that could not be resolved. schema.org is bundled; anything else is
 refused rather than fetched, because a crawl that depends on a third party's
 server being up is not reproducible.
+
+---
+
+## `google` — Google's rich-result requirements
+
+The one group that reports **per-page** problems, and the one that overlaps with
+something you can already see elsewhere: these are the findings Search Console
+raises against your site under *Products*, *Events*, *Merchant listings* and the
+rest.
+
+They are here because they are a different question from everything above.
+Nothing in this group is a contradiction — the markup is valid, self-consistent,
+and usually identical on every page. It is simply missing a field Google needs
+before it will show a rich result.
+
+**This is not vocabulary validation.** Every rule here concerns markup
+validator.schema.org already passes. Google's requirements are a publisher policy
+layered on top of the vocabulary, published per feature, and the only tools that
+apply them are Search Console — which reports pages Google has already crawled,
+with no pointer to the block or node — and the Rich Results Test, one URL at a
+time. What this adds is the whole site at once, with provenance.
+
+Requirements live in `data/google-rich-results.json`, and every type cites the
+Google page it came from.
+
+**Types covered:** `Product`, `Offer`, `AggregateOffer`, `Event`, `Place`,
+`VirtualLocation`, `LocalBusiness`, `Review`, `AggregateRating`, `Rating`,
+`VideoObject`, `FAQPage`, `Question`, `Answer`.
+
+**Types deliberately not covered:** `Recipe`, `JobPosting`, `HowTo`, `Course`,
+`Book` and `Movie`, none of which appear in the corpus this tool is tested
+against — an unchecked rule is how false positives ship. `Article` and its
+subclasses, because Google's required set for them is now nearly empty.
+`Organization`, because it is sitewide header markup and judging it per page
+floods the report.
+
+Three things shape how this group behaves, and all three are worth knowing:
+
+- **A nested type is judged in its parent's context, never alone.** An `Offer`
+  nothing references is not a finding; the price requirement belongs to the
+  product snippet, not to every `Offer` in existence.
+- **The most specific type wins.** An `AggregateOffer` is judged as one, not as
+  the `Offer` it inherits from — it carries `lowPrice` where an `Offer` carries
+  `price`, and asking it for the wrong one is a false positive.
+- **One omission is one finding, however many pages carry it.** A generator
+  omitting `review` on 250 products is one setting and one fix.
+
+### `google.missing-required` — Error
+
+A field Google requires is absent, so the rich result cannot appear at all.
+
+An `Event` with no `location`, a `LocalBusiness` with no `address`. The markup is
+valid schema.org, which is exactly why it survives every other kind of checking.
+
+### `google.incomplete-alternative` — Error
+
+None of a set Google requires at least one of.
+
+A `Product` needs `offers`, `review` or `aggregateRating` — any one will do.
+Reported as a set rather than as three missing fields, because the fix is one
+choice rather than three edits.
+
+### `google.missing-recommended` — Opportunity
+
+A field Google recommends is absent. Nothing is broken and the result can still
+appear; it will simply be thinner than it could be. These are the entries Search
+Console lists as warnings.
+
+**Only act on these where the fact exists.** The check reports an absence and
+cannot tell whether you have anything true to put there. Ratings nobody gave and
+reviews nobody wrote are a guidelines violation that risks a manual action, and a
+business reviewing itself is ineligible for stars however the markup is written —
+so every finding here carries that trade-off with it.
+
+`bestRating` and `worstRating` are recommended by Google and deliberately **not**
+reported: they default to 5 and 1, so their absence says nothing.
 
 ---
 

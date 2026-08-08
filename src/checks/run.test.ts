@@ -57,11 +57,18 @@ function page(id: string, overrides: Partial<PageRecord> = {}): PageRecord {
  *
  * It is disabled for the shared helper and tested on its own, further down,
  * where the absence is the point rather than an artefact of the fixture.
+ *
+ * Group `google` is disabled for the same reason and needs it more. Its rules
+ * apply to the types these fixtures are naturally written in — a two-property
+ * `LocalBusiness` or `Product` trips several of them by construction — so
+ * leaving it on would make every assertion below about the shape of a fixture
+ * rather than about the check under test. It has its own suite in
+ * `google.test.ts`, which is where those cases belong.
  */
 const run = (
   nodes: ExtractedNode[],
   pages: PageRecord[] = [page('a'), page('b')],
-  disabled: readonly string[] = ['coverage.missing-expected-entity'],
+  disabled: readonly string[] = ['coverage.missing-expected-entity', 'google'],
 ) => runChecks({ nodes, pages, partialCoverage: false, disabled });
 
 const value = (text: string) => [{ '@value': text }];

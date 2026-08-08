@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "retrieved": "2026-08-08",
+
+  "_what_this_is": [
+    "Google's documented required and recommended fields for the rich-result",
+    "features this tool checks. This is Google's publisher policy, NOT the",
+    "schema.org vocabulary: every rule here concerns markup that is already",
+    "vocabulary-valid. A property Google requires is one whose absence stops the",
+    "rich result appearing, not one schema.org objects to.",
+    "",
+    "Hand-curated rather than generated. Google's documentation is prose with no",
+    "machine-readable form, so unlike data/schema-subclasses.json there is no",
+    "fetch script to regenerate this — see `source` on each type for the page it",
+    "came from, and `retrieved` above for when."
+  ],
+
+  "_entry": [
+    "`entry: true` means the type is judged wherever it is found. `entry: false`",
+    "means it is judged ONLY when reached from an entry type along a `follow`",
+    "property, because that is how Google evaluates it: Offer's price requirement",
+    "belongs to the product snippet, not to every Offer node in existence. A",
+    "stray Offer nobody references is not a Google finding, and reporting one is",
+    "how this check would start inventing work."
+  ],
+
+  "_most_specific_wins": [
+    "Rules are dispatched on a node's MOST SPECIFIC declared type, never on every",
+    "match in its class closure, and never on the property that reached it.",
+    "",
+    "The corpus proved why. AggregateOffer is a subclass of Offer, so a closure",
+    "match hits both — and five corpus AggregateOffer nodes were reported as",
+    "missing Offer's required `price` when they correctly carry `lowPrice`",
+    "instead. All five were false positives. Same shape for AggregateRating",
+    "under Rating."
+  ],
+
+  "_dotted_paths": [
+    "A field may be written `a.b`, satisfied when the node reached through `a`",
+    "carries `b`. Google uses this spelling for genuine alternatives, and the",
+    "corpus proved it is load-bearing: one Offer carries its price as",
+    "`priceSpecification.price`, which Google accepts and a rule knowing only",
+    "`price` reported as a missing required field. One level only."
+  ],
+
+  "_excluded": [
+    "Recipe, JobPosting, HowTo, Course, Book and Movie have ZERO instances across",
+    "the 22-site corpus, so no rule for them could be shaken down. They are",
+    "absent deliberately: an unvalidated rule is how false positives ship.",
+    "",
+    "Article/NewsArticle/BlogPosting are excluded although 850 nodes carry them",
+    "on 13 sites. Google's required set for Article is now nearly empty, and the",
+    "corpus is at 100% on headline, author and datePublished. The only gap is",
+    "`image` at 86%, which is nearer Screaming Frog's territory than ours.",
+    "",
+    "Organization is excluded despite 2,204 nodes on 19 sites: it is sitewide",
+    "header markup, judging it per page floods the report, and",
+    "coverage.missing-expected-entity already covers logo and sameAs."
+  ],
+
+  "types": {
+    "Product": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/product-snippet",
+      "entry": true,
+      "required": ["name"],
+      "one_of": [["offers", "review", "aggregateRating"]],
+      "recommended": ["image", "aggregateRating", "review"],
+      "follow": ["offers", "review", "aggregateRating"]
+    },
+
+    "Offer": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/product-snippet",
+      "entry": false,
+      "one_of": [["price", "priceSpecification.price"]],
+      "recommended": ["priceCurrency", "availability", "priceValidUntil"],
+      "_note": [
+        "priceCurrency is required for merchant listings and only recommended for",
+        "product snippets. The weaker reading is used deliberately: this tool",
+        "cannot tell which feature a site is going for, and over-claiming a",
+        "requirement is worse than under-claiming one."
+      ]
+    },
+
+    "AggregateOffer": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/product-snippet",
+      "entry": false,
+      "required": ["lowPrice", "priceCurrency"],
+      "recommended": ["highPrice", "offerCount"]
+    },
+
+    "Event": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/event",
+      "entry": true,
+      "required": ["name", "startDate", "location"],
+      "recommended": [
+        "description",
+        "endDate",
+        "eventStatus",
+        "image",
+        "offers",
+        "organizer",
+        "performer"
+      ],
+      "follow": ["location", "offers"]
+    },
+
+    "Place": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/event",
+      "entry": false,
+      "required": ["name", "address"],
+      "_note": [
+        "These are Google's requirements for an Event's location, which is the",
+        "only position a bare Place is judged in. A LocalBusiness reached as a",
+        "location is judged by LocalBusiness's rules instead — it is the more",
+        "specific type, and its own entry applies."
+      ]
+    },
+
+    "VirtualLocation": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/event",
+      "entry": false,
+      "required": ["url"]
+    },
+
+    "LocalBusiness": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/local-business",
+      "entry": true,
+      "required": ["name", "address"],
+      "recommended": [
+        "telephone",
+        "priceRange",
+        "openingHoursSpecification",
+        "geo",
+        "url",
+        "image"
+      ],
+      "_note": [
+        "review and aggregateRating are omitted from `recommended` on purpose.",
+        "Google recommends them only for sites that review OTHER businesses, and",
+        "flags self-serving reviews as ineligible — so prompting a business to",
+        "add reviews of itself would be advice to break the guidelines."
+      ]
+    },
+
+    "Review": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/review-snippet",
+      "entry": true,
+      "required": ["author", "reviewRating"],
+      "required_unless_referenced": ["itemReviewed"],
+      "recommended": ["datePublished"],
+      "follow": ["reviewRating"]
+    },
+
+    "AggregateRating": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/review-snippet",
+      "entry": true,
+      "required": ["ratingValue"],
+      "one_of": [["ratingCount", "reviewCount"]],
+      "required_unless_referenced": ["itemReviewed"],
+      "recommended": [],
+      "_note": [
+        "bestRating and worstRating are listed as recommended by Google and are",
+        "deliberately NOT checked. They default to 5 and 1, which is what a",
+        "five-star scale means anyway, so their absence is not a gap.",
+        "",
+        "This was caught by the shakedown, not by review: the first version",
+        "reported both on 14 nodes of one corpus site, and the finding amounted",
+        "to telling an operator to declare that five is the best of five. The",
+        "test the corpus taught: a recommended field whose documented default",
+        "already says what the site means is redundant advice, and redundant",
+        "advice is what makes a report get ignored."
+      ]
+    },
+
+    "Rating": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/review-snippet",
+      "entry": false,
+      "required": ["ratingValue"]
+    },
+
+    "VideoObject": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/video",
+      "entry": true,
+      "required": ["name", "description", "thumbnailUrl", "uploadDate"],
+      "recommended": ["contentUrl", "duration"]
+    },
+
+    "FAQPage": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/faqpage",
+      "entry": true,
+      "required": ["mainEntity"],
+      "follow": ["mainEntity"]
+    },
+
+    "Question": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/faqpage",
+      "entry": false,
+      "required": ["name", "acceptedAnswer"],
+      "follow": ["acceptedAnswer"]
+    },
+
+    "Answer": {
+      "source": "https://developers.google.com/search/docs/appearance/structured-data/faqpage",
+      "entry": false,
+      "required": ["text"]
+    }
+  }
+}

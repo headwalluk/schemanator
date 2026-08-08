@@ -23,7 +23,7 @@ node graph, and reports contradictions that only appear when you look at the
 whole site at once.
 
 **Current state: the pipeline works end to end.** `schemanator <site>` crawls,
-extracts, checks and renders a report; `--since` diffs two runs. All 27 checks in
+extracts, checks and renders a report; `--since` diffs two runs. All 30 checks in
 the catalogue are built. Proven against a 22-site, 1,838-page local corpus.
 
 Outstanding work is the distance between "works" and "shipped" — see
@@ -35,6 +35,10 @@ Outstanding work is the distance between "works" and "shipped" — see
 entity nodes on every page by design. Flagging that as duplication makes the tool
 worthless. Only *divergence* under a shared `@id` is a finding. Any check you add
 must respect this — see README and `dev-notes/04`.
+
+The `google` group is the one place the *conclusion* inverts — a field omitted
+on all 250 products is exactly the finding — but the rule itself still holds:
+it is reported **once**, because it is one generator setting and one fix.
 
 ## Tech stack
 
@@ -85,6 +89,19 @@ there's a project-specific reason.
 
 - **Not a schema *generator*.** It audits what's there. It never writes markup.
 - **Not a rich-results previewer.** Google's own tools do that; don't reimplement.
+- **Not a vocabulary validator.** Whether a property is legal on a type is
+  validator.schema.org's job, and it is free.
+
+  **This is narrower than the rule it replaces, deliberately.** Until 1.3.0 the
+  non-goal read "not a per-page validator", and justified it by attributing
+  Google's rich-result requirements to validator.schema.org — which does not
+  check them and never has. Those requirements are a *publisher policy* on top
+  of the vocabulary, and the only things applying them are Search Console, after
+  the fact, and the Rich Results Test, one URL at a time.
+
+  So the `google` group checks them, per page, and the boundary that survives is
+  the one above: vocabulary validity and previews stay out. See `dev-notes/04`
+  for the reasoning and the corpus evidence.
 - **Not a general SEO crawler.** No title-tag/meta-description/h1 auditing —
   Screaming Frog owns that and does it well. Structured data only.
 - **Not a rank tracker, not a site monitor.**

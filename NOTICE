@@ -37,3 +37,20 @@ Regenerate with:
 
 The file records the SHA-256 of the exact source document it was derived from,
 so the derivation is verifiable.
+
+data/google-rich-results.json
+-----------------------------
+
+Covered by the AGPL-3.0 above. Written for this project; no third-party text is
+reproduced in it.
+
+It records which properties Google documents as required or recommended for each
+rich-result feature. Those are facts about a published specification rather than
+expression, and every entry cites the Google page it was read from so the claim
+can be checked at source:
+
+    https://developers.google.com/search/docs/appearance/structured-data/
+
+Google's developer documentation is licensed CC BY 4.0. Nothing here copies it —
+the field lists are data and the surrounding prose is original — but the
+attribution is recorded because the source deserves naming.

@@ -45,7 +45,15 @@ const only = (check: string, nodes: ExtractedNode[], pages: PageRecord[]) =>
 **Filter to the check you are testing.** Asserting on the total finding count
 couples your test to every other check in the catalogue, and it will break the
 next time somebody adds one. That is not hypothetical — it happened when the
-catalogue went from 13 checks to 27.
+catalogue went from 13 checks to 27, and again when group `google` arrived: a
+test about type refinement began failing because its fixture was a
+`LocalBusiness` with one property, which the new group correctly has plenty to
+say about.
+
+The fix there was to disable the noisy group in the shared helper rather than to
+weaken the assertion — see the comment on `run` in `checks/run.test.ts`. A group
+whose rules apply to the types fixtures are naturally written in will bury every
+other test in the file otherwise.
 
 ### 2. Tests that pin a false positive
 

@@ -18,6 +18,7 @@ import type { ExtractedNode } from '../extract/types.ts';
 import type { PageRecord } from '../store/workdir.ts';
 import type { CardinalityRules } from './cardinality.ts';
 import type { EntityGraph } from './graph.ts';
+import type { GoogleRules } from './google.ts';
 import type { Hierarchy } from './hierarchy.ts';
 import type { ValueHeuristics } from './values.ts';
 
@@ -88,6 +89,8 @@ export interface CheckContext {
   rules: CardinalityRules;
   hierarchy: Hierarchy;
   heuristics: ValueHeuristics;
+  /** Google's rich-result requirements. Group `google` only. */
+  google: GoogleRules;
   /** The host being audited. Needed to tell own-domain media from foreign. */
   siteHost: string;
   /** True when the crawl did not cover the whole site. Gates absence claims (rule 3). */
