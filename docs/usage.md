@@ -236,6 +236,32 @@ reclaim without losing your audit history, and reads `purged` once you have.
 
 `--json` for scripting.
 
+### What extraction leaves behind
+
+Beside the stored HTML, each crawled page gets a small set of derived artefacts.
+You never need to touch them, but they are plain text and occasionally the
+fastest way to answer a question:
+
+| Path | What it is |
+| --- | --- |
+| `pages/<page-id>/page.html` | The response, verbatim. The bulk of the disk |
+| `pages/<page-id>/content.md` | The page with site chrome removed, as markdown |
+| `pages/<page-id>/raw/ld-NN.json` | Each JSON-LD block exactly as it was published |
+| `graph/nodes.jsonl` | Every extracted node. What the checks read |
+| `graph/links.jsonl` | One row per link, with `in_chrome` marking navigation |
+| `pages.jsonl` | The manifest — identity, crawl outcome, and `page_facts` |
+
+**`content.md` is the interesting one.** It is what a machine reading your page
+actually gets, so it pairs well with the report: *here is the finding, and here
+is what a consumer sees.* Chrome is removed both by declaration — anything in
+`<nav>`, `<header>` or `<footer>` — and by measurement, since a block of text
+appearing on 80% or more of your pages is site furniture.
+
+`page_facts` on each manifest row carries the per-page measurements the `page`
+and `content` checks read: title, heading levels, robots directives, `hreflang`,
+image and alt counts, word counts, and a content fingerprint. Older crawls have
+it as `null`; re-running `analyse` fills it in, provided the HTML is still there.
+
 ### Reclaiming space
 
 ```sh

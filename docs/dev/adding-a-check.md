@@ -129,7 +129,36 @@ is an acceptable outcome — `graph.orphan-node` is deliberately silent across t
 whole corpus, because narrowing it correctly left nothing to report — but it has
 to be a decision you record, not one you discover later.
 
-## 5. Update the documentation
+## 5. Read a real report, as a stranger would
+
+```sh
+schemanator analyse <a-site-you-have-crawled> | less
+```
+
+**This is a different activity from the shakedown and catches a different
+class.** The shakedown asks *"are these findings right?"* — and by the time you
+have narrowed a rule, they usually are. Reading the report asks *"are these
+findings **believable**?"*, and the answer has been no three times running.
+
+Every problem this has caught was a *true* finding that read badly:
+
+| Read | What it found |
+| --- | --- |
+| 1 | A title counting subjects but saying "pages", above a contradicting count |
+| 1 | `Pages affected: 0` on a site-level finding, which reads as a broken tool |
+| 1 | One page listed twice, because two requests landed on one URL |
+| 2 | Advice naming one property of the three the title claimed |
+| 2 | Internal blank-node ids offered as the thing to act on |
+| 2 | A page title containing a quote, rendered as though *we* had broken |
+
+None was findable by a test, because none was wrong. Ask of each finding:
+
+- Would I be comfortable sending this to the site's owner?
+- Do the numbers in it agree with each other?
+- Does the remediation cover everything the title claims?
+- Could a reader act on every value shown, without opening the source?
+
+## 6. Update the documentation
 
 Three places, and a test enforces the first two:
 
@@ -142,7 +171,7 @@ Three places, and a test enforces the first two:
   standing between your fix and somebody re-widening it in six months.
 - **`CHANGELOG.md`**.
 
-## 6. Check in
+## 7. Check in
 
 ```sh
 npm run typecheck && npm run lint && npm run format:check && npm test

@@ -68,7 +68,7 @@ An invalid level is a loud error rather than a silent fallback — a typo in
 
 ## Tuning the rules
 
-Three data files ship with schemanator. All are plain JSON, all are meant to be
+Four data files ship with schemanator. All are plain JSON, all are meant to be
 tuned, and all record *why* each entry is there so you can judge whether it
 applies to your site.
 
@@ -151,6 +151,38 @@ Gravatar and the common CDNs are listed because otherwise
 `url.foreign-media-host` fires on nearly every WordPress site and is worthless.
 Add your own image host here if you use one that is not covered — again, by
 editing the shipped file for now.
+
+### AI crawlers
+
+`data/ai-crawlers.json` lists the user-agent tokens
+[`robots.ai-crawler-blocked`](checks.md#robotsai-crawler-blocked--warning)
+reports on, each citing the operator's own documentation.
+
+```jsonc
+{
+  "crawlers": [
+    {
+      "token": "ClaudeBot",
+      "operator": "Anthropic",
+      "purpose": "training",
+      "source": "https://support.anthropic.com/en/articles/8896518-..."
+    }
+  ]
+}
+```
+
+`purpose` separates two things that need different decisions, and a report
+conflating them gives bad advice:
+
+- **`training`** — collects text to train a model. Blocking it has no effect on
+  whether an assistant can answer questions about your site today.
+- **`retrieval`** — fetches a page to answer a user's question *at the moment
+  they ask it*, often because they asked about your site.
+- **`both`** — the operator uses one token for both, or does not distinguish.
+
+The loader refuses an entry without a `source`: a token nobody can check against
+its origin is folklore, and this list decides what the report tells an operator
+about their own site.
 
 ### Google rich-result requirements
 

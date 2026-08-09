@@ -2,6 +2,35 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.11.1 — 2026-08-09
+
+Documentation accuracy pass. No behaviour change; `docs/` ships in the package,
+so the correction is a release rather than a private tidy-up.
+
+### Fixed
+
+- **Two stale check counts.** `docs/dev/getting-started.md` and `CLAUDE.md` both
+  still said 30.
+- **`data/ai-crawlers.json` was undocumented.** It is the fourth shipped data
+  file and the only one an operator is likely to want to edit — it decides what
+  `robots.ai-crawler-blocked` says about their site. `docs/configuration.md` now
+  covers it, including why `purpose` separates training from retrieval.
+- **The derived artefacts appeared nowhere.** `graph/links.jsonl`,
+  `pages/<id>/content.md` and `page_facts` have shipped since 1.7.0 with no
+  operator-facing description. `docs/usage.md` now lists what extraction leaves
+  behind, and says plainly that `content.md` is what a machine reading the page
+  actually gets — which is what makes it worth pairing with the report.
+
+### Added
+
+- **`docs/dev/adding-a-check.md` gains a step: read a real report as a stranger
+  would.** It is a different activity from the shakedown and catches a different
+  class. The shakedown asks whether findings are *right*; this asks whether they
+  are *believable*, and the answer has been no three times running. The table of
+  what it has caught is in the doc, and not one entry was a wrong finding.
+
+511 tests, all passing.
+
 ## 1.11.0 — 2026-08-09
 
 A second read-through, of a second real report. Three more presentation faults,
