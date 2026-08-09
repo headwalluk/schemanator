@@ -175,7 +175,7 @@ test('duplicate titles report the titles, not a list of URLs', () => {
   assert.equal(findings[0]?.pages_affected, 2, 'only the colliding pages');
   // The shared title is what an operator acts on. A list of URLs says which
   // pages collide without saying what they collide on.
-  assert.match(findings[0]?.observed[0]?.value ?? '', /"Shop" — 2 pages/);
+  assert.match(findings[0]?.observed[0]?.value ?? '', /2 pages: Shop/);
 });
 
 test('distinct titles are silent', () => {
@@ -225,4 +225,19 @@ test('a page is never a duplicate title of itself', () => {
   };
 
   assert.deepEqual(only([arrived, viaRedirect], 'page.title-duplicate'), []);
+});
+
+test('a title containing a quote does not render as if the tool broke', () => {
+  // A real client page title begins with a stray `"`. Wrapping the value in
+  // quotes produced `""Virtual …`, which reads as a rendering fault and makes a
+  // reader distrust a finding that had just surfaced a genuine typo.
+  const odd = '"Virtual H&S Classroom';
+  const findings = only(
+    [page(facts({ title: odd })), page(facts({ title: odd }))],
+    'page.title-duplicate',
+  );
+
+  const value = findings[0]?.observed[0]?.value ?? '';
+  assert.equal(value.includes('""'), false, 'the title must not be double-quoted');
+  assert.match(value, /2 pages: "Virtual H&S Classroom/);
 });

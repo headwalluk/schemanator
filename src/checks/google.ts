@@ -392,12 +392,33 @@ function buildFindings(
         subject: { kind: 'site' as const, id: typeName, property: field },
         summary: wording.summary(typeName, field, nodes.length, pageIds.size),
         expected: wording.expected(typeName, field),
-        observed: nodes.slice(0, OBSERVED_SAMPLE).map((node) => ({
-          value: node.node_id,
-          observation_count: 1,
-          page_count: 1,
-          provenance: provenanceOf([node], pageIndex),
-        })),
+        /**
+         * A named `@id` tells an operator exactly which node to open. A blank
+         * one is an internal positional id — `_:page/json-ld/1/0/http:~1~1…` —
+         * and is pure noise in a report: nothing can be done with it, and the
+         * provenance beneath already carries the page. So blank nodes show the
+         * page they were found on instead.
+         */
+        observed: (() => {
+          // Several blank nodes on one page collapse to one URL, so the same
+          // line would otherwise repeat. One row per distinct subject; the
+          // count says how many nodes are behind it.
+          const rows = new Map<string, { node: ExtractedNode; count: number }>();
+          for (const node of nodes) {
+            const label = node.node_id.startsWith('_:')
+              ? (pageIndex.get(node.page_id)?.canonical_url ?? node.page_id)
+              : node.node_id;
+            const seen = rows.get(label);
+            if (seen === undefined) rows.set(label, { node, count: 1 });
+            else seen.count += 1;
+          }
+          return [...rows.entries()].slice(0, OBSERVED_SAMPLE).map(([label, row]) => ({
+            value: row.count > 1 ? `${label} — ${row.count} nodes` : label,
+            observation_count: row.count,
+            page_count: 1,
+            provenance: provenanceOf([row.node], pageIndex),
+          }));
+        })(),
         pages_affected: pageIds.size,
         coverage_qualified: false,
         remediation: wording.remediation(typeName, field, source),

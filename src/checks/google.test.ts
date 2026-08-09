@@ -612,3 +612,53 @@ test('the whole group can be disabled by name', () => {
     [],
   );
 });
+
+test('a blank node reports the page it is on, not its internal id', () => {
+  // `_:page/json-ld/1/0/http:~1~1schema.org~1offers/0` is a positional id.
+  // Nothing can be done with it, and the provenance already carries the page.
+  const findings = google([
+    node({
+      id: 'https://example.com/#product',
+      types: [S('Product')],
+      props: {
+        [S('name')]: value('X'),
+        [S('offers')]: ref('_:offer-1'),
+        [S('image')]: ref('https://example.com/i.jpg'),
+        [S('review')]: ref('https://example.com/#r'),
+        [S('aggregateRating')]: ref('https://example.com/#ar'),
+      },
+    }),
+    node({
+      id: '_:offer-1',
+      types: [S('Offer')],
+      props: {
+        [S('price')]: value('1'),
+        [S('priceCurrency')]: value('GBP'),
+        [S('availability')]: value('InStock'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#r',
+      types: [S('Review')],
+      props: {
+        [S('author')]: ref('https://example.com/#p'),
+        [S('reviewRating')]: ref('https://example.com/#ar'),
+        [S('datePublished')]: value('2026-01-01'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#ar',
+      types: [S('AggregateRating')],
+      props: { [S('ratingValue')]: value('4'), [S('reviewCount')]: value('2') },
+    }),
+  ]);
+
+  const finding = findings.find((f) => f.subject.property === 'priceValidUntil');
+  assert.notEqual(finding, undefined);
+  assert.equal(
+    finding?.observed[0]?.value.startsWith('_:'),
+    false,
+    'a positional blank-node id is not something an operator can act on',
+  );
+  assert.match(finding?.observed[0]?.value ?? '', /^https:\/\/example\.com\//);
+});

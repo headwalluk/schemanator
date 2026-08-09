@@ -344,8 +344,13 @@ const titleDuplicate: Check = {
         }),
         // The duplicated titles are what an operator acts on. A list of URLs
         // says which pages collide without saying what they collide on.
+        // The title is not wrapped in quotes. One corpus site has a page title
+        // beginning with a stray `"`, and wrapping produced `""Virtual …` —
+        // which reads as a rendering fault and makes a reader distrust a finding
+        // that had just surfaced a real typo. The count leads instead, and the
+        // renderers already delimit the value.
         observed: shared.slice(0, 10).map(([title, group]) => ({
-          value: `"${title}" — ${group.length} pages`,
+          value: `${group.length} pages: ${title}`,
           observation_count: group.length,
           page_count: group.length,
           provenance: [],

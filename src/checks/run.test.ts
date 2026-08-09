@@ -739,3 +739,27 @@ test('sameAs pointing elsewhere is the entire point of sameAs', () => {
     false,
   );
 });
+
+test('an aggregate does not inherit advice written for one subject', () => {
+  // A three-property `value.empty` aggregate read "3 properties are published
+  // as empty strings" above "Fill in postalCode" — somebody following that
+  // fixes one of three. The wording is kept and scoped.
+  const { findings } = run([
+    node({
+      id: 'https://example.com/#addr',
+      page: 'a',
+      types: [S('PostalAddress')],
+      props: {
+        [S('postalCode')]: value(''),
+        [S('streetAddress')]: value(''),
+        [S('addressLocality')]: value(''),
+      },
+    }),
+  ]);
+
+  const empty = findings.find((finding) => finding.check === 'value.empty');
+  assert.equal(empty?.instance_count, 3, 'three properties collapsed into one finding');
+  assert.match(empty?.remediation ?? '', /Apply this to each of the 3 subjects/);
+  // The explanation is kept, but framed as an example rather than the whole job.
+  assert.match(empty?.summary ?? '', /Taking the first as an example/);
+});

@@ -992,7 +992,7 @@ function aggregate(findings: readonly Finding[]): Finding[] {
       summary:
         `${group.length} subjects share this problem — ${first.pattern}. Reported once rather than ` +
         `${group.length} times: one generator behaviour, one fix. The individual subjects are listed ` +
-        `below.\n\n${first.summary}`,
+        `below.\n\n**Taking the first as an example:** ${first.summary}`,
       observed: group.slice(0, AGGREGATE_SAMPLE).map((finding) => ({
         // Name what actually varies between constituents. For a per-property
         // check that is the property; for a per-entity one, the entity.
@@ -1009,6 +1009,19 @@ function aggregate(findings: readonly Finding[]): Finding[] {
         group[0]?.pages_affected ||
         0,
       instance_count: group.length,
+      /**
+       * The constituents' remediation is written for one subject, and inherited
+       * verbatim it gives incomplete advice. A three-property `value.empty`
+       * aggregate read "3 properties are published as empty strings" above
+       * "Fill in postalCode" — somebody following that fixes one of three.
+       *
+       * The wording is kept, because it explains the fix, and scoped so it
+       * reads as per-subject rather than as the whole job.
+       */
+      remediation:
+        first.remediation === null
+          ? null
+          : `${first.remediation} Apply this to each of the ${group.length} subjects listed above.`,
       ...(first.pattern === undefined ? {} : { pattern: first.pattern }),
     });
 

@@ -2,6 +2,49 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.11.0 — 2026-08-09
+
+A second read-through, of a second real report. Three more presentation faults,
+all of the same family as the first read found: **numbers and names that
+contradict something else in the same finding**. None was a false positive.
+
+### Fixed
+
+- **An aggregate inherited advice written for one subject.** A three-property
+  `value.empty` finding was titled *"3 properties are published as empty
+  strings"* above *"Fill in postalCode"* — somebody following that fixes one of
+  three. The constituent's wording is kept, because it explains the fix, and now
+  says which subjects it applies to. Its summary is framed as an example rather
+  than as the whole finding.
+
+- **Blank-node ids were shown as the thing to act on.**
+  `_:page/json-ld/1/0/http:~1~1schema.org~1offers/0` is an internal positional
+  id: nothing can be done with it, and the provenance beneath already carries
+  the page. Blank nodes now report the page they were found on, and several on
+  one page collapse to a single row with a count.
+
+- **A page title containing a quote rendered as if the tool had broken.** One
+  site has a page title beginning with a stray `"`, so wrapping the value in
+  quotes produced `""Virtual …`. The count now leads and the title is not
+  wrapped — so a genuine typo reads as a genuine typo.
+
+### Notes
+
+Worth recording what these read-throughs keep finding. Across three reports, not
+one problem was a wrong finding — every one was a **reader being invited to
+distrust the output**: a title counting subjects and calling them pages, a
+"Pages affected: 0", an id nobody can use, advice that covers a third of what
+the title claims.
+
+Shakedowns cannot catch this class, because every finding involved is true. Only
+reading the thing as its audience does.
+
+The same reading also surfaced a real defect on the audited site that nothing
+else would have: a page title with a stray leading quote character, duplicated
+across two pages.
+
+511 tests, all passing.
+
 ## 1.10.0 — 2026-08-09
 
 Everything here came from reading one report end to end, as a stranger would.
