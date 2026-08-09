@@ -8,6 +8,19 @@
  */
 
 import { SILENT_LOGGER, type Logger } from '../log.ts';
+import {
+  CHROME_SHARE,
+  extractBlocks,
+  extractLinks,
+  extractPageFacts,
+  isChrome,
+  isChromeCandidate,
+  loadDom,
+  renderMarkdown,
+  simhash,
+  type PageLink,
+  type TextBlock,
+} from './page-facts.ts';
 import type { WorkDir } from '../store/workdir.ts';
 import { extract } from './index.ts';
 import type { ExtractedNode } from './types.ts';
@@ -20,6 +33,10 @@ export interface ExtractionRunSummary {
   nodes: number;
   pages_with_microdata: number;
   declared_canonicals: number;
+  /** Outbound links recorded to `graph/links.jsonl`. */
+  links: number;
+  /** Distinct text blocks judged to be site furniture. */
+  chrome_blocks: number;
   started_at: string;
   finished_at: string;
 }
@@ -30,6 +47,12 @@ export interface ExtractionRunOptions {
   /** Emit the disposable `by-type/` browsing view (`01` layer 3). */
   emitByType?: boolean;
 }
+
+/**
+ * Below this, "appears on 80% of pages" is one or two pages and means nothing.
+ * The threshold is not applied at all rather than applied badly.
+ */
+const MIN_PAGES_FOR_CHROME = 5;
 
 export async function runExtraction(options: ExtractionRunOptions): Promise<ExtractionRunSummary> {
   const { workDir, logger = SILENT_LOGGER, emitByType = true } = options;
@@ -49,11 +72,31 @@ export async function runExtraction(options: ExtractionRunOptions): Promise<Extr
     nodes: 0,
     pages_with_microdata: 0,
     declared_canonicals: 0,
+    links: 0,
+    chrome_blocks: 0,
     started_at: startedAt,
     finished_at: startedAt,
   };
 
   logger.info(`Extracting ${records.length} stored page(s) …`);
+
+  /**
+   * Held for the second pass, because chrome cannot be known from one page.
+   *
+   * A 500-page site is roughly 10 MB of block text and 190,000 links — large,
+   * but bounded by `--max-pages` and far cheaper than parsing every page twice.
+   */
+  const perPage = new Map<string, { blocks: TextBlock[]; links: PageLink[] }>();
+
+  let siteHost = '';
+  for (const record of records) {
+    try {
+      siteHost = new URL(record.canonical_url).host;
+      break;
+    } catch {
+      continue;
+    }
+  }
 
   for (const record of records) {
     const html = await workDir.readPageHtml(record.page_id);
@@ -85,6 +128,16 @@ export async function runExtraction(options: ExtractionRunOptions): Promise<Extr
     // Sorted and de-duplicated: one page emitting `WPHeader` six times says the
     // same thing as emitting it once, and the manifest is read by humans.
     record.microdata_types = [...new Set(result.microdata_types)].sort();
+
+    // One more pass over the DOM this page already needs. `04`'s rule holds:
+    // extraction records facts, and no check ever sees the HTML.
+    const dom = loadDom(html);
+    const blocks = extractBlocks(dom);
+    perPage.set(record.page_id, {
+      blocks,
+      links: extractLinks(dom, record.canonical_url, siteHost),
+    });
+    record.page_facts = extractPageFacts(dom, blocks);
     // Structural faults only extraction can see belong on the page record
     // (`03`), but must not clobber the crawl's own errors.
     const blockErrors = result.blocks
@@ -107,9 +160,95 @@ export async function runExtraction(options: ExtractionRunOptions): Promise<Extr
     }
   }
 
+  /**
+   * Second pass: decide what is chrome, then finish the facts that depend on it.
+   *
+   * A block of text on ≥80% of pages is site furniture — measured rather than
+   * guessed, which is the whole reason this beats a per-page heuristic library
+   * (`07`). Below a handful of pages the frequency count means nothing, so the
+   * threshold is not applied and every block counts as content.
+   */
+  const pageCount = perPage.size;
+  const blockPages = new Map<string, number>();
+  for (const { blocks } of perPage.values()) {
+    for (const hash of new Set(
+      blocks
+        .filter((block) => isChromeCandidate(block) && !block.structural_chrome)
+        .map((b) => b.hash),
+    )) {
+      blockPages.set(hash, (blockPages.get(hash) ?? 0) + 1);
+    }
+  }
+
+  const chrome = new Set<string>();
+  if (pageCount >= MIN_PAGES_FOR_CHROME) {
+    for (const [hash, count] of blockPages) {
+      if (count >= pageCount * CHROME_SHARE) chrome.add(hash);
+    }
+  }
+  summary.chrome_blocks = chrome.size;
+
+  /**
+   * Navigation links are decided by **target frequency**, not by the block that
+   * encloses them.
+   *
+   * The first version used the enclosing text block and caught almost nothing:
+   * a nav link lives in `<li><a>Contact</a></li>`, whose text is one word and
+   * never registers as a block at all. It marked 9% of one site's edges as
+   * chrome when 88% of them pointed at targets present on every page — the
+   * homepage and the basket among them.
+   *
+   * A target appearing on ≥80% of pages *is* navigation, and that is the same
+   * frequency argument the block detection uses, applied to the thing actually
+   * being counted. The block signal is kept as a second route, for a
+   * contextual link that happens to sit inside boilerplate prose.
+   */
+  const targetPages = new Map<string, number>();
+  for (const { links } of perPage.values()) {
+    for (const target of new Set(links.map((link) => link.to))) {
+      targetPages.set(target, (targetPages.get(target) ?? 0) + 1);
+    }
+  }
+
+  const chromeTargets = new Set<string>();
+  if (pageCount >= MIN_PAGES_FOR_CHROME) {
+    for (const [target, count] of targetPages) {
+      if (count >= pageCount * CHROME_SHARE) chromeTargets.add(target);
+    }
+  }
+
+  await workDir.resetLinks();
+
+  for (const record of records) {
+    const held = perPage.get(record.page_id);
+    if (held === undefined || record.page_facts === null) continue;
+
+    const content = held.blocks.filter((block) => !isChrome(block, chrome) && !block.hidden);
+    record.page_facts.text.extractable_words = content.reduce((sum, block) => sum + block.words, 0);
+    record.page_facts.content_simhash = simhash(content.map((block) => block.text).join(' '));
+
+    await workDir.writeContentMarkdown(
+      record.page_id,
+      renderMarkdown(held.blocks, chrome, record.page_facts.title),
+    );
+    await workDir.appendLinks(
+      record.page_id,
+      held.links.map((link) => ({
+        ...link,
+        in_chrome: chromeTargets.has(link.to) || (link.block !== null && chrome.has(link.block)),
+      })),
+    );
+    summary.links += held.links.length;
+  }
+
   await workDir.rewritePageRecords(records);
 
   summary.finished_at = new Date().toISOString();
+  if (summary.links > 0) {
+    logger.info(
+      `  ${summary.links} link(s), ${summary.chrome_blocks} block(s) identified as site chrome`,
+    );
+  }
   logger.info(
     `  ${summary.nodes} node(s) from ${summary.json_ld_blocks} JSON-LD block(s)` +
       (summary.json_ld_failed > 0 ? `, ${summary.json_ld_failed} malformed` : ''),

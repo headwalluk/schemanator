@@ -96,6 +96,27 @@ export SCHEMANATOR_WORK_DIR=./audit
 If the agent runs on a **different host** from the crawl, the work directory has
 to be copied across, or the crawl has to happen there. There is no remote mode.
 
+## The page as a machine sees it
+
+Extraction writes `pages/<page-id>/content.md` beside the stored HTML: the page
+with site chrome removed, as markdown.
+
+It exists because *"here is the report, and here is what the page actually looks
+like to a machine"* is a much stronger pairing than either alone. Nothing in the
+check layer reads it — the tool has no opinion about whether your copy is any
+good — but the operator and their agent often do, and this is the artefact that
+makes that question answerable.
+
+Chrome is removed two ways, neither of them a guess:
+
+- **By declaration.** Anything inside `<nav>`, `<header>` or `<footer>`.
+- **By measurement.** A block of text appearing on 80% or more of the crawled
+  pages is site furniture. That needs the whole site, which is why a per-page
+  tool cannot do it — and why a small `--max-pages` weakens it.
+
+It costs about 2.5% of the stored HTML, and **`purge --html` keeps it**. So
+reclaiming disk still leaves the readable content behind.
+
 ## Giving the agent the JSON instead
 
 `--json` emits the machine-readable contract, which is better if the agent is

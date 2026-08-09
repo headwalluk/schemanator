@@ -2,6 +2,71 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.7.0 — 2026-08-09
+
+The extraction change three stages of `dev-notes/07` depend on. Three artefacts,
+one pass over the DOM that was already being parsed, and **no re-crawl** —
+`analyse` fills them in from stored HTML.
+
+### Added
+
+- **`page_facts` on every page record.** Title, description, heading *levels*,
+  robots directives, `hreflang`, `lang`, landmark presence, image and alt-text
+  counts, word counts, and a content simhash. Scalars and tiny arrays only, so
+  checks never touch HTML (`04`) and the manifest stays readable.
+
+  Heading **levels**, not heading text: no check needs the words, and storing
+  them would have roughly doubled a file `sites` reads whole.
+
+- **`graph/links.jsonl`** — one row per link, with `in_chrome` marking site
+  navigation. Its own artefact rather than a field on the page record, because a
+  500-page site has around 190,000 edges and the manifest is read by every
+  command that touches the work directory.
+
+  Nothing reads it yet. It ships now because retrofitting it after a `links: []`
+  array had shipped inside `page_facts` would be a manifest migration.
+
+- **`pages/<page-id>/content.md`** — the page with site chrome removed, as
+  markdown. Nothing in the check layer reads it; it exists so the operator and
+  their agent can ask questions this tool deliberately will not, such as whether
+  the opening paragraphs read well.
+
+  **`purge --html` keeps it**, now pinned by a test. At 2.5% of the stored HTML,
+  reclaiming the space still leaves the readable content behind.
+
+### Notes
+
+Chrome is removed two ways, neither a guess. **By declaration** — anything
+inside `<nav>`, `<header>` or `<footer>`, which is reading the document rather
+than guessing at it. And **by measurement** — a block of text on 80% or more of
+the crawled pages is site furniture. The second needs the whole site, which is
+exactly why a per-page tool cannot do it.
+
+`<aside>` is deliberately *not* structural chrome. Main content wrongly placed
+in one is a planned finding, and stripping it here would erase the discrepancy
+that check exists to see.
+
+Four things the corpus corrected, none visible from the design:
+
+- **Link chrome cannot be decided by the enclosing text block.** A nav link
+  lives in `<li><a>Contact</a></li>` — one word, never a block. The first
+  version marked 9% of a site's edges as chrome when 88% of them pointed at
+  targets appearing on every page, the homepage among them. Target frequency is
+  the right signal.
+- **A minimum block length censors the document.** "What is included" is three
+  words, so a four-word floor dropped nearly every heading and the markdown came
+  out as unheaded prose.
+- **Headings must never be treated as chrome**, or a site using consistent
+  section headings loses its outline to its own consistency.
+- **Frequency needs a floor of five pages**, and structural chrome covers the
+  gap beneath it.
+
+Measured cost: `content.md` is 2.5% of stored HTML; the manifest grew from ~900
+to ~1,450 bytes a record, more than the third predicted when this was designed.
+Across the 22-site corpus: 331,291 links and 1,831 markdown files.
+
+483 tests, all passing.
+
 ## 1.6.0 — 2026-08-09
 
 The three measures that keep the report readable as the catalogue grows. All

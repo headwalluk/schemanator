@@ -70,6 +70,8 @@ const EXTRACTION: ExtractionRunSummary = {
   nodes: 4,
   pages_with_microdata: 0,
   declared_canonicals: 2,
+  links: 40,
+  chrome_blocks: 3,
   started_at: '2026-08-09T00:00:10Z',
   finished_at: '2026-08-09T00:00:11Z',
 };
@@ -88,6 +90,7 @@ const PAGE: PageRecord = {
   bytes: 1,
   html_purged: false,
   microdata_types: [],
+  page_facts: null,
   extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: 0, rdfa_items: 0, nodes: 2 },
   errors: [],
 };

@@ -39,6 +39,7 @@ function page(options: {
     bytes: 100,
     html_purged: false,
     microdata_types: [],
+    page_facts: null,
     extraction: {
       json_ld_blocks: 0,
       json_ld_failed: 0,

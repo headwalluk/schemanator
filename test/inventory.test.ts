@@ -8,6 +8,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -30,6 +31,7 @@ function record(id: string, overrides: Partial<PageRecord> = {}): PageRecord {
     bytes: 100,
     html_purged: false,
     microdata_types: [],
+    page_facts: null,
     extraction: null,
     errors: [],
     ...overrides,
@@ -253,4 +255,30 @@ test('sizes read the way du reads them', () => {
   assert.equal(formatBytes(1024 * 1024), '1.0 MB');
   assert.equal(formatBytes(1024 * 1024 * 20), '20 MB');
   assert.equal(formatBytes(1024 * 1024 * 1024 * 3.5), '3.5 GB');
+});
+
+test('purge --html keeps the extracted markdown', async () => {
+  // The guarantee that makes `purge --html` worth running: HTML is ~250 KB a
+  // page and content.md is roughly 2.5% of it, so reclaiming the space still
+  // leaves the operator and their agent the page's readable content.
+  //
+  // `applyPurge` removes a literal `page.html` rather than globbing, so this
+  // holds by construction today — and a guarantee nobody tests is one a
+  // refactor removes without noticing.
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'schemanator-purge-'));
+  const pageDir = path.join(root, 'site', 'pages', 'a');
+  await fs.mkdir(pageDir, { recursive: true });
+  await fs.writeFile(path.join(pageDir, 'page.html'), '<html>'.repeat(200));
+  await fs.writeFile(path.join(pageDir, 'content.md'), '# Kept\n');
+  await fs.writeFile(path.join(pageDir, 'nodes.jsonl'), '{}\n');
+  await fs.writeFile(
+    path.join(root, 'site', 'pages.jsonl'),
+    `${JSON.stringify({ page_id: 'a', html_purged: false })}\n`,
+  );
+
+  await applyPurge(await planPurge(root, 'site', 'html'));
+
+  assert.equal(fsSync.existsSync(path.join(pageDir, 'page.html')), false, 'the HTML should go');
+  assert.equal(fsSync.existsSync(path.join(pageDir, 'content.md')), true, 'the markdown must stay');
+  assert.equal(fsSync.existsSync(path.join(pageDir, 'nodes.jsonl')), true, 'so must the nodes');
 });

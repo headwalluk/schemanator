@@ -501,6 +501,7 @@ async function storeResult(
     html_purged: false,
     extraction: null,
     microdata_types: [],
+    page_facts: null,
     errors,
   };
 

@@ -15,6 +15,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import type { PageFacts } from '../extract/page-facts.ts';
+
 import type { FetchRecord } from '../net/fetcher.ts';
 
 /** Slug component length cap. Filesystems allow 255 bytes; 80 keeps `ls` readable. */
@@ -86,6 +88,21 @@ export interface PageRecord {
    * fills it in, since that re-runs extraction over the stored HTML.
    */
   microdata_types: string[];
+  /**
+   * Per-page facts extraction records so checks never touch HTML (`04`).
+   *
+   * Null on a crawl older than the field. Re-running `analyse` fills it in,
+   * since that re-extracts from stored HTML — **unless `purge --html` has run**,
+   * in which case only a re-crawl can. Findings depending on these must say so
+   * rather than reporting a false absence, the way `coverage.competing-syntax`
+   * already does.
+   *
+   * Scalars and tiny arrays only. Heading *levels* rather than heading text,
+   * because no check needs the words and storing them would roughly double the
+   * manifest — which `sites` reads whole. Links live in `graph/links.jsonl`
+   * for the same reason, at a far larger scale (`07`).
+   */
+  page_facts: PageFacts | null;
   errors: string[];
 }
 
@@ -120,6 +137,22 @@ export class WorkDir {
 
   get crawlLogPath(): string {
     return path.join(this.crawlDir, 'crawl.log');
+  }
+
+  /** One row per link. Separate from the manifest: a 500-page site has ~190,000. */
+  get linksPath(): string {
+    return path.join(this.root, 'graph', 'links.jsonl');
+  }
+
+  /**
+   * The de-boilerplated page, as markdown.
+   *
+   * Beside `page.html` and **deliberately not removed by `purge --html`**. It is
+   * 5-15% of the size, and keeping it means the operator and their agent still
+   * have the page's readable content after the biggest disk-reclaiming action.
+   */
+  contentPath(pageId: string): string {
+    return path.join(this.pageDir(pageId), 'content.md');
   }
 
   pageDir(pageId: string): string {
@@ -240,6 +273,34 @@ export class WorkDir {
         );
       }),
     );
+  }
+
+  /** One JSON object per link, appended as extraction's second pass runs. */
+  async appendLinks(
+    pageId: string,
+    links: readonly {
+      to: string;
+      anchor: string;
+      internal: boolean;
+      rel: string | null;
+      in_chrome: boolean;
+    }[],
+  ): Promise<void> {
+    if (links.length === 0) return;
+    await fs.mkdir(path.dirname(this.linksPath), { recursive: true });
+    const lines = links.map((link) => JSON.stringify({ from: pageId, ...link })).join('\n');
+    await fs.appendFile(this.linksPath, `${lines}\n`, 'utf8');
+  }
+
+  /** Clear the link graph before a re-extract, for `resetExtraction`'s reason. */
+  async resetLinks(): Promise<void> {
+    await fs.rm(this.linksPath, { force: true });
+  }
+
+  /** The de-boilerplated page. Survives `purge --html` deliberately. */
+  async writeContentMarkdown(pageId: string, markdown: string): Promise<void> {
+    await fs.mkdir(this.pageDir(pageId), { recursive: true });
+    await fs.writeFile(this.contentPath(pageId), markdown, 'utf8');
   }
 
   /** Wipe derived artefacts so a re-extract cannot accumulate stale nodes. */
