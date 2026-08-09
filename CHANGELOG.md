@@ -2,6 +2,56 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.8.0 — 2026-08-09
+
+Group `content` — the flagship of `dev-notes/07`, and the group that answers the
+question the rest of the tool cannot: an AI agent fetches your page, and does it
+actually get the words?
+
+### Added
+
+- **`content.not-extractable`** (Error) — substantial text sitting outside the
+  page's own `<main>` and `<article>` landmarks. A consumer that follows them —
+  which is what most AI agents and a `web_fetch` do — reads a fraction of what a
+  person sees.
+- **`content.javascript-only`** (Error) — a large response with almost no
+  readable text. **Not running JavaScript is the measurement here, not a
+  limitation:** we see exactly what a non-rendering consumer sees.
+- **`content.main-in-aside`** (Warning) — more text in `<aside>` than in the
+  main landmarks. Extractors treat an aside as secondary and commonly drop it.
+- **`content.hidden-text`** (Warning) — more substance concealed than shown.
+- **`content.no-landmark`** (Opportunity) — no `<main>` or `<article>` at all,
+  so a consumer must guess which part of the page is the page. Site-level: it is
+  one template decision however many pages carry it.
+
+Every check is a **discrepancy, not a judgement**. This tool has no opinion
+about whether your copy is any good; it reports that two views of the same page
+disagree.
+
+### Notes
+
+**The planned signal was wrong, and the survey killed it before a line of check
+code was written.** `extractable / dom_words` has a median of 46%, and a 25%
+threshold fired on 390 pages — 21% of the corpus — because `dom_words` includes
+the navigation. That ratio mostly measures how big a site's menu is.
+
+What works is `main_words / extractable_words`. Only 9 of 1,193 pages fall under
+10%, so the threshold sits in an empty gap rather than on a slope. It needed two
+facts the extraction shipped a day earlier did not have.
+
+Verified by hand rather than trusted: one site's blog posts carry 2,030 words
+with 32 inside a landmark, because `<article>` wraps the related-post cards. And
+one site's *testimonials* page returns 52 KB, 29 script tags, and 63 words that
+are entirely the menu — an agent asking about testimonials gets a navigation bar.
+
+`content.hidden-text` produced two false-positive classes before it was right:
+91 findings were hidden *navigation* — mobile menus and sticky bars marked
+`aria-hidden`, which conceal nothing — and then 48 were colour-swatch pages with
+17 visible words, which tripped "more hidden than visible" simply by being
+sparse. Both are pinned as regression tests, and the check now ships untriggered.
+
+496 tests, all passing.
+
 ## 1.7.0 — 2026-08-09
 
 The extraction change three stages of `dev-notes/07` depend on. Three artefacts,

@@ -551,6 +551,71 @@ nobody.
 
 ---
 
+## `content` — the page was fetched, but can a machine find the content?
+
+The group that answers the question the rest of this tool cannot: an AI agent
+fetches your page, and does it actually get the words?
+
+**Every check here is a discrepancy, not a judgement.** This tool has no opinion
+about whether your copy is any good — that is the copywriter's job. What it can
+say is that two views of the same page disagree: plenty of text is present, and
+a machine reading the document's own structure finds almost none of it.
+
+The de-boilerplated page is written to `pages/<page-id>/content.md`, so you can
+read exactly what a machine gets.
+
+### `content.not-extractable` — Error
+
+Substantial text sitting **outside** the page's own `<main>` and `<article>`
+landmarks. A consumer following those landmarks — which is what most AI agents
+and a `web_fetch` do — reads a fraction of what a person sees.
+
+> A 2,030-word article whose landmarks hold 32 words.
+
+The usual cause is a body wrapped in a plain `<div>` while `<article>` is used
+for something else, such as related-post cards.
+
+Only reported where the page has at least 50 words and does carry a landmark.
+A short page is not a finding — thinness is not a machine-readability defect.
+
+### `content.javascript-only` — Error
+
+A large response containing almost no readable text: the signature of content
+assembled in the browser.
+
+**schemanator does not run JavaScript, and here that is the point rather than a
+limitation.** It sees exactly what a non-rendering consumer sees, which is what
+most AI agents are and what Google's first indexing pass is.
+
+Both thresholds are extreme — over 50 KB, under 100 words — because a contact
+page is allowed to be short.
+
+### `content.main-in-aside` — Warning
+
+More of the page's text in `<aside>` than in `<main>` and `<article>` combined.
+`<aside>` means "tangential", and extractors commonly drop it — so if that is
+where the substance lives, the substance is what gets dropped.
+
+### `content.hidden-text` — Warning
+
+More words behind `hidden` or `aria-hidden` than in the open.
+
+Tabs, accordions and mobile menus are normal and are **not** reported: hidden
+navigation is excluded, and both sides must carry real text. This is a page
+whose substance is concealed from anything honouring those attributes, which
+includes screen readers and most text extractors.
+
+### `content.no-landmark` — Opportunity
+
+Neither `<main>` nor `<article>` anywhere on a page that has real text, so a
+consumer must guess which part of the page is the page. Most get it right most
+of the time; the ones that do not fail silently.
+
+Reported once for the site — it is one template decision however many pages
+carry it.
+
+---
+
 ## Not yet implemented
 
 Designed and specified, but **not built** — they will not appear in a report:

@@ -223,8 +223,23 @@ export async function runExtraction(options: ExtractionRunOptions): Promise<Extr
     const held = perPage.get(record.page_id);
     if (held === undefined || record.page_facts === null) continue;
 
-    const content = held.blocks.filter((block) => !isChrome(block, chrome) && !block.hidden);
+    const notChrome = held.blocks.filter((block) => !isChrome(block, chrome));
+    const content = notChrome.filter((block) => !block.hidden);
     record.page_facts.text.extractable_words = content.reduce((sum, block) => sum + block.words, 0);
+
+    /**
+     * Hidden *content*, not hidden anything.
+     *
+     * Computed here rather than in the first pass because chrome is not known
+     * until now, and the distinction is the whole check. A mobile menu marked
+     * `aria-hidden` and a sticky top bar are hidden navigation — normal, on
+     * every page, and nothing to report. Counting them made
+     * `content.hidden-text` fire on 91 corpus pages, none of which were
+     * concealing anything.
+     */
+    record.page_facts.text.hidden_words = notChrome
+      .filter((block) => block.hidden)
+      .reduce((sum, block) => sum + block.words, 0);
     record.page_facts.content_simhash = simhash(content.map((block) => block.text).join(' '));
 
     await workDir.writeContentMarkdown(

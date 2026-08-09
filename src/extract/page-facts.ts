@@ -108,9 +108,21 @@ export interface PageFacts {
   landmarks: { has_main: boolean; has_article: boolean };
   images: { total: number; missing_alt: number; suspect_alt: string[] };
   text: {
+    /** Every word in the body, chrome included. */
     dom_words: number;
-    /** Words outside site chrome — what a naive extractor would get. */
+    /** Outside site chrome and not hidden — what is genuinely on the page. */
     extractable_words: number;
+    /**
+     * Inside `<main>` or `<article>` — what a landmark-following extractor gets,
+     * which is what a `web_fetch`-style consumer usually is.
+     *
+     * The gap between this and `extractable_words` is the finding: text that is
+     * plainly there, and that a machine reading the document's own structure
+     * will not find.
+     */
+    main_words: number;
+    /** Inside `<aside>` or `role="complementary"`. Content in the wrong place. */
+    aside_words: number;
     hidden_words: number;
   };
   /** Over the de-boilerplated text. Comparison primitive, never the text. */
@@ -256,6 +268,17 @@ export function extractPageFacts($: CheerioAPI, blocks: readonly TextBlock[]): P
   body.find(NEVER_CONTENT).remove();
   const domWords = countWords(normalise(body.text()));
 
+  // What a consumer following the document's own landmarks would read.
+  const wordsIn = (selector: string): number => {
+    const scope = $(selector);
+    if (scope.length === 0) return 0;
+    const clone = scope.clone();
+    clone.find(NEVER_CONTENT).remove();
+    return countWords(normalise(clone.text()));
+  };
+  const mainWords = wordsIn('main, article');
+  const asideWords = wordsIn('aside, [role="complementary"]');
+
   return {
     title: normalise($('title').first().text()) || null,
     meta_description: $('meta[name="description"]').attr('content')?.trim() ?? null,
@@ -271,6 +294,8 @@ export function extractPageFacts($: CheerioAPI, blocks: readonly TextBlock[]): P
     images: { total: imagesTotal, missing_alt: missingAlt, suspect_alt: suspectAlt },
     text: {
       dom_words: domWords,
+      main_words: mainWords,
+      aside_words: asideWords,
       // Provisional: every visible block. The second pass subtracts chrome.
       extractable_words: blocks
         .filter((block) => !block.hidden)
