@@ -11,7 +11,13 @@ export const REPORT_SCHEMA = 1;
 
 export interface Report {
   schemanator: { version: string; report_schema: number };
-  run: { run_id: string; site_slug: string; site_origin: string; started_at: string; finished_at: string };
+  run: {
+    run_id: string;
+    site_slug: string;
+    site_origin: string;
+    started_at: string;
+    finished_at: string;
+  };
   coverage: {
     complete: boolean;
     urls_discovered: number;
@@ -22,7 +28,13 @@ export interface Report {
     sample_strategy: string;
     caveat: string | null;
   };
-  graph: { nodes: number; entities: number; pages_with_data: number; json_ld_blocks: number; malformed_blocks: number };
+  graph: {
+    nodes: number;
+    entities: number;
+    pages_with_data: number;
+    json_ld_blocks: number;
+    malformed_blocks: number;
+  };
   summary: {
     by_severity: Record<string, number>;
     by_check: Record<string, number>;

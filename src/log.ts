@@ -41,12 +41,17 @@ export function resolveLogLevel(options: {
     if (candidate === undefined || candidate === '') continue;
     const normalised = candidate.toLowerCase();
     if (isLogLevel(normalised)) return normalised;
-    throw new Error(`invalid log level ${JSON.stringify(candidate)} — expected one of ${LOG_LEVELS.join(', ')}`);
+    throw new Error(
+      `invalid log level ${JSON.stringify(candidate)} — expected one of ${LOG_LEVELS.join(', ')}`,
+    );
   }
   return 'info';
 }
 
-export function createLogger(level: LogLevel, write: (text: string) => void = (text) => process.stderr.write(text)): Logger {
+export function createLogger(
+  level: LogLevel,
+  write: (text: string) => void = (text) => process.stderr.write(text),
+): Logger {
   const emit = (at: LogLevel, prefix: string, message: string): void => {
     if (RANK[level] < RANK[at]) return;
     // Prefix only the levels that are unusual. An `info` line is the normal

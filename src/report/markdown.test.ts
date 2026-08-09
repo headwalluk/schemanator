@@ -25,8 +25,20 @@ function report(overrides: Partial<Report> = {}): Report {
       sample_strategy: 'spread',
       caveat: null,
     },
-    graph: { nodes: 766, entities: 198, pages_with_data: 47, json_ld_blocks: 60, malformed_blocks: 0 },
-    summary: { by_severity: {}, by_check: {}, silenced: {}, checks_run: ['entity.contradiction'], checks_disabled: [] },
+    graph: {
+      nodes: 766,
+      entities: 198,
+      pages_with_data: 47,
+      json_ld_blocks: 60,
+      malformed_blocks: 0,
+    },
+    summary: {
+      by_severity: {},
+      by_check: {},
+      silenced: {},
+      checks_run: ['entity.contradiction'],
+      checks_disabled: [],
+    },
     findings: [],
     ...overrides,
   };
@@ -39,7 +51,11 @@ function finding(overrides: Partial<Finding> = {}): Finding {
     severity: 'error',
     origin: 'check',
     title: 'url has 2 different values under one @id',
-    subject: { kind: 'entity', id: 'https://example.com/#organization', property: 'http://schema.org/url' },
+    subject: {
+      kind: 'entity',
+      id: 'https://example.com/#organization',
+      property: 'http://schema.org/url',
+    },
     summary: 'The same @id carries 2 different values.',
     expected: 'One url value.',
     observed: [
@@ -48,7 +64,13 @@ function finding(overrides: Partial<Finding> = {}): Finding {
         observation_count: 120,
         page_count: 120,
         provenance: [
-          { page_id: 'about-1', url: 'https://example.com/about/', syntax: 'json-ld', block: 0, pointer: '/5' },
+          {
+            page_id: 'about-1',
+            url: 'https://example.com/about/',
+            syntax: 'json-ld',
+            block: 0,
+            pointer: '/5',
+          },
         ],
       },
     ],
@@ -115,14 +137,23 @@ test('an @id-typed value is unwrapped for display', () => {
 });
 
 test('silenced counts are shown, so silence reads as a decision', () => {
-  const output = renderMarkdown(report({ summary: { ...report().summary, silenced: { 'entity.partiality': 1847 } } }));
+  const output = renderMarkdown(
+    report({ summary: { ...report().summary, silenced: { 'entity.partiality': 1847 } } }),
+  );
   assert.match(output, /Considered and not reported/);
   assert.match(output, /entity\.partiality` — 1847 instance/);
 });
 
 test('a trade-off is surfaced rather than presented as a fix', () => {
   const output = renderMarkdown(
-    report({ findings: [finding({ severity: 'opportunity', tradeoff: 'Content-matching versus entity consistency.' })] }),
+    report({
+      findings: [
+        finding({
+          severity: 'opportunity',
+          tradeoff: 'Content-matching versus entity consistency.',
+        }),
+      ],
+    }),
   );
   assert.match(output, /\*\*Trade-off:\*\* Content-matching versus entity consistency\./);
 });

@@ -102,10 +102,13 @@ export function parseGoogleRules(json: string, source = '<inline>'): GoogleRules
   try {
     raw = JSON.parse(json) as typeof raw;
   } catch (error) {
-    throw new Error(`${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
-  if (typeof raw.schema_version !== 'number') throw new Error(`${source}: missing "schema_version"`);
+  if (typeof raw.schema_version !== 'number')
+    throw new Error(`${source}: missing "schema_version"`);
   if (raw.types === undefined || typeof raw.types !== 'object') {
     throw new Error(`${source}: missing "types" object`);
   }
@@ -116,7 +119,9 @@ export function parseGoogleRules(json: string, source = '<inline>'): GoogleRules
       throw new Error(`${source}: ${name} must declare "entry" as a boolean`);
     }
     if (typeof entry.source !== 'string') {
-      throw new Error(`${source}: ${name} must cite its "source" — a rule nobody can check is not a rule`);
+      throw new Error(
+        `${source}: ${name} must cite its "source" — a rule nobody can check is not a rule`,
+      );
     }
 
     const oneOfRaw = entry.one_of ?? [];
@@ -172,7 +177,9 @@ export function loadGoogleRules(configPath?: string): GoogleRules {
  * lookup that picks one silently misses every site on the other.
  */
 function valuesOf(node: ExtractedNode, field: string): readonly unknown[] {
-  return node.props[`https://schema.org/${field}`] ?? node.props[`http://schema.org/${field}`] ?? [];
+  return (
+    node.props[`https://schema.org/${field}`] ?? node.props[`http://schema.org/${field}`] ?? []
+  );
 }
 
 /** Nodes reached through a property. `graph.index` is the right map here: the

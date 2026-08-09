@@ -87,7 +87,14 @@ async function workRootWithStatuses(): Promise<string> {
 }
 
 async function statusJson(root: string, args: string[] = []): Promise<Record<string, unknown>> {
-  const { stdout } = await run(process.execPath, [CLI, 'status', ...args, '--work-dir', root, '--json']);
+  const { stdout } = await run(process.execPath, [
+    CLI,
+    'status',
+    ...args,
+    '--work-dir',
+    root,
+    '--json',
+  ]);
   return JSON.parse(stdout) as Record<string, unknown>;
 }
 
@@ -101,11 +108,28 @@ test('each status carries exactly its documented keys', async () => {
   const statuses = (await statusJson(root))['statuses'] as Record<string, unknown>[];
 
   assert.equal(statuses.length, 2);
-  assert.deepEqual(Object.keys(statuses[0] ?? {}).sort(), [
-    'detached', 'error', 'finished_at', 'heartbeat_age_ms', 'heartbeat_at', 'hostname',
-    'log_path', 'pages_fetched', 'pages_total', 'pid', 'running', 'site_origin',
-    'site_slug', 'started_at', 'state', 'status_schema',
-  ], BUMP);
+  assert.deepEqual(
+    Object.keys(statuses[0] ?? {}).sort(),
+    [
+      'detached',
+      'error',
+      'finished_at',
+      'heartbeat_age_ms',
+      'heartbeat_at',
+      'hostname',
+      'log_path',
+      'pages_fetched',
+      'pages_total',
+      'pid',
+      'running',
+      'site_origin',
+      'site_slug',
+      'started_at',
+      'state',
+      'status_schema',
+    ],
+    BUMP,
+  );
 });
 
 test('running is derived, not copied from state', async () => {
@@ -150,5 +174,9 @@ test('the JSON surface is stable while the human one is explicitly not', async (
   const { stdout } = await run(process.execPath, [CLI, 'status', '--work-dir', root]);
 
   assert.match(stdout, /done\.example/);
-  assert.match(stdout, /stalled/, 'the human format must name a dead crawl as stalled, not crawling');
+  assert.match(
+    stdout,
+    /stalled/,
+    'the human format must name a dead crawl as stalled, not crawling',
+  );
 });

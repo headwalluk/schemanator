@@ -203,13 +203,19 @@ export class WorkDir {
   /** Layer 2, canonical: the only thing checks read. */
   async writePageNodes(pageId: string, nodes: unknown[]): Promise<void> {
     const body = nodes.map((node) => JSON.stringify(node)).join('\n');
-    await fs.writeFile(path.join(this.pageDir(pageId), 'nodes.jsonl'), body === '' ? '' : `${body}\n`);
+    await fs.writeFile(
+      path.join(this.pageDir(pageId), 'nodes.jsonl'),
+      body === '' ? '' : `${body}\n`,
+    );
   }
 
   async appendGraphNodes(nodes: unknown[]): Promise<void> {
     if (nodes.length === 0) return;
     await fs.mkdir(this.graphDir, { recursive: true });
-    await fs.appendFile(this.graphNodesPath, `${nodes.map((node) => JSON.stringify(node)).join('\n')}\n`);
+    await fs.appendFile(
+      this.graphNodesPath,
+      `${nodes.map((node) => JSON.stringify(node)).join('\n')}\n`,
+    );
   }
 
   /**
@@ -264,7 +270,10 @@ export class WorkDir {
 
   /** Rewrite the manifest in place, once extraction has filled in its fields. */
   async rewritePageRecords(records: PageRecord[]): Promise<void> {
-    await fs.writeFile(this.pagesManifest, records.map((record) => `${JSON.stringify(record)}\n`).join(''));
+    await fs.writeFile(
+      this.pagesManifest,
+      records.map((record) => `${JSON.stringify(record)}\n`).join(''),
+    );
   }
 
   async readPageHtml(pageId: string): Promise<string | null> {
@@ -290,7 +299,9 @@ export class WorkDir {
 
   async readReport(runId: string): Promise<unknown | null> {
     try {
-      return JSON.parse(await fs.readFile(path.join(this.reportsDir(runId), 'report.json'), 'utf8')) as unknown;
+      return JSON.parse(
+        await fs.readFile(path.join(this.reportsDir(runId), 'report.json'), 'utf8'),
+      ) as unknown;
     } catch {
       return null;
     }

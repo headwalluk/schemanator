@@ -13,7 +13,11 @@ import { isUrlValuedProperty, loadHierarchy, type Hierarchy } from './hierarchy.
 export function isReferenceValue(value: unknown): value is { '@id': string } {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const keys = Object.keys(value);
-  return keys.length === 1 && keys[0] === '@id' && typeof (value as { '@id': unknown })['@id'] === 'string';
+  return (
+    keys.length === 1 &&
+    keys[0] === '@id' &&
+    typeof (value as { '@id': unknown })['@id'] === 'string'
+  );
 }
 
 /**
@@ -132,7 +136,14 @@ export function buildGraph(nodes: readonly ExtractedNode[], hierarchy?: Hierarch
     groups.set(node.node_id, group);
   }
 
-  return { groups, index, allNodes: nodes, referenced, referencedAnywhere, totalNodes: nodes.length };
+  return {
+    groups,
+    index,
+    allNodes: nodes,
+    referenced,
+    referencedAnywhere,
+    totalNodes: nodes.length,
+  };
 }
 
 function collectReferences(value: unknown, into: Set<string>): void {
@@ -144,7 +155,8 @@ function collectReferences(value: unknown, into: Set<string>): void {
 
   const object = value as Record<string, unknown>;
   if (typeof object['@id'] === 'string') into.add(object['@id']);
-  if (Array.isArray(object['@list'])) for (const item of object['@list']) collectReferences(item, into);
+  if (Array.isArray(object['@list']))
+    for (const item of object['@list']) collectReferences(item, into);
 }
 
 /**

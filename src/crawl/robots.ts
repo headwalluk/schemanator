@@ -29,7 +29,10 @@ interface ParsedRobots {
  * as an ESM default export. Node's interop hands us the function; TypeScript's
  * nodenext resolution disagrees. Narrow it once, here, rather than at each use.
  */
-const robotsParser = robotsParserImport as unknown as (url: string, contents: string) => ParsedRobots;
+const robotsParser = robotsParserImport as unknown as (
+  url: string,
+  contents: string,
+) => ParsedRobots;
 
 /** The product token we match robots.txt `User-agent` groups against. */
 export const ROBOTS_USER_AGENT = 'schemanator';
@@ -151,7 +154,9 @@ export async function fetchRobots(fetcher: PoliteFetcher, startUrl: string): Pro
   // means probing sitemaps on a host that only ever redirects.
   const finalOrigin = new URL(record.finalUrl).origin;
   if (finalOrigin !== origin) {
-    errors.push(`robots.txt redirected from ${origin} to ${finalOrigin}; adopting ${finalOrigin} as the site origin`);
+    errors.push(
+      `robots.txt redirected from ${origin} to ${finalOrigin}; adopting ${finalOrigin} as the site origin`,
+    );
   }
 
   if (record.error !== null && record.error.kind !== 'content-type-rejected') {

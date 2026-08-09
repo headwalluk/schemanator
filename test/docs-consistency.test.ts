@@ -53,13 +53,17 @@ const BUILT = new Set([...ALL_CHECKS.map((check) => check.id), 'entity.page-scop
 const CHECKS_DOC = read('docs/checks.md');
 
 /** Checks with a full write-up: `### \`id\` — Severity`. */
-const DOCUMENTED = new Set([...CHECKS_DOC.matchAll(/^### `([a-z][a-z.-]+)` — /gm)].map((match) => match[1] as string));
+const DOCUMENTED = new Set(
+  [...CHECKS_DOC.matchAll(/^### `([a-z][a-z.-]+)` — /gm)].map((match) => match[1] as string),
+);
 
 /** The "Not yet implemented" table, which promises nothing. */
 const PLANNED = new Set(
-  [...CHECKS_DOC.slice(CHECKS_DOC.indexOf('## Not yet implemented')).matchAll(/^\| `([a-z][a-z.*-]+)`/gm)].map(
-    (match) => match[1] as string,
-  ),
+  [
+    ...CHECKS_DOC.slice(CHECKS_DOC.indexOf('## Not yet implemented')).matchAll(
+      /^\| `([a-z][a-z.*-]+)`/gm,
+    ),
+  ].map((match) => match[1] as string),
 );
 
 test('check ids are unique, well-formed, and prefixed with their own group', () => {
@@ -106,8 +110,14 @@ test('nothing in "Not yet implemented" has quietly been implemented', () => {
 
 test('the check-group table lists only real groups', () => {
   const groups = new Set(ALL_CHECKS.map((check) => check.group));
-  for (const heading of [...CHECKS_DOC.matchAll(/^## `([a-z]+)`/gm)].map((match) => match[1] as string)) {
-    assert.equal(groups.has(heading), true, `docs/checks.md documents an unknown group: ${heading}`);
+  for (const heading of [...CHECKS_DOC.matchAll(/^## `([a-z]+)`/gm)].map(
+    (match) => match[1] as string,
+  )) {
+    assert.equal(
+      groups.has(heading),
+      true,
+      `docs/checks.md documents an unknown group: ${heading}`,
+    );
   }
 });
 
@@ -117,7 +127,11 @@ test('every CLI flag documented in usage.md exists', () => {
 
   // The options table: | `--flag <arg>` | description |
   const documented = [...usage.matchAll(/^\| `(--[a-z-]+)/gm)].map((match) => match[1] as string);
-  assert.equal(documented.length > 10, true, 'the options table looks empty — has the format changed?');
+  assert.equal(
+    documented.length > 10,
+    true,
+    'the options table looks empty — has the format changed?',
+  );
 
   for (const flag of new Set(documented)) {
     const name = flag.slice(2);
@@ -135,11 +149,15 @@ test('every documented environment variable is read somewhere', () => {
     .join('\n');
 
   for (const variable of new Set(
-    [...read('docs/configuration.md').matchAll(/^\| `(SCHEMANATOR_[A-Z_]+|LOG_LEVEL|NODE_ENV)`/gm)].map(
-      (match) => match[1] as string,
-    ),
+    [
+      ...read('docs/configuration.md').matchAll(/^\| `(SCHEMANATOR_[A-Z_]+|LOG_LEVEL|NODE_ENV)`/gm),
+    ].map((match) => match[1] as string),
   )) {
-    assert.equal(sources.includes(variable), true, `docs document ${variable}, which nothing reads`);
+    assert.equal(
+      sources.includes(variable),
+      true,
+      `docs document ${variable}, which nothing reads`,
+    );
   }
 });
 
@@ -232,7 +250,12 @@ test('the version is not hardcoded anywhere', () => {
   // that do not exist.
   const manifest = JSON.parse(read('package.json')) as { version: string };
 
-  for (const file of ['src/analyse.ts', 'src/pipeline.ts', 'src/net/fetcher.ts', 'src/report/build.ts']) {
+  for (const file of [
+    'src/analyse.ts',
+    'src/pipeline.ts',
+    'src/net/fetcher.ts',
+    'src/report/build.ts',
+  ]) {
     assert.equal(
       /['"`]\d+\.\d+\.\d+['"`]/.test(read(file)),
       false,
@@ -249,12 +272,17 @@ test('the README test-count badge matches reality', () => {
   const badge = /!\[tests: (\d+)\]/.exec(read('README.md'));
   assert.notEqual(badge, null, 'the README test-count badge has gone missing');
 
-  const suites = ['src', 'test']
-    .flatMap((dir) => fs.readdirSync(path.join(ROOT, dir), { recursive: true, encoding: 'utf8' })
+  const suites = ['src', 'test'].flatMap((dir) =>
+    fs
+      .readdirSync(path.join(ROOT, dir), { recursive: true, encoding: 'utf8' })
       .filter((name) => name.endsWith('.test.ts'))
-      .map((name) => read(path.join(dir, name))));
+      .map((name) => read(path.join(dir, name))),
+  );
 
-  const actual = suites.reduce((total, source) => total + (source.match(/^test\(/gm)?.length ?? 0), 0);
+  const actual = suites.reduce(
+    (total, source) => total + (source.match(/^test\(/gm)?.length ?? 0),
+    0,
+  );
   const claimed = Number(badge?.[1]);
 
   // Loop-generated cases mean the runner reports more than the `test(` count,
@@ -287,7 +315,9 @@ test('only badges that cannot be sourced live are static', () => {
   // dynamic and cannot rot. Test and check counts have no live source without
   // CI, so they are static and each has a test above. Anything else static is
   // a badge nobody is watching.
-  const badges = [...read('README.md').matchAll(/!\[([^\]]+)\]\((https:\/\/img\.shields\.io[^)]+)\)/g)];
+  const badges = [
+    ...read('README.md').matchAll(/!\[([^\]]+)\]\((https:\/\/img\.shields\.io[^)]+)\)/g),
+  ];
   const stat = badges.filter(([, , url]) => (url ?? '').includes('/badge/'));
 
   assert.deepEqual(

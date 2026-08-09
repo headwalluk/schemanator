@@ -146,13 +146,21 @@ export async function runAnalysis(options: AnalyseOptions): Promise<AnalyseResul
   let previous: Report | null = null;
   if (options.since !== undefined) {
     const runs = await workDir.listRuns();
-    const wanted = options.since === 'last' || options.since === 'previous' ? runs[runs.length - 1] : options.since;
-    if (wanted === undefined || !runs.includes(wanted)) throw new UnknownRunError(options.since, runs);
+    const wanted =
+      options.since === 'last' || options.since === 'previous'
+        ? runs[runs.length - 1]
+        : options.since;
+    if (wanted === undefined || !runs.includes(wanted))
+      throw new UnknownRunError(options.since, runs);
     previous = (await workDir.readReport(wanted)) as Report | null;
     if (previous === null) throw new UnknownRunError(wanted, runs);
   }
 
-  await workDir.writeReport(report.run.run_id, 'report.json', `${JSON.stringify(report, null, 2)}\n`);
+  await workDir.writeReport(
+    report.run.run_id,
+    'report.json',
+    `${JSON.stringify(report, null, 2)}\n`,
+  );
   await workDir.writeReport(report.run.run_id, 'report.md', markdown);
   await workDir.writeReport(report.run.run_id, 'report.html', html);
 
@@ -165,5 +173,12 @@ export async function runAnalysis(options: AnalyseOptions): Promise<AnalyseResul
     await workDir.writeReport(report.run.run_id, 'diff.md', diffMarkdown);
   }
 
-  return { report, markdown, html, reportDir: workDir.reportsDir(report.run.run_id), diff, diffMarkdown };
+  return {
+    report,
+    markdown,
+    html,
+    reportDir: workDir.reportsDir(report.run.run_id),
+    diff,
+    diffMarkdown,
+  };
 }

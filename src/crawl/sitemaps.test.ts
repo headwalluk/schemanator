@@ -2,7 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
 
-import { discoverSitemaps, isSameSiteHost, parseSitemap, WELL_KNOWN_SITEMAP_PATHS } from './sitemaps.ts';
+import {
+  discoverSitemaps,
+  isSameSiteHost,
+  parseSitemap,
+  WELL_KNOWN_SITEMAP_PATHS,
+} from './sitemaps.ts';
 import { MIN_DELAY_MS, PoliteFetcher } from '../net/fetcher.ts';
 import { startTestServer, type Route } from '../../test/helpers/server.ts';
 
@@ -25,7 +30,9 @@ ${locs.map((loc) => `  <sitemap><loc>${loc}</loc></sitemap>`).join('\n')}
 // --- parseSitemap unit tests -------------------------------------------------
 
 test('parseSitemap reads a urlset', () => {
-  const parsed = parseSitemap(Buffer.from(urlset(['https://example.com/a', 'https://example.com/b'])));
+  const parsed = parseSitemap(
+    Buffer.from(urlset(['https://example.com/a', 'https://example.com/b'])),
+  );
   assert.equal(parsed.format, 'urlset');
   assert.deepEqual(
     parsed.urls.map((entry) => entry.raw),
@@ -122,7 +129,9 @@ test('parseSitemap reads Atom and picks the alternate link', () => {
 });
 
 test('parseSitemap strips a BOM before parsing', () => {
-  const parsed = parseSitemap(Buffer.concat([Buffer.from('﻿'), Buffer.from(urlset(['https://example.com/a']))]));
+  const parsed = parseSitemap(
+    Buffer.concat([Buffer.from('﻿'), Buffer.from(urlset(['https://example.com/a']))]),
+  );
   assert.equal(parsed.format, 'urlset');
 });
 
@@ -139,7 +148,10 @@ test('parseSitemap rejects an empty body', () => {
 });
 
 test('parseSitemap rejects an unrecognised root element', () => {
-  assert.throws(() => parseSitemap(Buffer.from('<?xml version="1.0"?><nonsense/>')), /unrecognised root element/);
+  assert.throws(
+    () => parseSitemap(Buffer.from('<?xml version="1.0"?><nonsense/>')),
+    /unrecognised root element/,
+  );
 });
 
 // --- discoverSitemaps integration tests --------------------------------------
@@ -186,8 +198,10 @@ test('does not probe when robots declares sitemaps', async () => {
 test('--sitemap suppresses both robots directives and probing', async () => {
   const server = await startTestServer({
     '/named.xml': (request) => xml(urlset([`http://${request.headers.host}/named-page`])) as never,
-    '/from-robots.xml': (request) => xml(urlset([`http://${request.headers.host}/robots-page`])) as never,
-    '/sitemap.xml': (request) => xml(urlset([`http://${request.headers.host}/probed-page`])) as never,
+    '/from-robots.xml': (request) =>
+      xml(urlset([`http://${request.headers.host}/robots-page`])) as never,
+    '/sitemap.xml': (request) =>
+      xml(urlset([`http://${request.headers.host}/probed-page`])) as never,
   });
   try {
     const discovery = await discoverSitemaps(fetcher(), server.origin, {
@@ -211,10 +225,15 @@ test('recurses a sitemap index', async () => {
   const server = await startTestServer({
     '/sitemap_index.xml': (request) =>
       xml(
-        sitemapindex([`http://${request.headers.host}/posts.xml`, `http://${request.headers.host}/pages.xml`]),
+        sitemapindex([
+          `http://${request.headers.host}/posts.xml`,
+          `http://${request.headers.host}/pages.xml`,
+        ]),
       ) as never,
     '/posts.xml': (request) =>
-      xml(urlset([`http://${request.headers.host}/post-1`, `http://${request.headers.host}/post-2`])) as never,
+      xml(
+        urlset([`http://${request.headers.host}/post-1`, `http://${request.headers.host}/post-2`]),
+      ) as never,
     '/pages.xml': (request) => xml(urlset([`http://${request.headers.host}/about`])) as never,
   });
   try {
@@ -299,13 +318,23 @@ test('decompresses a gzipped sitemap by magic bytes', async () => {
 test('deduplicates URLs across sitemaps, keeping document order', async () => {
   const server = await startTestServer({
     '/index.xml': (request) =>
-      xml(sitemapindex([`http://${request.headers.host}/one.xml`, `http://${request.headers.host}/two.xml`])) as never,
+      xml(
+        sitemapindex([
+          `http://${request.headers.host}/one.xml`,
+          `http://${request.headers.host}/two.xml`,
+        ]),
+      ) as never,
     '/one.xml': (request) =>
-      xml(urlset([`http://${request.headers.host}/b`, `http://${request.headers.host}/a`])) as never,
+      xml(
+        urlset([`http://${request.headers.host}/b`, `http://${request.headers.host}/a`]),
+      ) as never,
     // /a repeats, and once with a tracking parameter that canonicalises away.
     '/two.xml': (request) =>
       xml(
-        urlset([`http://${request.headers.host}/a?utm_source=x`, `http://${request.headers.host}/c`]),
+        urlset([
+          `http://${request.headers.host}/a?utm_source=x`,
+          `http://${request.headers.host}/c`,
+        ]),
       ) as never,
   });
   try {
@@ -373,7 +402,9 @@ test('keeps www/bare host variants but records the divergence', async () => {
   const server = await startTestServer({
     '/sitemap.xml': (request) => {
       const port = (request.headers.host ?? '').split(':')[1];
-      return xml(urlset([`http://www.localhost:${port}/`, `http://www.localhost:${port}/about`])) as never;
+      return xml(
+        urlset([`http://www.localhost:${port}/`, `http://www.localhost:${port}/about`]),
+      ) as never;
     },
   });
   try {
@@ -471,7 +502,10 @@ test('one broken sitemap does not abort the others', async () => {
   const server = await startTestServer({
     '/index.xml': (request) =>
       xml(
-        sitemapindex([`http://${request.headers.host}/broken.xml`, `http://${request.headers.host}/good.xml`]),
+        sitemapindex([
+          `http://${request.headers.host}/broken.xml`,
+          `http://${request.headers.host}/good.xml`,
+        ]),
       ) as never,
     '/broken.xml': xml('<urlset><url><loc>unclosed'),
     '/good.xml': (request) => xml(urlset([`http://${request.headers.host}/survivor`])) as never,
@@ -496,13 +530,17 @@ test('honours the sitemap document cap', async () => {
     '/index.xml': (request) =>
       xml(
         sitemapindex(
-          Array.from({ length: 10 }, (_unused, index) => `http://${request.headers.host}/s${index}.xml`),
+          Array.from(
+            { length: 10 },
+            (_unused, index) => `http://${request.headers.host}/s${index}.xml`,
+          ),
         ),
       ) as never,
     ...Object.fromEntries(
       Array.from({ length: 10 }, (_unused, index) => [
         `/s${index}.xml`,
-        (request: { headers: { host?: string } }) => xml(urlset([`http://${request.headers.host}/p${index}`])),
+        (request: { headers: { host?: string } }) =>
+          xml(urlset([`http://${request.headers.host}/p${index}`])),
       ]),
     ),
   });

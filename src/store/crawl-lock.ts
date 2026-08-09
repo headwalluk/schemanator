@@ -129,7 +129,9 @@ function isCrawlStatus(value: unknown): value is CrawlStatus {
     typeof record['site_slug'] === 'string' &&
     typeof record['pid'] === 'number' &&
     typeof record['hostname'] === 'string' &&
-    (record['state'] === 'crawling' || record['state'] === 'finished' || record['state'] === 'failed')
+    (record['state'] === 'crawling' ||
+      record['state'] === 'finished' ||
+      record['state'] === 'failed')
   );
 }
 
@@ -165,15 +167,17 @@ export async function readAllStatuses(workRoot: string): Promise<CrawlStatus[]> 
       .map((name) => readStatus(workRoot, name.slice(0, -'.json'.length))),
   );
 
-  return statuses
-    .filter((status): status is CrawlStatus => status !== null)
-    // Slug breaks the tie, because two crawls started in the same millisecond
-    // are otherwise ordered by whatever `readdir` happened to return.
-    .sort(
-      (left, right) =>
-        right.started_at.localeCompare(left.started_at) ||
-        left.site_slug.localeCompare(right.site_slug),
-    );
+  return (
+    statuses
+      .filter((status): status is CrawlStatus => status !== null)
+      // Slug breaks the tie, because two crawls started in the same millisecond
+      // are otherwise ordered by whatever `readdir` happened to return.
+      .sort(
+        (left, right) =>
+          right.started_at.localeCompare(left.started_at) ||
+          left.site_slug.localeCompare(right.site_slug),
+      )
+  );
 }
 
 /**

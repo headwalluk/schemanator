@@ -44,9 +44,7 @@ function evidenceSignature(finding: Finding): string {
   return JSON.stringify({
     pages: finding.pages_affected,
     instances: finding.instance_count ?? null,
-    observed: finding.observed
-      .map((entry) => `${entry.value}|${entry.page_count}`)
-      .sort(),
+    observed: finding.observed.map((entry) => `${entry.value}|${entry.page_count}`).sort(),
   });
 }
 
@@ -54,7 +52,8 @@ function evidenceSignature(finding: Finding): string {
 function coverageWarning(before: Report, after: Report): string | null {
   const from = before.coverage.pages_extracted;
   const to = after.coverage.pages_extracted;
-  if (from === 0 || to === 0) return 'One of the two runs extracted no pages, so this diff means nothing.';
+  if (from === 0 || to === 0)
+    return 'One of the two runs extracted no pages, so this diff means nothing.';
 
   const ratio = to / from;
   if (ratio < 0.9) {

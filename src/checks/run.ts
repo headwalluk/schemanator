@@ -70,7 +70,8 @@ const contradiction: Check = {
 
         if (!isFunctional(property, rules)) {
           // Divergent, but the property is legitimately plural. Silence.
-          silenced['entity.multi-valued-divergence'] = (silenced['entity.multi-valued-divergence'] ?? 0) + 1;
+          silenced['entity.multi-valued-divergence'] =
+            (silenced['entity.multi-valued-divergence'] ?? 0) + 1;
           continue;
         }
 
@@ -168,7 +169,8 @@ function typeChecks(context: CheckContext, wantConflict: boolean): Finding[] {
     let sawConflict = false;
     for (let left = 0; left < sets.length; left += 1) {
       for (let right = left + 1; right < sets.length; right += 1) {
-        if (typeSetRelation(sets[left] ?? [], sets[right] ?? [], hierarchy) === 'conflict') sawConflict = true;
+        if (typeSetRelation(sets[left] ?? [], sets[right] ?? [], hierarchy) === 'conflict')
+          sawConflict = true;
       }
     }
     if (sawConflict !== wantConflict) continue;
@@ -319,7 +321,10 @@ const identityFracture: Check = {
     // Matching is case-folded, but the original spelling is kept for display —
     // quoting "acme network" back at an operator who wrote "Acme Network"
     // reads like a bug in the report.
-    const byName = new Map<string, typeof graph.groups extends Map<string, infer G> ? G[] : never>();
+    const byName = new Map<
+      string,
+      typeof graph.groups extends Map<string, infer G> ? G[] : never
+    >();
     const displayName = new Map<string, string>();
     for (const group of graph.groups.values()) {
       for (const node of group.observations) {
@@ -477,7 +482,8 @@ function eachValue(
       for (const value of values) {
         if (value === null || typeof value !== 'object') continue;
         const object = value as Record<string, unknown>;
-        if (typeof object['@value'] === 'string') visit(node, property, object['@value'], 'literal');
+        if (typeof object['@value'] === 'string')
+          visit(node, property, object['@value'], 'literal');
         else if (typeof object['@id'] === 'string') visit(node, property, object['@id'], 'id');
       }
     }
@@ -489,7 +495,10 @@ const placeholderValue: Check = {
   group: 'value',
   run({ graph, pages, heuristics }) {
     const pageIndex = indexPagesById(pages);
-    const hits = new Map<string, { rule: string; label: string; text: string; nodes: ExtractedNode[] }>();
+    const hits = new Map<
+      string,
+      { rule: string; label: string; text: string; nodes: ExtractedNode[] }
+    >();
 
     eachValue(graph, (node, property, text) => {
       const rule = matchPlaceholder(text, heuristics);
@@ -564,7 +573,14 @@ const emptyValue: Check = {
           `than an absent property: absence says nothing, whereas "" asserts that the value exists and ` +
           `is blank. Consumers have to decide what that means, and they will not agree.`,
         expected: `Either a real ${short}, or the property omitted entirely.`,
-        observed: [{ value: '(empty string)', observation_count: nodes.length, page_count: pageCount, provenance: provenanceOf(nodes, pageIndex) }],
+        observed: [
+          {
+            value: '(empty string)',
+            observation_count: nodes.length,
+            page_count: pageCount,
+            provenance: provenanceOf(nodes, pageIndex),
+          },
+        ],
         pages_affected: pageCount,
         coverage_qualified: false,
         remediation: `Fill in ${short}, or stop emitting it when there is nothing to say.`,
@@ -639,7 +655,10 @@ const foreignMediaHost: Check = {
   group: 'url',
   run({ graph, pages, siteHost, heuristics }) {
     const pageIndex = indexPagesById(pages);
-    const byHost = new Map<string, { urls: Set<string>; nodes: ExtractedNode[]; properties: Set<string> }>();
+    const byHost = new Map<
+      string,
+      { urls: Set<string>; nodes: ExtractedNode[]; properties: Set<string> }
+    >();
 
     eachValue(graph, (node, property, text, kind) => {
       if (kind !== 'id' || !isMediaProperty(property, heuristics)) return;
@@ -651,7 +670,11 @@ const foreignMediaHost: Check = {
       }
       if (isBenignMediaHost(host, siteHost, heuristics)) return;
 
-      const record = byHost.get(host) ?? { urls: new Set<string>(), nodes: [], properties: new Set<string>() };
+      const record = byHost.get(host) ?? {
+        urls: new Set<string>(),
+        nodes: [],
+        properties: new Set<string>(),
+      };
       record.urls.add(text);
       record.nodes.push(node);
       record.properties.add(shortIri(property));
@@ -723,7 +746,8 @@ const competingSyntax: Check = {
     // the finding then claims every type is absent from the JSON-LD — including
     // `WebPage` on a site whose JSON-LD is mostly WebPage nodes.
     const jsonLdTypes = new Set<string>();
-    for (const node of graph.allNodes) for (const type of node.types) jsonLdTypes.add(shortIri(type));
+    for (const node of graph.allNodes)
+      for (const type of node.types) jsonLdTypes.add(shortIri(type));
 
     // How many pages carry each microdata type, and does the JSON-LD say it too?
     const typePages = new Map<string, number>();
@@ -754,7 +778,10 @@ const competingSyntax: Check = {
           ? `Every one of them also appears in the JSON-LD, so the two syntaxes are describing the ` +
             `same things twice.`
           : `${absent.length} of them appear nowhere in the JSON-LD — ` +
-            `${absent.slice(0, 4).map(([type]) => type).join(', ')}${absent.length > 4 ? ', and others' : ''} — ` +
+            `${absent
+              .slice(0, 4)
+              .map(([type]) => type)
+              .join(', ')}${absent.length > 4 ? ', and others' : ''} — ` +
             `which is the signature of theme boilerplate rather than a competing description of your ` +
             `business.`)
       : `This crawl predates per-page microdata type recording, so the types are not known. ` +
@@ -806,7 +833,8 @@ const noStructuredData: Check = {
   group: 'coverage',
   run({ pages, partialCoverage }) {
     const bare = pages.filter(
-      (page) => page.http_status === 200 && page.extraction !== null && page.extraction['nodes'] === 0,
+      (page) =>
+        page.http_status === 200 && page.extraction !== null && page.extraction['nodes'] === 0,
     );
     if (bare.length === 0) return [];
 
@@ -932,7 +960,10 @@ function aggregate(findings: readonly Finding[]): Finding[] {
         page_count: finding.pages_affected,
         provenance: finding.observed[0]?.provenance ?? [],
       })),
-      pages_affected: new Set(group.flatMap((finding) => finding.page_ids ?? [])).size || group[0]?.pages_affected || 0,
+      pages_affected:
+        new Set(group.flatMap((finding) => finding.page_ids ?? [])).size ||
+        group[0]?.pages_affected ||
+        0,
       instance_count: group.length,
       ...(first.pattern === undefined ? {} : { pattern: first.pattern }),
     });

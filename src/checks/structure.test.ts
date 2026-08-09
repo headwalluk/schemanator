@@ -42,7 +42,13 @@ function page(id: string, overrides: Partial<PageRecord> = {}): PageRecord {
     bytes: 1,
     html_purged: false,
     microdata_types: [],
-    extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: 0, rdfa_items: 0, nodes: 1 },
+    extraction: {
+      json_ld_blocks: 1,
+      json_ld_failed: 0,
+      microdata_items: 0,
+      rdfa_items: 0,
+      nodes: 1,
+    },
     errors: [],
     ...overrides,
   };
@@ -108,8 +114,18 @@ test('a fragment-only @id is a warning', () => {
   const findings = only(
     'graph.relative-id',
     [
-      node({ id: 'https://example.com/a#organization', page: 'a', rawId: '#organization', props: { [S('name')]: [{ '@value': 'Acme' }] } }),
-      node({ id: 'https://example.com/b#organization', page: 'b', rawId: '#organization', props: { [S('name')]: [{ '@value': 'Acme' }] } }),
+      node({
+        id: 'https://example.com/a#organization',
+        page: 'a',
+        rawId: '#organization',
+        props: { [S('name')]: [{ '@value': 'Acme' }] },
+      }),
+      node({
+        id: 'https://example.com/b#organization',
+        page: 'b',
+        rawId: '#organization',
+        props: { [S('name')]: [{ '@value': 'Acme' }] },
+      }),
     ],
     [page('a'), page('b')],
   );
@@ -125,8 +141,18 @@ test('a root-relative @id is NOT a finding', () => {
   const findings = only(
     'graph.relative-id',
     [
-      node({ id: 'https://example.com/shop', page: 'a', rawId: '/shop', props: { [S('name')]: [{ '@value': 'Shop' }] } }),
-      node({ id: 'https://example.com/shop', page: 'b', rawId: '/shop', props: { [S('name')]: [{ '@value': 'Shop' }] } }),
+      node({
+        id: 'https://example.com/shop',
+        page: 'a',
+        rawId: '/shop',
+        props: { [S('name')]: [{ '@value': 'Shop' }] },
+      }),
+      node({
+        id: 'https://example.com/shop',
+        page: 'b',
+        rawId: '/shop',
+        props: { [S('name')]: [{ '@value': 'Shop' }] },
+      }),
     ],
     [page('a'), page('b')],
   );
@@ -160,7 +186,14 @@ test('a page subject is never an orphan', () => {
   for (const type of subjects) {
     const findings = only(
       'graph.orphan-node',
-      [node({ id: `https://example.com/a#thing`, page: 'a', types: [type], props: { [S('name')]: [{ '@value': 'X' }] } })],
+      [
+        node({
+          id: `https://example.com/a#thing`,
+          page: 'a',
+          types: [type],
+          props: { [S('name')]: [{ '@value': 'X' }] },
+        }),
+      ],
       [page('a')],
     );
     assert.deepEqual(findings, [], `${type} was reported as an orphan`);
@@ -215,7 +248,10 @@ test('a nested address referenced from another page is not an orphan', () => {
     node({
       id: 'https://example.com/#org',
       page: pageId,
-      props: { [S('address')]: [{ '@id': `_:${pageId}/address` }], [S('name')]: [{ '@value': 'Acme' }] },
+      props: {
+        [S('address')]: [{ '@id': `_:${pageId}/address` }],
+        [S('name')]: [{ '@value': 'Acme' }],
+      },
     }),
     node({
       id: `_:${pageId}/address`,
@@ -273,7 +309,12 @@ test('both spellings of one path is an opportunity', () => {
       node({
         id: 'https://example.com/a#org',
         page: 'a',
-        props: { [S('sameAs')]: [{ '@id': 'https://example.com/shop' }, { '@id': 'https://example.com/shop/' }] },
+        props: {
+          [S('sameAs')]: [
+            { '@id': 'https://example.com/shop' },
+            { '@id': 'https://example.com/shop/' },
+          ],
+        },
       }),
     ],
     [page('a')],
@@ -307,7 +348,12 @@ function section(count: number, withType: number): { nodes: ExtractedNode[]; pag
     pages.push(page(id));
     if (index < withType) {
       nodes.push(
-        node({ id: `https://example.com/${id}#product`, page: id, types: [S('Product')], props: { [S('name')]: [{ '@value': `Item ${index}` }] } }),
+        node({
+          id: `https://example.com/${id}#product`,
+          page: id,
+          types: [S('Product')],
+          props: { [S('name')]: [{ '@value': `Item ${index}` }] },
+        }),
       );
     }
   }
@@ -342,7 +388,15 @@ test('structural and action types are never reported as gaps', () => {
     for (let index = 0; index < 20; index += 1) {
       const id = `shop/item-${index}`;
       pages.push(page(id));
-      if (index < 18) nodes.push(node({ id: `https://example.com/${id}#n`, page: id, types: [type], props: { [S('name')]: [{ '@value': 'x' }] } }));
+      if (index < 18)
+        nodes.push(
+          node({
+            id: `https://example.com/${id}#n`,
+            page: id,
+            types: [type],
+            props: { [S('name')]: [{ '@value': 'x' }] },
+          }),
+        );
     }
     assert.deepEqual(only('coverage.type-gap', nodes, pages), [], `${type} was reported as a gap`);
   }
@@ -358,7 +412,14 @@ test('type-gap is suppressed under partial coverage', () => {
 test('a site with no Organization at all is an opportunity', () => {
   const findings = only(
     'coverage.missing-expected-entity',
-    [node({ id: 'https://example.com/a#page', page: 'a', types: [S('WebPage')], props: { [S('name')]: [{ '@value': 'A' }] } })],
+    [
+      node({
+        id: 'https://example.com/a#page',
+        page: 'a',
+        types: [S('WebPage')],
+        props: { [S('name')]: [{ '@value': 'A' }] },
+      }),
+    ],
     [page('a')],
   );
   assert.equal(findings.length, 1);
@@ -387,7 +448,14 @@ test('a well-described site produces nothing', () => {
 test('missing-expected-entity is suppressed under partial coverage', () => {
   const findings = only(
     'coverage.missing-expected-entity',
-    [node({ id: 'https://example.com/a#page', page: 'a', types: [S('WebPage')], props: { [S('name')]: [{ '@value': 'A' }] } })],
+    [
+      node({
+        id: 'https://example.com/a#page',
+        page: 'a',
+        types: [S('WebPage')],
+        props: { [S('name')]: [{ '@value': 'A' }] },
+      }),
+    ],
     [page('a')],
     true,
   );
@@ -404,12 +472,25 @@ test('the microdata types reported are the ones found on this site', () => {
   const withMicrodata = (id: string, types: string[]): PageRecord =>
     page(id, {
       microdata_types: types,
-      extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: types.length, rdfa_items: 0, nodes: 1 },
+      extraction: {
+        json_ld_blocks: 1,
+        json_ld_failed: 0,
+        microdata_items: types.length,
+        rdfa_items: 0,
+        nodes: 1,
+      },
     });
 
   const findings = only(
     'coverage.competing-syntax',
-    [node({ id: 'https://example.com/a#page', page: 'a', types: [S('WebPage')], props: { [S('name')]: [{ '@value': 'A' }] } })],
+    [
+      node({
+        id: 'https://example.com/a#page',
+        page: 'a',
+        types: [S('WebPage')],
+        props: { [S('name')]: [{ '@value': 'A' }] },
+      }),
+    ],
     [withMicrodata('a', ['WPFooter', 'Recipe']), withMicrodata('b', ['Recipe'])],
   );
 
@@ -422,18 +503,35 @@ test('the microdata types reported are the ones found on this site', () => {
 
   // And nothing borrowed from another site's markup.
   for (const borrowed of ['SiteNavigationElement', 'WPHeader', 'Blog']) {
-    assert.equal(summary.includes(borrowed), false, `summary cites ${borrowed}, which is not on this site`);
+    assert.equal(
+      summary.includes(borrowed),
+      false,
+      `summary cites ${borrowed}, which is not on this site`,
+    );
   }
 });
 
 test('a type present in both syntaxes is distinguished from one that is not', () => {
   const findings = only(
     'coverage.competing-syntax',
-    [node({ id: 'https://example.com/a#page', page: 'a', types: [S('WebPage')], props: { [S('name')]: [{ '@value': 'A' }] } })],
+    [
+      node({
+        id: 'https://example.com/a#page',
+        page: 'a',
+        types: [S('WebPage')],
+        props: { [S('name')]: [{ '@value': 'A' }] },
+      }),
+    ],
     [
       page('a', {
         microdata_types: ['WebPage', 'WPFooter'],
-        extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: 2, rdfa_items: 0, nodes: 1 },
+        extraction: {
+          json_ld_blocks: 1,
+          json_ld_failed: 0,
+          microdata_items: 2,
+          rdfa_items: 0,
+          nodes: 1,
+        },
       }),
     ],
   );
@@ -446,11 +544,24 @@ test('a type present in both syntaxes is distinguished from one that is not', ()
 test('a crawl predating type recording says so rather than guessing', () => {
   const findings = only(
     'coverage.competing-syntax',
-    [node({ id: 'https://example.com/a#page', page: 'a', types: [S('WebPage')], props: { [S('name')]: [{ '@value': 'A' }] } })],
+    [
+      node({
+        id: 'https://example.com/a#page',
+        page: 'a',
+        types: [S('WebPage')],
+        props: { [S('name')]: [{ '@value': 'A' }] },
+      }),
+    ],
     [
       page('a', {
         microdata_types: [],
-        extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: 4, rdfa_items: 0, nodes: 1 },
+        extraction: {
+          json_ld_blocks: 1,
+          json_ld_failed: 0,
+          microdata_items: 4,
+          rdfa_items: 0,
+          nodes: 1,
+        },
       }),
     ],
   );

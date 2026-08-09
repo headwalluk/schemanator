@@ -94,7 +94,9 @@ for (const entry of document['@graph']) {
   if (parents.length > 0) subclasses[bare] = parents;
 }
 
-const ordered = Object.fromEntries(Object.entries(subclasses).sort(([left], [right]) => (left < right ? -1 : 1)));
+const ordered = Object.fromEntries(
+  Object.entries(subclasses).sort(([left], [right]) => (left < right ? -1 : 1)),
+);
 
 const artefact = {
   schema_version: 1,

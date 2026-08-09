@@ -28,7 +28,9 @@ test('parses Disallow rules and applies them to our user-agent', async () => {
 
 test('honours a group targeting schemanator specifically', async () => {
   const server = await startTestServer({
-    '/robots.txt': plain('User-agent: *\nDisallow:\n\nUser-agent: schemanator\nDisallow: /private/\n'),
+    '/robots.txt': plain(
+      'User-agent: *\nDisallow:\n\nUser-agent: schemanator\nDisallow: /private/\n',
+    ),
   });
   try {
     const policy = await fetchRobots(fetcher(), server.origin);
@@ -151,7 +153,9 @@ test('a connection failure refuses the crawl outright', async () => {
 });
 
 test('a timeout refuses the crawl outright', async () => {
-  const server = await startTestServer({ '/robots.txt': { delayMs: 500, ...plain('User-agent: *') } });
+  const server = await startTestServer({
+    '/robots.txt': { delayMs: 500, ...plain('User-agent: *') },
+  });
   try {
     const slow = new PoliteFetcher({ delayMs: MIN_DELAY_MS, maxRetries: 0, timeoutMs: 50 });
     await assert.rejects(
@@ -176,7 +180,10 @@ test('an empty robots.txt is valid and fully permissive', async () => {
 
 test('robots.txt served as text/html is still parsed', async () => {
   const server = await startTestServer({
-    '/robots.txt': { headers: { 'content-type': 'text/html' }, body: 'User-agent: *\nDisallow: /x\n' },
+    '/robots.txt': {
+      headers: { 'content-type': 'text/html' },
+      body: 'User-agent: *\nDisallow: /x\n',
+    },
   });
   try {
     const policy = await fetchRobots(fetcher(), server.origin);

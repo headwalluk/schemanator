@@ -41,7 +41,13 @@ function page(id: string, overrides: Partial<PageRecord> = {}): PageRecord {
     bytes: 1,
     html_purged: false,
     microdata_types: [],
-    extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: 0, rdfa_items: 0, nodes: 1 },
+    extraction: {
+      json_ld_blocks: 1,
+      json_ld_failed: 0,
+      microdata_items: 0,
+      rdfa_items: 0,
+      nodes: 1,
+    },
     errors: [],
     ...overrides,
   };
@@ -367,10 +373,7 @@ test('a page in the tree that publishes no trail is an opportunity', () => {
     ],
   });
 
-  const findings = run(
-    [...nodes, ...placing],
-    [page('parent'), page('child'), page('')],
-  );
+  const findings = run([...nodes, ...placing], [page('parent'), page('child'), page('')]);
   const missing = findings.filter((finding) => finding.check === 'breadcrumb.missing');
   assert.equal(missing.length, 1);
   assert.equal(missing[0]?.severity, 'opportunity');

@@ -55,9 +55,12 @@ function renderFinding(finding: Finding, index: number): string {
 
   lines.push(`### ${index}. ${finding.title}`);
   lines.push('');
-  lines.push(`- **Check:** \`${finding.check}\`  •  **Severity:** ${SEVERITY_LABEL[finding.severity]}`);
+  lines.push(
+    `- **Check:** \`${finding.check}\`  •  **Severity:** ${SEVERITY_LABEL[finding.severity]}`,
+  );
   lines.push(`- **Subject:** \`${finding.subject.id}\``);
-  if (finding.subject.property !== undefined) lines.push(`- **Property:** \`${finding.subject.property}\``);
+  if (finding.subject.property !== undefined)
+    lines.push(`- **Property:** \`${finding.subject.property}\``);
   lines.push(`- **Pages affected:** ${finding.pages_affected}`);
   lines.push(`- **Finding id:** \`${finding.finding_id}\``);
   lines.push('');
@@ -76,14 +79,18 @@ function renderFinding(finding: Finding, index: number): string {
       lines.push(`- \`${decodeValue(observed.value)}\` — on ${observed.page_count} page(s)`);
       for (const provenance of observed.provenance) {
         lines.push(`    - ${provenance.url}`);
-        lines.push(`      \`${provenance.syntax}\` block ${provenance.block}, pointer \`${provenance.pointer}\``);
+        lines.push(
+          `      \`${provenance.syntax}\` block ${provenance.block}, pointer \`${provenance.pointer}\``,
+        );
       }
     }
   }
 
   if (finding.coverage_qualified) {
     lines.push('');
-    lines.push('> **Qualified by coverage.** This finding depends on pages that were not all fetched.');
+    lines.push(
+      '> **Qualified by coverage.** This finding depends on pages that were not all fetched.',
+    );
   }
 
   if (finding.tradeoff !== null) {
@@ -121,10 +128,14 @@ export function renderMarkdown(report: Report): string {
   lines.push('');
   lines.push('| | |');
   lines.push('| --- | --- |');
-  lines.push(`| Pages fetched | ${report.coverage.pages_fetched} of ${report.coverage.urls_discovered} discovered |`);
+  lines.push(
+    `| Pages fetched | ${report.coverage.pages_fetched} of ${report.coverage.urls_discovered} discovered |`,
+  );
   lines.push(`| Nodes extracted | ${report.graph.nodes} |`);
   lines.push(`| Distinct entities | ${report.graph.entities} |`);
-  lines.push(`| JSON-LD blocks | ${report.graph.json_ld_blocks}${report.graph.malformed_blocks > 0 ? ` (${report.graph.malformed_blocks} malformed)` : ''} |`);
+  lines.push(
+    `| JSON-LD blocks | ${report.graph.json_ld_blocks}${report.graph.malformed_blocks > 0 ? ` (${report.graph.malformed_blocks} malformed)` : ''} |`,
+  );
   lines.push(
     `| Findings | ${report.findings.length}` +
       ` — ${report.summary.by_severity['error'] ?? 0} error, ` +
@@ -166,7 +177,9 @@ export function renderMarkdown(report: Report): string {
   lines.push(`Checks run: ${report.summary.checks_run.map((check) => `\`${check}\``).join(', ')}`);
   if (report.summary.checks_disabled.length > 0) {
     lines.push('');
-    lines.push(`Disabled: ${report.summary.checks_disabled.map((check) => `\`${check}\``).join(', ')}`);
+    lines.push(
+      `Disabled: ${report.summary.checks_disabled.map((check) => `\`${check}\``).join(', ')}`,
+    );
   }
   lines.push('');
 

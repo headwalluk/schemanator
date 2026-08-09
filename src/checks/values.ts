@@ -37,14 +37,19 @@ export function parseValueHeuristics(json: string, source = '<inline>'): ValueHe
   try {
     raw = JSON.parse(json) as RawFile;
   } catch (error) {
-    throw new Error(`${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
-  if (typeof raw.schema_version !== 'number') throw new Error(`${source}: missing "schema_version"`);
+  if (typeof raw.schema_version !== 'number')
+    throw new Error(`${source}: missing "schema_version"`);
   if (!Array.isArray(raw.placeholders)) throw new Error(`${source}: missing "placeholders" array`);
 
   const placeholders: PlaceholderRule[] = raw.placeholders.map((entry, index) => {
-    if (typeof entry.pattern !== 'string') throw new Error(`${source}: placeholder ${index} has no "pattern"`);
-    if (typeof entry.label !== 'string') throw new Error(`${source}: placeholder ${index} has no "label"`);
+    if (typeof entry.pattern !== 'string')
+      throw new Error(`${source}: placeholder ${index} has no "pattern"`);
+    if (typeof entry.label !== 'string')
+      throw new Error(`${source}: placeholder ${index} has no "label"`);
     if (entry.basis !== 'observed' && entry.basis !== 'asserted') {
       throw new Error(`${source}: placeholder ${index} has invalid "basis"`);
     }
@@ -87,7 +92,10 @@ export function loadValueHeuristics(): ValueHeuristics {
  * `power-plugins.com` sells a lorem ipsum generator, and substring matching
  * would tell it its own product name is a placeholder.
  */
-export function matchPlaceholder(value: string, heuristics: ValueHeuristics): PlaceholderRule | null {
+export function matchPlaceholder(
+  value: string,
+  heuristics: ValueHeuristics,
+): PlaceholderRule | null {
   const trimmed = value.trim();
   if (trimmed === '') return null;
   return heuristics.placeholders.find((rule) => rule.pattern.test(trimmed)) ?? null;
@@ -105,7 +113,11 @@ export function isMediaProperty(property: string, heuristics: ValueHeuristics): 
  * exactly that for 35 URLs. Handled here rather than in the data file because
  * it depends on the site being crawled.
  */
-export function isBenignMediaHost(host: string, siteHost: string, heuristics: ValueHeuristics): boolean {
+export function isBenignMediaHost(
+  host: string,
+  siteHost: string,
+  heuristics: ValueHeuristics,
+): boolean {
   const candidate = host.toLowerCase();
   const site = siteHost.toLowerCase().replace(/^www\./, '');
 

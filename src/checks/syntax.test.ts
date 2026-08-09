@@ -30,7 +30,13 @@ function page(id: string, errors: string[]): PageRecord {
     bytes: 1,
     html_purged: false,
     microdata_types: [],
-    extraction: { json_ld_blocks: 1, json_ld_failed: 1, microdata_items: 0, rdfa_items: 0, nodes: 0 },
+    extraction: {
+      json_ld_blocks: 1,
+      json_ld_failed: 1,
+      microdata_items: 0,
+      rdfa_items: 0,
+      nodes: 0,
+    },
     errors,
   };
 }
@@ -42,7 +48,9 @@ const only = (check: string, pages: PageRecord[]) =>
 
 test('a block that is not valid JSON is an error', () => {
   const findings = only('syntax.malformed-json', [
-    page('a', ['ld-block-0: Unexpected token } in JSON at position 42 — a trailing comma before a closing brace or bracket is the likely cause']),
+    page('a', [
+      'ld-block-0: Unexpected token } in JSON at position 42 — a trailing comma before a closing brace or bracket is the likely cause',
+    ]),
   ]);
 
   assert.equal(findings.length, 1);
@@ -106,7 +114,9 @@ test('an unresolvable context is not also reported as malformed JSON', () => {
 test('crawl errors are not block faults', () => {
   const findings = [
     ...only('syntax.malformed-json', [page('a', ['http-404'])]),
-    ...only('syntax.unresolvable-context', [page('a', ['too-many-redirects: exceeded 5 redirects'])]),
+    ...only('syntax.unresolvable-context', [
+      page('a', ['too-many-redirects: exceeded 5 redirects']),
+    ]),
   ];
   assert.deepEqual(findings, []);
 });

@@ -55,7 +55,10 @@ test('bareTypeName strips only the schema.org prefix', () => {
   assert.equal(bareTypeName(S('Person')), 'Person');
   assert.equal(bareTypeName('http://schema.org/Person'), 'Person');
   assert.equal(bareTypeName('Person'), 'Person');
-  assert.equal(bareTypeName('https://example.com/vocab#Person'), 'https://example.com/vocab#Person');
+  assert.equal(
+    bareTypeName('https://example.com/vocab#Person'),
+    'https://example.com/vocab#Person',
+  );
 });
 
 test('closure includes the type itself and all ancestors', () => {
@@ -70,9 +73,10 @@ test('closure includes the type itself and all ancestors', () => {
 test('closure of an unknown type is just that type', () => {
   const hierarchy = loadHierarchy();
   // A custom vocabulary must not blow up or silently acquire ancestors.
-  assert.deepEqual([...closure(['https://example.com/vocab#Widget'], hierarchy)], [
-    'https://example.com/vocab#Widget',
-  ]);
+  assert.deepEqual(
+    [...closure(['https://example.com/vocab#Widget'], hierarchy)],
+    ['https://example.com/vocab#Widget'],
+  );
 });
 
 // --- the case that mattered: type-set containment, not just subclassing ------
@@ -103,9 +107,15 @@ test('identical and equivalent type sets are "same"', () => {
   const hierarchy = loadHierarchy();
   assert.equal(typeSetRelation(['Person'], ['Person'], hierarchy), 'same');
   // Order must never matter.
-  assert.equal(typeSetRelation(['Person', 'Organization'], ['Organization', 'Person'], hierarchy), 'same');
+  assert.equal(
+    typeSetRelation(['Person', 'Organization'], ['Organization', 'Person'], hierarchy),
+    'same',
+  );
   // A redundant ancestor adds nothing to the closure.
-  assert.equal(typeSetRelation(['LocalBusiness'], ['LocalBusiness', 'Organization'], hierarchy), 'same');
+  assert.equal(
+    typeSetRelation(['LocalBusiness'], ['LocalBusiness', 'Organization'], hierarchy),
+    'same',
+  );
 });
 
 test('the relation is symmetric', () => {

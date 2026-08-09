@@ -23,7 +23,9 @@ const CLI = path.join(ROOT, 'src', 'cli.ts');
  * Run the CLI and hang up on its stdout after the first chunk, the way `head`
  * does. Resolves with whatever it put on stderr and how it exited.
  */
-function hangUpEarly(args: string[]): Promise<{ stderr: string; code: number | null; signal: string | null }> {
+function hangUpEarly(
+  args: string[],
+): Promise<{ stderr: string; code: number | null; signal: string | null }> {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [CLI, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';

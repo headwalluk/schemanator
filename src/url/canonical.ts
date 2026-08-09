@@ -155,7 +155,9 @@ export function canonicaliseUrl(input: string, options: CanonicaliseOptions = {}
     // Sort by key only, and rely on the sort being stable so that repeated
     // keys (`?tag=a&tag=b`) keep their relative order. Reordering those would
     // change meaning on any site that reads them positionally.
-    retained.sort((left, right) => (left.decodedKey < right.decodedKey ? -1 : left.decodedKey > right.decodedKey ? 1 : 0));
+    retained.sort((left, right) =>
+      left.decodedKey < right.decodedKey ? -1 : left.decodedKey > right.decodedKey ? 1 : 0,
+    );
   }
 
   const query = serialiseQuery(retained);
@@ -184,7 +186,11 @@ export function tryCanonicaliseUrl(
  * `/foo/` are NOT the same page here, and neither are the `www` and bare-host
  * spellings. Callers wanting the looser comparison want a finding instead.
  */
-export function sameCanonicalUrl(left: string, right: string, options: CanonicaliseOptions = {}): boolean {
+export function sameCanonicalUrl(
+  left: string,
+  right: string,
+  options: CanonicaliseOptions = {},
+): boolean {
   const canonicalLeft = tryCanonicaliseUrl(left, options);
   const canonicalRight = tryCanonicaliseUrl(right, options);
   if (!canonicalLeft.ok || !canonicalRight.ok) return false;

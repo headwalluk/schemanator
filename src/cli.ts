@@ -185,7 +185,9 @@ async function main(argv: string[]): Promise<ExitCode> {
    */
   const format = values.format ?? (values.json === true ? 'json' : 'md');
   if (format !== 'md' && format !== 'json' && format !== 'html') {
-    process.stderr.write(`unknown --format ${JSON.stringify(format)}. Expected md, json or html.\n`);
+    process.stderr.write(
+      `unknown --format ${JSON.stringify(format)}. Expected md, json or html.\n`,
+    );
     return EXIT.FAILURE;
   }
 
@@ -212,7 +214,8 @@ async function main(argv: string[]): Promise<ExitCode> {
   const numeric = (name: string, raw: string | undefined): number | undefined => {
     if (raw === undefined) return undefined;
     const parsed = Number.parseInt(raw, 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`--${name} must be a positive integer, got ${raw}`);
+    if (!Number.isFinite(parsed) || parsed <= 0)
+      throw new Error(`--${name} must be a positive integer, got ${raw}`);
     return parsed;
   };
 
@@ -222,7 +225,8 @@ async function main(argv: string[]): Promise<ExitCode> {
   }
 
   // Aliases resolve to a level here so there is exactly one precedence chain.
-  const levelFlag = values.quiet === true ? 'error' : values.verbose === true ? 'debug' : values['log-level'];
+  const levelFlag =
+    values.quiet === true ? 'error' : values.verbose === true ? 'debug' : values['log-level'];
   const logger = createLogger(resolveLogLevel({ flag: levelFlag, env: process.env['LOG_LEVEL'] }));
 
   const workRoot = values['work-dir'] ?? defaultWorkRoot();
@@ -264,10 +268,14 @@ async function main(argv: string[]): Promise<ExitCode> {
     ].map((column) => ({ ...column, width: width(column.key, column.heading) }));
 
     const line = (cells: string[]): string =>
-      cells.map((cell, index) => cell.padEnd(columns[index]?.width ?? 0)).join('  ').trimEnd();
+      cells
+        .map((cell, index) => cell.padEnd(columns[index]?.width ?? 0))
+        .join('  ')
+        .trimEnd();
 
     process.stdout.write(`${line(columns.map((column) => column.heading))}\n`);
-    for (const row of rows) process.stdout.write(`${line(columns.map((column) => row[column.key]))}\n`);
+    for (const row of rows)
+      process.stdout.write(`${line(columns.map((column) => row[column.key]))}\n`);
 
     const total = sites.reduce((sum, site) => sum + site.usage.total_bytes, 0);
     const html = sites.reduce((sum, site) => sum + site.usage.html_bytes, 0);
@@ -334,7 +342,9 @@ async function main(argv: string[]): Promise<ExitCode> {
       process.stdout.write(`  started   ${entry.started_at}\n`);
       if (entry.finished_at !== null) process.stdout.write(`  finished  ${entry.finished_at}\n`);
       if (entry.state === 'crawling') {
-        process.stdout.write(`  heartbeat ${Math.round(heartbeatAgeMs(entry) / 1000)}s ago (pid ${entry.pid})\n`);
+        process.stdout.write(
+          `  heartbeat ${Math.round(heartbeatAgeMs(entry) / 1000)}s ago (pid ${entry.pid})\n`,
+        );
       }
       if (entry.log_path !== null) process.stdout.write(`  log       ${entry.log_path}\n`);
       if (entry.error !== null) process.stdout.write(`  error     ${entry.error}\n`);
@@ -395,7 +405,9 @@ async function main(argv: string[]): Promise<ExitCode> {
     }
     if (plan.files === 0) {
       process.stdout.write(
-        scope === 'html' ? `${slug}: no stored HTML — already purged?\n` : `${slug}: nothing to remove\n`,
+        scope === 'html'
+          ? `${slug}: no stored HTML — already purged?\n`
+          : `${slug}: nothing to remove\n`,
       );
       return EXIT.OK;
     }
@@ -411,9 +423,13 @@ async function main(argv: string[]): Promise<ExitCode> {
     if (values.yes !== true) {
       process.stdout.write(`Would remove ${what}.\n`);
       if (scope === 'all') {
-        process.stdout.write(`Reports and extracted nodes go too. Re-crawling means hitting the site again.\n`);
+        process.stdout.write(
+          `Reports and extracted nodes go too. Re-crawling means hitting the site again.\n`,
+        );
       } else {
-        process.stdout.write(`Reports and extracted nodes are kept, but re-analysis needs the HTML.\n`);
+        process.stdout.write(
+          `Reports and extracted nodes are kept, but re-analysis needs the HTML.\n`,
+        );
       }
       process.stdout.write(`\nNothing has been deleted. Add --yes to go ahead.\n`);
       return EXIT.OK;
@@ -470,9 +486,12 @@ async function main(argv: string[]): Promise<ExitCode> {
       // No HTML renderer for a diff yet, so `--format html` falls back to
       // markdown rather than pretending. Saying so beats emitting the wrong
       // document silently.
-      if (format === 'html') logger.warn('--format html does not cover diffs yet; printing markdown.');
+      if (format === 'html')
+        logger.warn('--format html does not cover diffs yet; printing markdown.');
       process.stdout.write(
-        format === 'json' ? `${JSON.stringify(result.diff, null, 2)}\n` : (result.diffMarkdown ?? ''),
+        format === 'json'
+          ? `${JSON.stringify(result.diff, null, 2)}\n`
+          : (result.diffMarkdown ?? ''),
       );
     } else {
       process.stdout.write(
@@ -536,62 +555,62 @@ async function main(argv: string[]): Promise<ExitCode> {
   }
 
   async function runCrawlCommand(): Promise<ExitCode> {
-  const progress: PipelineOptions['onProgress'] = (update) => {
-    void lock?.update({ pages_fetched: update.fetched, pages_total: update.total });
-  };
+    const progress: PipelineOptions['onProgress'] = (update) => {
+      void lock?.update({ pages_fetched: update.fetched, pages_total: update.total });
+    };
 
-  // A dry run never analyses: there is nothing stored to analyse.
-  if (command === 'scan' && values['dry-run'] !== true) {
-    const result = await runPipeline({
-      ...shared,
-      onProgress: progress,
-      disabledChecks: values.disable ?? [],
-    });
+    // A dry run never analyses: there is nothing stored to analyse.
+    if (command === 'scan' && values['dry-run'] !== true) {
+      const result = await runPipeline({
+        ...shared,
+        onProgress: progress,
+        disabledChecks: values.disable ?? [],
+      });
+
+      await lock?.finish('finished', {
+        pages_fetched: result.crawl.fetched_this_run,
+        ...(result.crawl.aborted === null ? {} : { error: result.crawl.aborted }),
+      });
+
+      // Report to stdout, logs to stderr, so this pipes into a pager, a file or
+      // an agent without commentary corrupting the output.
+      process.stdout.write(
+        format === 'json'
+          ? `${JSON.stringify(result.report, null, 2)}\n`
+          : format === 'html'
+            ? result.html
+            : result.markdown,
+      );
+      logger.info(`\nReport: ${result.reportDir}`);
+      return result.crawl.aborted !== null ? EXIT.CRAWL_ABORTED : EXIT.OK;
+    }
+
+    const summary = await runCrawl({ ...shared, onProgress: progress });
+
+    if (summary.dry_run) {
+      // The URL list is data. It goes to stdout regardless of log level, so
+      // `--dry-run --quiet > urls.txt` yields a clean file.
+      for (const url of summary.queued_urls ?? []) process.stdout.write(`${url}\n`);
+      return EXIT.OK;
+    }
 
     await lock?.finish('finished', {
-      pages_fetched: result.crawl.fetched_this_run,
-      ...(result.crawl.aborted === null ? {} : { error: result.crawl.aborted }),
+      pages_fetched: summary.fetched_this_run,
+      ...(summary.aborted === null ? {} : { error: summary.aborted }),
     });
 
-    // Report to stdout, logs to stderr, so this pipes into a pager, a file or
-    // an agent without commentary corrupting the output.
-    process.stdout.write(
-      format === 'json'
-        ? `${JSON.stringify(result.report, null, 2)}\n`
-        : format === 'html'
-          ? result.html
-          : result.markdown,
+    // Say what this run did, then what is stored. Conflating the two makes a
+    // resumed crawl claim it fetched pages it did not touch.
+    const requested = summary.fetched_this_run;
+    logger.info(
+      `\nDone. ${requested} page(s) requested this run` +
+        (requested === 0 ? ' (everything was already stored)' : '') +
+        `. ${summary.fetched} stored, ${summary.skipped} skipped, ${summary.failed} failed.`,
     );
-    logger.info(`\nReport: ${result.reportDir}`);
-    return result.crawl.aborted !== null ? EXIT.CRAWL_ABORTED : EXIT.OK;
-  }
+    logger.info(`Output: ${summary.work_dir}`);
 
-  const summary = await runCrawl({ ...shared, onProgress: progress });
-
-  if (summary.dry_run) {
-    // The URL list is data. It goes to stdout regardless of log level, so
-    // `--dry-run --quiet > urls.txt` yields a clean file.
-    for (const url of summary.queued_urls ?? []) process.stdout.write(`${url}\n`);
+    if (summary.aborted !== null) return EXIT.CRAWL_ABORTED;
     return EXIT.OK;
-  }
-
-  await lock?.finish('finished', {
-    pages_fetched: summary.fetched_this_run,
-    ...(summary.aborted === null ? {} : { error: summary.aborted }),
-  });
-
-  // Say what this run did, then what is stored. Conflating the two makes a
-  // resumed crawl claim it fetched pages it did not touch.
-  const requested = summary.fetched_this_run;
-  logger.info(
-    `\nDone. ${requested} page(s) requested this run` +
-      (requested === 0 ? ' (everything was already stored)' : '') +
-      `. ${summary.fetched} stored, ${summary.skipped} skipped, ${summary.failed} failed.`,
-  );
-  logger.info(`Output: ${summary.work_dir}`);
-
-  if (summary.aborted !== null) return EXIT.CRAWL_ABORTED;
-  return EXIT.OK;
   }
 }
 
@@ -721,7 +740,9 @@ try {
     process.exitCode = matched[1];
   } else if (error instanceof Error) {
     // A stack trace helps us and means nothing to an operator.
-    process.stderr.write(`\n${DEFAULT_VERBOSE_ERRORS ? (error.stack ?? error.message) : error.message}\n`);
+    process.stderr.write(
+      `\n${DEFAULT_VERBOSE_ERRORS ? (error.stack ?? error.message) : error.message}\n`,
+    );
     process.exitCode = EXIT.FAILURE;
   } else {
     process.stderr.write(`\n${String(error)}\n`);

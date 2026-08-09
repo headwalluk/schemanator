@@ -111,11 +111,21 @@ test('every exported Error class has a deliberate exit code', () => {
   const classes = fs
     .readdirSync(path.join(ROOT, 'src'), { recursive: true, encoding: 'utf8' })
     .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
-    .flatMap((name) => [...read(`src/${name}`).matchAll(/^export class (\w*Error) extends Error/gm)])
+    .flatMap((name) => [
+      ...read(`src/${name}`).matchAll(/^export class (\w*Error) extends Error/gm),
+    ])
     .map((match) => match[1] as string);
 
-  assert.equal(classes.length >= 5, true, 'the error-class scan looks empty — has the declaration style changed?');
+  assert.equal(
+    classes.length >= 5,
+    true,
+    'the error-class scan looks empty — has the declaration style changed?',
+  );
 
   const missing = [...new Set(classes)].filter((name) => !table.includes(name)).sort();
-  assert.deepEqual(missing, [], `error classes with no row in EXIT_BY_ERROR: ${missing.join(', ')}`);
+  assert.deepEqual(
+    missing,
+    [],
+    `error classes with no row in EXIT_BY_ERROR: ${missing.join(', ')}`,
+  );
 });

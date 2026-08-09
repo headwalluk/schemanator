@@ -100,7 +100,9 @@ test('prepublishOnly cannot ship stale or broken output', () => {
 });
 
 test('the build config emits what bin promises', () => {
-  const build = JSON.parse(fs.readFileSync(path.join(ROOT, 'tsconfig.build.json'), 'utf8').replace(/^\s*\/\/.*$/gm, '')) as {
+  const build = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'tsconfig.build.json'), 'utf8').replace(/^\s*\/\/.*$/gm, ''),
+  ) as {
     compilerOptions: Record<string, unknown>;
     exclude?: string[];
   };

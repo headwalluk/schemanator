@@ -37,7 +37,9 @@ function record(id: string, overrides: Partial<PageRecord> = {}): PageRecord {
 }
 
 /** A work directory with one site in it, as the crawler would leave it. */
-async function fixture(options: { pages?: PageRecord[]; runs?: string[]; summary?: boolean } = {}): Promise<{
+async function fixture(
+  options: { pages?: PageRecord[]; runs?: string[]; summary?: boolean } = {},
+): Promise<{
   workRoot: string;
   slug: string;
 }> {
@@ -56,7 +58,10 @@ async function fixture(options: { pages?: PageRecord[]; runs?: string[]; summary
     );
   }
 
-  await fs.writeFile(path.join(root, 'pages.jsonl'), `${pages.map((page) => JSON.stringify(page)).join('\n')}\n`);
+  await fs.writeFile(
+    path.join(root, 'pages.jsonl'),
+    `${pages.map((page) => JSON.stringify(page)).join('\n')}\n`,
+  );
 
   for (const page of pages) {
     const dir = path.join(root, 'pages', page.page_id);
@@ -136,7 +141,11 @@ test('sites are listed largest first', async () => {
 
   const sites = await listSites(workRoot);
   assert.equal(sites.length, 2);
-  assert.equal(sites[0]?.slug, 'example.com', '"what is eating my disk" is the question this answers');
+  assert.equal(
+    sites[0]?.slug,
+    'example.com',
+    '"what is eating my disk" is the question this answers',
+  );
 });
 
 // --- purging -----------------------------------------------------------------
@@ -229,7 +238,10 @@ test('applying a plan for a missing site does nothing at all', async () => {
   const { workRoot } = await fixture();
   const before = await listSites(workRoot);
   await applyPurge(await planPurge(workRoot, 'absent.example', 'all'));
-  assert.deepEqual((await listSites(workRoot)).map((site) => site.slug), before.map((site) => site.slug));
+  assert.deepEqual(
+    (await listSites(workRoot)).map((site) => site.slug),
+    before.map((site) => site.slug),
+  );
 });
 
 // --- formatting --------------------------------------------------------------

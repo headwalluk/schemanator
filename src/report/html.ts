@@ -178,7 +178,9 @@ function renderFinding(finding: Finding, index: number): string {
 
   parts.push(`<p><strong>Subject:</strong> <code>${escapeHtml(finding.subject.id)}</code></p>`);
   if (finding.subject.property !== undefined) {
-    parts.push(`<p><strong>Property:</strong> <code>${escapeHtml(finding.subject.property)}</code></p>`);
+    parts.push(
+      `<p><strong>Property:</strong> <code>${escapeHtml(finding.subject.property)}</code></p>`,
+    );
   }
 
   parts.push(`<p>${escapeHtml(finding.summary)}</p>`);
@@ -223,7 +225,9 @@ function renderFinding(finding: Finding, index: number): string {
   }
 
   if (finding.remediation !== null) {
-    parts.push(`<p class="note"><strong>Suggested fix:</strong> ${escapeHtml(finding.remediation)}</p>`);
+    parts.push(
+      `<p class="note"><strong>Suggested fix:</strong> ${escapeHtml(finding.remediation)}</p>`,
+    );
   }
 
   parts.push('</article>');

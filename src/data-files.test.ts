@@ -50,12 +50,16 @@ const GUARDED: Record<string, (json: string, source?: string) => unknown> = {
  * else's vocabulary would add a second opinion with no authority behind it.
  */
 const EXEMPT: Record<string, string> = {
-  'schema-context.json': 'vendored schema.org context; validated by jsonld.expand at the point of use',
+  'schema-context.json':
+    'vendored schema.org context; validated by jsonld.expand at the point of use',
 };
 
 test('every file in data/ is either guarded by a parser or explicitly exempt', () => {
   // The point of the suite. A new data file cannot arrive unnoticed.
-  const present = fs.readdirSync(DATA_DIR).filter((name) => name.endsWith('.json')).sort();
+  const present = fs
+    .readdirSync(DATA_DIR)
+    .filter((name) => name.endsWith('.json'))
+    .sort();
   const accounted = [...Object.keys(GUARDED), ...Object.keys(EXEMPT)].sort();
 
   assert.deepEqual(
@@ -68,7 +72,10 @@ test('every file in data/ is either guarded by a parser or explicitly exempt', (
 test('every guarded file parses as shipped', () => {
   for (const [name, parse] of Object.entries(GUARDED)) {
     const target = path.join(DATA_DIR, name);
-    assert.doesNotThrow(() => parse(fs.readFileSync(target, 'utf8'), target), `${name} does not parse`);
+    assert.doesNotThrow(
+      () => parse(fs.readFileSync(target, 'utf8'), target),
+      `${name} does not parse`,
+    );
   }
 });
 

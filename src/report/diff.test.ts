@@ -13,7 +13,11 @@ function finding(overrides: Partial<Finding> = {}): Finding {
     severity: 'error',
     origin: 'check',
     title: 'telephone has 2 different values under one @id',
-    subject: { kind: 'entity', id: 'https://example.com/#org', property: 'http://schema.org/telephone' },
+    subject: {
+      kind: 'entity',
+      id: 'https://example.com/#org',
+      property: 'http://schema.org/telephone',
+    },
     summary: 'x',
     expected: 'y',
     observed: [{ value: '+44 1', observation_count: 100, page_count: 100, provenance: [] }],
@@ -25,7 +29,11 @@ function finding(overrides: Partial<Finding> = {}): Finding {
   };
 }
 
-function report(findings: Finding[], overrides: Partial<Report['coverage']> = {}, runId = 'RUN'): Report {
+function report(
+  findings: Finding[],
+  overrides: Partial<Report['coverage']> = {},
+  runId = 'RUN',
+): Report {
   return {
     schemanator: { version: '0.1.0', report_schema: 1 },
     run: {
@@ -75,8 +83,18 @@ test('a HALF-fixed finding is Changed — the case the whole design exists for',
   // 100 pages down to 5. If ids named the answer rather than the question, this
   // would read as one resolved plus one new, and the loop would report progress
   // and a regression simultaneously for a single improvement.
-  const before = report([finding({ pages_affected: 100, observed: [{ value: '+44 1', observation_count: 100, page_count: 100, provenance: [] }] })]);
-  const after = report([finding({ pages_affected: 5, observed: [{ value: '+44 1', observation_count: 5, page_count: 5, provenance: [] }] })]);
+  const before = report([
+    finding({
+      pages_affected: 100,
+      observed: [{ value: '+44 1', observation_count: 100, page_count: 100, provenance: [] }],
+    }),
+  ]);
+  const after = report([
+    finding({
+      pages_affected: 5,
+      observed: [{ value: '+44 1', observation_count: 5, page_count: 5, provenance: [] }],
+    }),
+  ]);
 
   const diff = diffReports(before, after);
   assert.equal(diff.summary.changed, 1);
@@ -165,12 +183,18 @@ test('a clean-to-clean diff says so rather than printing empty sections', () => 
 });
 
 test('no movement is stated plainly', () => {
-  const output = renderDiffMarkdown(diffReports(report([finding()]), report([finding()])), 'https://example.com');
+  const output = renderDiffMarkdown(
+    diffReports(report([finding()]), report([finding()])),
+    'https://example.com',
+  );
   assert.match(output, /Nothing changed\. 1 finding\(s\) still open\./);
 });
 
 test('resolved findings are listed with the id that proves it', () => {
-  const output = renderDiffMarkdown(diffReports(report([finding()]), report([])), 'https://example.com');
+  const output = renderDiffMarkdown(
+    diffReports(report([finding()]), report([])),
+    'https://example.com',
+  );
   assert.match(output, /## Resolved \(1\)/);
   assert.match(output, /`aaa111`/);
 });

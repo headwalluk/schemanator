@@ -57,7 +57,9 @@ export function packageRoot(): string {
 
 function xdg(variable: string, fallback: string): string {
   const configured = process.env[variable];
-  return configured !== undefined && configured !== '' ? configured : path.join(os.homedir(), fallback);
+  return configured !== undefined && configured !== ''
+    ? configured
+    : path.join(os.homedir(), fallback);
 }
 
 /**
@@ -109,7 +111,9 @@ export function configSearchPath(): string[] {
  */
 export const VERSION: string = (() => {
   try {
-    const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot(), 'package.json'), 'utf8')) as {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(packageRoot(), 'package.json'), 'utf8'),
+    ) as {
       version?: unknown;
     };
     return typeof manifest.version === 'string' ? manifest.version : '0.0.0';

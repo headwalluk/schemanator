@@ -90,7 +90,10 @@ export async function runExtraction(options: ExtractionRunOptions): Promise<Extr
     const blockErrors = result.blocks
       .filter((block) => block.error !== null)
       .map((block) => `ld-block-${block.index}: ${block.error ?? ''}`);
-    record.errors = [...record.errors.filter((error) => !error.startsWith('ld-block-')), ...blockErrors];
+    record.errors = [
+      ...record.errors.filter((error) => !error.startsWith('ld-block-')),
+      ...blockErrors,
+    ];
 
     summary.pages_extracted += 1;
     summary.json_ld_blocks += result.counts.json_ld_blocks;

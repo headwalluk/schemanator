@@ -39,7 +39,8 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
   const logger: Logger = options.logger ?? SILENT_LOGGER;
 
   const crawl = await runCrawl(options);
-  if (crawl.dry_run) throw new Error('runPipeline cannot be used with dryRun; call runCrawl directly');
+  if (crawl.dry_run)
+    throw new Error('runPipeline cannot be used with dryRun; call runCrawl directly');
 
   const workDir = new WorkDir(options.workRoot, options.siteSlug ?? siteSlugFor(crawl.site_origin));
 
@@ -79,7 +80,11 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
   // All three are written regardless of --format (`05`), so the artefacts exist
   // whichever way the command was invoked — you can email the HTML later without
   // re-running anything.
-  await workDir.writeReport(report.run.run_id, 'report.json', `${JSON.stringify(report, null, 2)}\n`);
+  await workDir.writeReport(
+    report.run.run_id,
+    'report.json',
+    `${JSON.stringify(report, null, 2)}\n`,
+  );
   await workDir.writeReport(report.run.run_id, 'report.md', markdown);
   await workDir.writeReport(report.run.run_id, 'report.html', html);
 

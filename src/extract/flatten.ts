@@ -92,11 +92,16 @@ export function flattenExpanded(expanded: unknown[], options: FlattenOptions): E
     const isBlank = declaredId === undefined || declaredId.startsWith('_:');
 
     const nodeId = isBlank
-      ? blankNodeId(options, pointer, declaredId?.startsWith('_:') ? declaredId.slice(2) : undefined)
+      ? blankNodeId(
+          options,
+          pointer,
+          declaredId?.startsWith('_:') ? declaredId.slice(2) : undefined,
+        )
       : (declaredId as string);
 
-    const types = (Array.isArray(raw['@type']) ? raw['@type'] : raw['@type'] === undefined ? [] : [raw['@type']])
-      .filter((type): type is string => typeof type === 'string');
+    const types = (
+      Array.isArray(raw['@type']) ? raw['@type'] : raw['@type'] === undefined ? [] : [raw['@type']]
+    ).filter((type): type is string => typeof type === 'string');
 
     const props: Record<string, unknown[]> = {};
 

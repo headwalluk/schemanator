@@ -23,7 +23,8 @@ import { hostKey } from '../url/canonical.ts';
  * do not own: the default points at a repo that may not be public, which makes
  * the "contactable" half of the promise a lie.
  */
-const CONTACT_URL = process.env['SCHEMANATOR_CONTACT'] ?? 'https://github.com/headwall-hosting/schemanator';
+const CONTACT_URL =
+  process.env['SCHEMANATOR_CONTACT'] ?? 'https://github.com/headwall-hosting/schemanator';
 
 export const USER_AGENT = `schemanator/${VERSION} (+${CONTACT_URL})`;
 
@@ -245,7 +246,10 @@ export class PoliteFetcher {
       if (record.status === 429) {
         state.consecutiveThrottles += 1;
         if (state.consecutiveThrottles >= this.maxConsecutiveThrottles) {
-          throw new CrawlAbortedError(host, `${state.consecutiveThrottles} consecutive 429 responses`);
+          throw new CrawlAbortedError(
+            host,
+            `${state.consecutiveThrottles} consecutive 429 responses`,
+          );
         }
 
         const retryAfter = parseRetryAfter(record.headers['retry-after'] ?? null);
@@ -274,7 +278,8 @@ export class PoliteFetcher {
 
       if (!isRetryable || retriesUsed >= this.maxRetries) return record;
 
-      const retryAfter = record.status === 503 ? parseRetryAfter(record.headers['retry-after'] ?? null) : null;
+      const retryAfter =
+        record.status === 503 ? parseRetryAfter(record.headers['retry-after'] ?? null) : null;
       await sleep(retryAfter ?? this.retryBackoffMs * 2 ** retriesUsed);
       retriesUsed += 1;
     }
@@ -316,7 +321,8 @@ export class PoliteFetcher {
           },
         });
       } catch (error) {
-        const isTimeout = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+        const isTimeout =
+          error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
         record.finalUrl = currentUrl;
         record.error = {
           kind: isTimeout ? 'timeout' : 'network',
@@ -359,14 +365,20 @@ export class PoliteFetcher {
       if (accept.length > 0 && !accept.some((prefix) => bareType === prefix.toLowerCase())) {
         await response.body?.cancel();
         record.notFetchedReason = `content-type-rejected:${bareType || 'unknown'}`;
-        record.error = { kind: 'content-type-rejected', message: `refusing ${bareType || 'unknown content-type'}` };
+        record.error = {
+          kind: 'content-type-rejected',
+          message: `refusing ${bareType || 'unknown content-type'}`,
+        };
         return record;
       }
 
       const drained = await this.drainCapped(response);
       if (drained === null) {
         record.notFetchedReason = `body-too-large:>${this.maxBodyBytes}`;
-        record.error = { kind: 'body-too-large', message: `body exceeded ${this.maxBodyBytes} bytes` };
+        record.error = {
+          kind: 'body-too-large',
+          message: `body exceeded ${this.maxBodyBytes} bytes`,
+        };
         return record;
       }
 

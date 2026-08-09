@@ -48,9 +48,12 @@ export function parseHierarchy(json: string, source = '<inline>'): Hierarchy {
   try {
     raw = JSON.parse(json) as RawFile;
   } catch (error) {
-    throw new Error(`${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
-  if (typeof raw.schema_version !== 'number') throw new Error(`${source}: missing "schema_version"`);
+  if (typeof raw.schema_version !== 'number')
+    throw new Error(`${source}: missing "schema_version"`);
   if (raw.subclasses === undefined || typeof raw.subclasses !== 'object') {
     throw new Error(`${source}: missing "subclasses" object`);
   }

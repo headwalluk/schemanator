@@ -206,7 +206,9 @@ test('gives up on a 5xx after the retry budget and reports the last response', a
 test('does not retry a 4xx', async () => {
   const server = await startTestServer({ '/nope': { status: 403, body: 'denied' } });
   try {
-    const record = await new PoliteFetcher({ maxRetries: 2, retryBackoffMs: 1 }).fetch(server.url('/nope'));
+    const record = await new PoliteFetcher({ maxRetries: 2, retryBackoffMs: 1 }).fetch(
+      server.url('/nope'),
+    );
     assert.equal(record.attempts, 1);
     assert.equal(record.status, 403);
   } finally {
@@ -217,7 +219,9 @@ test('does not retry a 4xx', async () => {
 test('honours Retry-After on a 429 and then succeeds', async () => {
   const server = await startTestServer({
     '/throttled': (_request, hit) =>
-      hit < 3 ? { status: 429, headers: { 'retry-after': '0' }, body: 'slow down' } : { body: 'thank you' },
+      hit < 3
+        ? { status: 429, headers: { 'retry-after': '0' }, body: 'slow down' }
+        : { body: 'thank you' },
   });
   try {
     const fetcher = new PoliteFetcher({ delayMs: MIN_DELAY_MS });
@@ -232,7 +236,8 @@ test('honours Retry-After on a 429 and then succeeds', async () => {
 
 test('a 429 raises the standing delay for that host', async () => {
   const server = await startTestServer({
-    '/throttled': (_request, hit) => (hit < 2 ? { status: 429, headers: { 'retry-after': '0' } } : { body: 'ok' }),
+    '/throttled': (_request, hit) =>
+      hit < 2 ? { status: 429, headers: { 'retry-after': '0' } } : { body: 'ok' },
   });
   try {
     const fetcher = new PoliteFetcher({ delayMs: 250 });
@@ -256,7 +261,8 @@ test('three consecutive 429s abort the crawl', async () => {
     const fetcher = new PoliteFetcher({ delayMs: MIN_DELAY_MS, maxConsecutiveThrottles: 3 });
     await assert.rejects(
       () => fetcher.fetch(server.url('/hostile')),
-      (error: unknown) => error instanceof CrawlAbortedError && /3 consecutive 429/.test(error.message),
+      (error: unknown) =>
+        error instanceof CrawlAbortedError && /3 consecutive 429/.test(error.message),
     );
   } finally {
     await server.close();
@@ -271,7 +277,8 @@ test('a Retry-After longer than we will wait aborts rather than sleeping', async
     const fetcher = new PoliteFetcher({ delayMs: MIN_DELAY_MS, maxRetryAfterMs: 5000 });
     await assert.rejects(
       () => fetcher.fetch(server.url('/hostile')),
-      (error: unknown) => error instanceof CrawlAbortedError && /exceeds the 5s/.test(error.message),
+      (error: unknown) =>
+        error instanceof CrawlAbortedError && /exceeds the 5s/.test(error.message),
     );
   } finally {
     await server.close();
@@ -300,7 +307,12 @@ test('a non-429 response resets the consecutive throttle count', async () => {
 test('reports a timeout as a retryable error', async () => {
   const server = await startTestServer({ '/slow': { delayMs: 500, body: 'eventually' } });
   try {
-    const fetcher = new PoliteFetcher({ timeoutMs: 50, maxRetries: 1, retryBackoffMs: 1, delayMs: MIN_DELAY_MS });
+    const fetcher = new PoliteFetcher({
+      timeoutMs: 50,
+      maxRetries: 1,
+      retryBackoffMs: 1,
+      delayMs: MIN_DELAY_MS,
+    });
     const record = await fetcher.fetch(server.url('/slow'));
 
     assert.equal(record.error?.kind, 'timeout');

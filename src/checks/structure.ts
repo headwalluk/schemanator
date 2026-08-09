@@ -456,7 +456,16 @@ const TYPE_GAP_MAJORITY = 0.8;
  * Types whose absence is worth reporting: the ones that say what a page is
  * about. The inverse of `graph.orphan-node`'s question, and for the same reason.
  */
-const SUBJECT_ANCESTORS = ['CreativeWork', 'Product', 'Event', 'Organization', 'Person', 'Place', 'Service', 'Offer'];
+const SUBJECT_ANCESTORS = [
+  'CreativeWork',
+  'Product',
+  'Event',
+  'Organization',
+  'Person',
+  'Place',
+  'Service',
+  'Offer',
+];
 
 /** Emitted by the generator about the page itself, not about its subject. */
 const NON_SUBJECT_TYPES = new Set([

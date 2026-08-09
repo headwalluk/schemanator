@@ -19,54 +19,174 @@ interface Case {
 
 const CASES: Case[] = [
   // --- step 1: scheme and host case, IDN ---
-  { name: 'lowercases scheme and host', input: 'HTTPS://EXAMPLE.COM/Path', expected: 'https://example.com/Path' },
-  { name: 'preserves path case', input: 'https://example.com/CaseSensitive', expected: 'https://example.com/CaseSensitive' },
-  { name: 'converts IDN to punycode', input: 'https://bücher.example/shop', expected: 'https://xn--bcher-kva.example/shop' },
+  {
+    name: 'lowercases scheme and host',
+    input: 'HTTPS://EXAMPLE.COM/Path',
+    expected: 'https://example.com/Path',
+  },
+  {
+    name: 'preserves path case',
+    input: 'https://example.com/CaseSensitive',
+    expected: 'https://example.com/CaseSensitive',
+  },
+  {
+    name: 'converts IDN to punycode',
+    input: 'https://bücher.example/shop',
+    expected: 'https://xn--bcher-kva.example/shop',
+  },
 
   // --- step 2: default ports ---
-  { name: 'strips :443 from https', input: 'https://example.com:443/a', expected: 'https://example.com/a' },
-  { name: 'strips :80 from http', input: 'http://example.com:80/a', expected: 'http://example.com/a' },
-  { name: 'keeps a non-default port', input: 'https://example.com:8443/a', expected: 'https://example.com:8443/a' },
-  { name: 'keeps :80 on https', input: 'https://example.com:80/a', expected: 'https://example.com:80/a' },
+  {
+    name: 'strips :443 from https',
+    input: 'https://example.com:443/a',
+    expected: 'https://example.com/a',
+  },
+  {
+    name: 'strips :80 from http',
+    input: 'http://example.com:80/a',
+    expected: 'http://example.com/a',
+  },
+  {
+    name: 'keeps a non-default port',
+    input: 'https://example.com:8443/a',
+    expected: 'https://example.com:8443/a',
+  },
+  {
+    name: 'keeps :80 on https',
+    input: 'https://example.com:80/a',
+    expected: 'https://example.com:80/a',
+  },
 
   // --- step 3: dot segments ---
-  { name: 'resolves dot segments', input: 'https://example.com/a/./b/../c', expected: 'https://example.com/a/c' },
+  {
+    name: 'resolves dot segments',
+    input: 'https://example.com/a/./b/../c',
+    expected: 'https://example.com/a/c',
+  },
   { name: 'adds the root path', input: 'https://example.com', expected: 'https://example.com/' },
 
   // --- step 4: percent-encoding ---
-  { name: 'decodes unreserved percent-encodings', input: 'https://example.com/%7Euser', expected: 'https://example.com/~user' },
-  { name: 'decodes encoded alphanumerics', input: 'https://example.com/%41%42', expected: 'https://example.com/AB' },
-  { name: 'uppercases reserved percent-encodings', input: 'https://example.com/a%2fb', expected: 'https://example.com/a%2Fb' },
-  { name: 'leaves an encoded space encoded', input: 'https://example.com/a?q=one%20two', expected: 'https://example.com/a?q=one%20two' },
-  { name: 'passes malformed percent-encoding through', input: 'https://example.com/%zz', expected: 'https://example.com/%zz' },
+  {
+    name: 'decodes unreserved percent-encodings',
+    input: 'https://example.com/%7Euser',
+    expected: 'https://example.com/~user',
+  },
+  {
+    name: 'decodes encoded alphanumerics',
+    input: 'https://example.com/%41%42',
+    expected: 'https://example.com/AB',
+  },
+  {
+    name: 'uppercases reserved percent-encodings',
+    input: 'https://example.com/a%2fb',
+    expected: 'https://example.com/a%2Fb',
+  },
+  {
+    name: 'leaves an encoded space encoded',
+    input: 'https://example.com/a?q=one%20two',
+    expected: 'https://example.com/a?q=one%20two',
+  },
+  {
+    name: 'passes malformed percent-encoding through',
+    input: 'https://example.com/%zz',
+    expected: 'https://example.com/%zz',
+  },
 
   // --- step 5: fragment ---
-  { name: 'strips the fragment', input: 'https://example.com/a#section', expected: 'https://example.com/a' },
-  { name: 'strips a bare fragment marker', input: 'https://example.com/a#', expected: 'https://example.com/a' },
+  {
+    name: 'strips the fragment',
+    input: 'https://example.com/a#section',
+    expected: 'https://example.com/a',
+  },
+  {
+    name: 'strips a bare fragment marker',
+    input: 'https://example.com/a#',
+    expected: 'https://example.com/a',
+  },
 
   // --- step 6: tracking parameters ---
-  { name: 'strips utm_* by prefix', input: 'https://example.com/a?utm_source=x&utm_medium=y&id=5', expected: 'https://example.com/a?id=5' },
-  { name: 'strips named tracking params', input: 'https://example.com/a?fbclid=x&gclid=y&p=1', expected: 'https://example.com/a?p=1' },
-  { name: 'strips a percent-encoded tracking key', input: 'https://example.com/a?utm%5Fsource=x&p=1', expected: 'https://example.com/a?p=1' },
-  { name: 'drops the ? when every param was tracking', input: 'https://example.com/a?utm_source=x', expected: 'https://example.com/a' },
-  { name: 'drops an empty query', input: 'https://example.com/a?', expected: 'https://example.com/a' },
+  {
+    name: 'strips utm_* by prefix',
+    input: 'https://example.com/a?utm_source=x&utm_medium=y&id=5',
+    expected: 'https://example.com/a?id=5',
+  },
+  {
+    name: 'strips named tracking params',
+    input: 'https://example.com/a?fbclid=x&gclid=y&p=1',
+    expected: 'https://example.com/a?p=1',
+  },
+  {
+    name: 'strips a percent-encoded tracking key',
+    input: 'https://example.com/a?utm%5Fsource=x&p=1',
+    expected: 'https://example.com/a?p=1',
+  },
+  {
+    name: 'drops the ? when every param was tracking',
+    input: 'https://example.com/a?utm_source=x',
+    expected: 'https://example.com/a',
+  },
+  {
+    name: 'drops an empty query',
+    input: 'https://example.com/a?',
+    expected: 'https://example.com/a',
+  },
 
   // --- step 7: query sorting ---
-  { name: 'sorts query parameters by key', input: 'https://example.com/a?b=2&a=1', expected: 'https://example.com/a?a=1&b=2' },
-  { name: 'keeps repeated keys in their original order', input: 'https://example.com/a?tag=b&tag=a&x=1', expected: 'https://example.com/a?tag=b&tag=a&x=1' },
-  { name: 'keeps a valueless parameter', input: 'https://example.com/a?flag', expected: 'https://example.com/a?flag' },
-  { name: 'keeps an empty-valued parameter', input: 'https://example.com/a?a=', expected: 'https://example.com/a?a=' },
+  {
+    name: 'sorts query parameters by key',
+    input: 'https://example.com/a?b=2&a=1',
+    expected: 'https://example.com/a?a=1&b=2',
+  },
+  {
+    name: 'keeps repeated keys in their original order',
+    input: 'https://example.com/a?tag=b&tag=a&x=1',
+    expected: 'https://example.com/a?tag=b&tag=a&x=1',
+  },
+  {
+    name: 'keeps a valueless parameter',
+    input: 'https://example.com/a?flag',
+    expected: 'https://example.com/a?flag',
+  },
+  {
+    name: 'keeps an empty-valued parameter',
+    input: 'https://example.com/a?a=',
+    expected: 'https://example.com/a?a=',
+  },
 
   // --- deliberate non-normalisation: these divergences ARE the findings ---
-  { name: 'preserves an absent trailing slash', input: 'https://example.com/foo', expected: 'https://example.com/foo' },
-  { name: 'preserves a present trailing slash', input: 'https://example.com/foo/', expected: 'https://example.com/foo/' },
-  { name: 'preserves the www host', input: 'https://www.example.com/a', expected: 'https://www.example.com/a' },
-  { name: 'preserves the bare host', input: 'https://example.com/a', expected: 'https://example.com/a' },
+  {
+    name: 'preserves an absent trailing slash',
+    input: 'https://example.com/foo',
+    expected: 'https://example.com/foo',
+  },
+  {
+    name: 'preserves a present trailing slash',
+    input: 'https://example.com/foo/',
+    expected: 'https://example.com/foo/',
+  },
+  {
+    name: 'preserves the www host',
+    input: 'https://www.example.com/a',
+    expected: 'https://www.example.com/a',
+  },
+  {
+    name: 'preserves the bare host',
+    input: 'https://example.com/a',
+    expected: 'https://example.com/a',
+  },
   { name: 'preserves http', input: 'http://example.com/a', expected: 'http://example.com/a' },
 
   // --- hygiene ---
-  { name: 'trims surrounding whitespace', input: '  https://example.com/a\n', expected: 'https://example.com/a' },
-  { name: 'drops credentials', input: 'https://user:pass@example.com/a', expected: 'https://example.com/a' },
+  {
+    name: 'trims surrounding whitespace',
+    input: '  https://example.com/a\n',
+    expected: 'https://example.com/a',
+  },
+  {
+    name: 'drops credentials',
+    input: 'https://user:pass@example.com/a',
+    expected: 'https://example.com/a',
+  },
 ];
 
 for (const testCase of CASES) {
@@ -141,7 +261,10 @@ test('sameCanonicalUrl treats the reportable divergences as different pages', ()
 
 test('sameCanonicalUrl treats the noise as the same page', () => {
   assert.equal(sameCanonicalUrl('https://EXAMPLE.com/a#top', 'https://example.com:443/a'), true);
-  assert.equal(sameCanonicalUrl('https://example.com/a?utm_source=x', 'https://example.com/a'), true);
+  assert.equal(
+    sameCanonicalUrl('https://example.com/a?utm_source=x', 'https://example.com/a'),
+    true,
+  );
   assert.equal(sameCanonicalUrl('https://example.com/b/../a', 'https://example.com/a'), true);
 });
 

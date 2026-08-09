@@ -8,7 +8,12 @@
 import { CrawlAbortedError, PoliteFetcher, type FetchRecord } from '../net/fetcher.ts';
 import { canonicaliseUrl, tryCanonicaliseUrl } from '../url/canonical.ts';
 import { Frontier } from './frontier.ts';
-import { fetchRobots, RobotsUnavailableError, summarisePolicy, type RobotsPolicy } from './robots.ts';
+import {
+  fetchRobots,
+  RobotsUnavailableError,
+  summarisePolicy,
+  type RobotsPolicy,
+} from './robots.ts';
 import { discoverSitemaps, type SitemapDiscovery } from './sitemaps.ts';
 import { pageIdFor, sha256, siteSlugFor, WorkDir, type PageRecord } from '../store/workdir.ts';
 import { SILENT_LOGGER, type Logger } from '../log.ts';
@@ -187,7 +192,9 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
   const workDir = new WorkDir(workRoot, siteSlug);
 
   for (const note of policy.errors) logger.warn(note);
-  logger.info(`  robots.txt: ${policy.source}${policy.httpStatus === null ? '' : ` (HTTP ${policy.httpStatus})`}`);
+  logger.info(
+    `  robots.txt: ${policy.source}${policy.httpStatus === null ? '' : ` (HTTP ${policy.httpStatus})`}`,
+  );
 
   if (policy.crawlDelayMs !== null) {
     // Honoured when longer than ours. Never shortened by it.
@@ -197,7 +204,9 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     const after = fetcher.hostDelay(host);
     logger.info(
       `  Crawl-delay: ${policy.crawlDelayMs} ms — ` +
-        (after > before ? `raising our delay to ${after} ms` : `shorter than our ${before} ms, ignored`),
+        (after > before
+          ? `raising our delay to ${after} ms`
+          : `shorter than our ${before} ms, ignored`),
     );
   }
 
@@ -205,7 +214,10 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     await workDir.init();
     if (!resume) await workDir.resetCrawlState();
     if (policy.text !== null) await workDir.writeCrawlFile('robots.txt', policy.text);
-    await workDir.writeCrawlFile('robots.parsed.json', `${JSON.stringify(summarisePolicy(policy), null, 2)}\n`);
+    await workDir.writeCrawlFile(
+      'robots.parsed.json',
+      `${JSON.stringify(summarisePolicy(policy), null, 2)}\n`,
+    );
   }
 
   // --- sitemaps ----------------------------------------------------------
@@ -231,7 +243,10 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
   });
 
   for (const sitemap of discovery.sitemaps) {
-    const detail = sitemap.error !== null ? `ERROR ${sitemap.error}` : `${sitemap.format}, ${sitemap.urlCount} urls, ${sitemap.childCount} children`;
+    const detail =
+      sitemap.error !== null
+        ? `ERROR ${sitemap.error}`
+        : `${sitemap.format}, ${sitemap.urlCount} urls, ${sitemap.childCount} children`;
     logger.debug(`  [${sitemap.source}] ${sitemap.url} — ${detail}`);
   }
   for (const error of discovery.errors) logger.warn(`sitemap: ${error}`);
@@ -246,8 +261,10 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
   // cross-host entries means the URL list is not what the operator expects.
   if (discovery.dropped.length > 0) {
     logger.warn(`${discovery.dropped.length} sitemap entr(ies) dropped:`);
-    for (const entry of discovery.dropped.slice(0, 10)) logger.warn(`  ${entry.rawUrl} — ${entry.reason}`);
-    if (discovery.dropped.length > 10) logger.warn(`  … and ${discovery.dropped.length - 10} more (see crawl-summary.json)`);
+    for (const entry of discovery.dropped.slice(0, 10))
+      logger.warn(`  ${entry.rawUrl} — ${entry.reason}`);
+    if (discovery.dropped.length > 10)
+      logger.warn(`  … and ${discovery.dropped.length - 10} more (see crawl-summary.json)`);
   }
 
   // --- seed the frontier -------------------------------------------------
@@ -262,7 +279,11 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     // No sitemaps, or sitemaps that yielded nothing. Fall back to the front page.
     seededFrom = 'front-page';
     candidates = [
-      { url: canonicaliseUrl(`${siteOrigin}/`, { sortQuery }), source: 'front-page-fallback', fromSitemap: '' },
+      {
+        url: canonicaliseUrl(`${siteOrigin}/`, { sortQuery }),
+        source: 'front-page-fallback',
+        fromSitemap: '',
+      },
     ];
     logger.warn('no sitemap URLs found — falling back to the front page');
   }
@@ -276,7 +297,8 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
   // Truncation must be recorded — a report that implies whole-site coverage it
   // does not have is worse than one that admits the cap.
   const queued = selectSample(allowed, maxPages, sample, siteOrigin);
-  const truncated = allowed.length > maxPages ? { limit: maxPages, dropped: allowed.length - maxPages } : null;
+  const truncated =
+    allowed.length > maxPages ? { limit: maxPages, dropped: allowed.length - maxPages } : null;
 
   if (truncated !== null) {
     logger.info(
@@ -286,7 +308,8 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     // Show what the sample actually covers. On a partitioned sitemap index this
     // is the difference between a representative audit and 500 news articles.
     const perSitemap = new Map<string, number>();
-    for (const candidate of queued) perSitemap.set(candidate.fromSitemap, (perSitemap.get(candidate.fromSitemap) ?? 0) + 1);
+    for (const candidate of queued)
+      perSitemap.set(candidate.fromSitemap, (perSitemap.get(candidate.fromSitemap) ?? 0) + 1);
     for (const [sitemap, count] of perSitemap) {
       const available = allowed.filter((candidate) => candidate.fromSitemap === sitemap).length;
       logger.info(`    ${String(count).padStart(5)} of ${String(available).padEnd(6)} ${sitemap}`);
@@ -338,10 +361,13 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
 
   const pending = frontier.pending();
   const alreadyDone = frontier.counts().done;
-  if (resume && alreadyDone > 0) logger.info(`Resuming: ${alreadyDone} already fetched, ${pending.length} to go`);
+  if (resume && alreadyDone > 0)
+    logger.info(`Resuming: ${alreadyDone} already fetched, ${pending.length} to go`);
 
   const estimateMs = pending.length * fetcher.hostDelay(new URL(siteOrigin).host);
-  logger.info(`Fetching ${pending.length} page(s), ~${Math.ceil(estimateMs / 60000)} min at the current delay …`);
+  logger.info(
+    `Fetching ${pending.length} page(s), ~${Math.ceil(estimateMs / 60000)} min at the current delay …`,
+  );
 
   const total = pending.length;
   const width = String(total).length;
@@ -364,7 +390,16 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
 
     await workDir.appendCrawlLog(record);
     summary.fetched_this_run += 1;
-    await storeResult(workDir, frontier, item.url, item.page_id, item.source, record, summary, sortQuery);
+    await storeResult(
+      workDir,
+      frontier,
+      item.url,
+      item.page_id,
+      item.source,
+      record,
+      summary,
+      sortQuery,
+    );
 
     // Per-page progress. A long crawl is otherwise silent for over an hour,
     // which makes a wedged run indistinguishable from a slow one.

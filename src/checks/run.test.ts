@@ -42,7 +42,13 @@ function page(id: string, overrides: Partial<PageRecord> = {}): PageRecord {
     bytes: 1,
     html_purged: false,
     microdata_types: [],
-    extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: 0, rdfa_items: 0, nodes: 1 },
+    extraction: {
+      json_ld_blocks: 1,
+      json_ld_failed: 0,
+      microdata_items: 0,
+      rdfa_items: 0,
+      nodes: 1,
+    },
     errors: [],
     ...overrides,
   };
@@ -78,8 +84,16 @@ const ref = (id: string) => [{ '@id': id }];
 
 test('flags a functional property with two values under one @id', () => {
   const { findings } = run([
-    node({ id: 'https://example.com/#org', page: 'a', props: { [S('telephone')]: value('+44 1') } }),
-    node({ id: 'https://example.com/#org', page: 'b', props: { [S('telephone')]: value('+44 2') } }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'a',
+      props: { [S('telephone')]: value('+44 1') },
+    }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'b',
+      props: { [S('telephone')]: value('+44 2') },
+    }),
   ]);
 
   assert.equal(findings.length, 1);
@@ -90,8 +104,16 @@ test('flags a functional property with two values under one @id', () => {
 
 test('stays silent on a legitimately plural property', () => {
   const { findings, silenced } = run([
-    node({ id: 'https://example.com/#org', page: 'a', props: { [S('sameAs')]: ref('https://x.example') } }),
-    node({ id: 'https://example.com/#org', page: 'b', props: { [S('sameAs')]: ref('https://y.example') } }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'a',
+      props: { [S('sameAs')]: ref('https://x.example') },
+    }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'b',
+      props: { [S('sameAs')]: ref('https://y.example') },
+    }),
   ]);
 
   assert.deepEqual(findings, []);
@@ -125,7 +147,11 @@ test('set order is never a finding', () => {
 
 test('partiality is counted, never reported', () => {
   const { findings, silenced } = run([
-    node({ id: 'https://example.com/#org', page: 'a', props: { [S('telephone')]: value('+44 1') } }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'a',
+      props: { [S('telephone')]: value('+44 1') },
+    }),
     node({ id: 'https://example.com/#org', page: 'b', props: { [S('name')]: value('Acme') } }),
   ]);
 
@@ -137,18 +163,46 @@ test('a blank-node reference is compared by denotation, not by id', () => {
   // Rule 4. Blank ids embed page_id, so comparing them made a byte-identical
   // address look like 150 distinct values across the corpus.
   const { findings } = run([
-    node({ id: '_:a/json-ld/0/1', page: 'a', types: [S('PostalAddress')], props: { [S('postalCode')]: value('RG1') } }),
-    node({ id: '_:b/json-ld/0/1', page: 'b', types: [S('PostalAddress')], props: { [S('postalCode')]: value('RG1') } }),
-    node({ id: 'https://example.com/#org', page: 'a', props: { [S('address')]: ref('_:a/json-ld/0/1') } }),
-    node({ id: 'https://example.com/#org', page: 'b', props: { [S('address')]: ref('_:b/json-ld/0/1') } }),
+    node({
+      id: '_:a/json-ld/0/1',
+      page: 'a',
+      types: [S('PostalAddress')],
+      props: { [S('postalCode')]: value('RG1') },
+    }),
+    node({
+      id: '_:b/json-ld/0/1',
+      page: 'b',
+      types: [S('PostalAddress')],
+      props: { [S('postalCode')]: value('RG1') },
+    }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'a',
+      props: { [S('address')]: ref('_:a/json-ld/0/1') },
+    }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'b',
+      props: { [S('address')]: ref('_:b/json-ld/0/1') },
+    }),
   ]);
   assert.deepEqual(findings, []);
 });
 
 test('a genuine difference behind blank nodes is still caught', () => {
   const { findings } = run([
-    node({ id: '_:a/x', page: 'a', types: [S('PostalAddress')], props: { [S('postalCode')]: value('RG1') } }),
-    node({ id: '_:b/x', page: 'b', types: [S('PostalAddress')], props: { [S('postalCode')]: value('SW1') } }),
+    node({
+      id: '_:a/x',
+      page: 'a',
+      types: [S('PostalAddress')],
+      props: { [S('postalCode')]: value('RG1') },
+    }),
+    node({
+      id: '_:b/x',
+      page: 'b',
+      types: [S('PostalAddress')],
+      props: { [S('postalCode')]: value('SW1') },
+    }),
     node({ id: 'https://example.com/#org', page: 'a', props: { [S('address')]: ref('_:a/x') } }),
     node({ id: 'https://example.com/#org', page: 'b', props: { [S('address')]: ref('_:b/x') } }),
   ]);
@@ -158,7 +212,11 @@ test('a genuine difference behind blank nodes is still caught', () => {
 
 test('a single observation cannot contradict itself', () => {
   const { findings } = run([
-    node({ id: 'https://example.com/#org', page: 'a', props: { [S('telephone')]: value('+44 1') } }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'a',
+      props: { [S('telephone')]: value('+44 1') },
+    }),
   ]);
   assert.deepEqual(findings, []);
 });
@@ -167,8 +225,18 @@ test('a single observation cannot contradict itself', () => {
 
 test('a subclass refinement is an opportunity, not an error', () => {
   const { findings } = run([
-    node({ id: 'https://example.com/#o', page: 'a', types: [S('LocalBusiness')], props: { [S('name')]: value('A') } }),
-    node({ id: 'https://example.com/#o', page: 'b', types: [S('Organization')], props: { [S('name')]: value('A') } }),
+    node({
+      id: 'https://example.com/#o',
+      page: 'a',
+      types: [S('LocalBusiness')],
+      props: { [S('name')]: value('A') },
+    }),
+    node({
+      id: 'https://example.com/#o',
+      page: 'b',
+      types: [S('Organization')],
+      props: { [S('name')]: value('A') },
+    }),
   ]);
 
   assert.equal(findings.length, 1);
@@ -182,7 +250,12 @@ test('an extra unrelated type still nests, so it is a refinement', () => {
   // A corpus site: Person vs [Organization, Person]. A naive isSubClassOf
   // test files this as a conflict and raises an error against a sole trader.
   const { findings } = run([
-    node({ id: 'https://example.com/#p', page: 'a', types: [S('Person')], props: { [S('name')]: value('P') } }),
+    node({
+      id: 'https://example.com/#p',
+      page: 'a',
+      types: [S('Person')],
+      props: { [S('name')]: value('P') },
+    }),
     node({
       id: 'https://example.com/#p',
       page: 'b',
@@ -195,8 +268,18 @@ test('an extra unrelated type still nests, so it is a refinement', () => {
 
 test('genuinely unrelated types are an error', () => {
   const { findings } = run([
-    node({ id: 'https://example.com/#x', page: 'a', types: [S('Product')], props: { [S('name')]: value('X') } }),
-    node({ id: 'https://example.com/#x', page: 'b', types: [S('Person')], props: { [S('name')]: value('X') } }),
+    node({
+      id: 'https://example.com/#x',
+      page: 'a',
+      types: [S('Product')],
+      props: { [S('name')]: value('X') },
+    }),
+    node({
+      id: 'https://example.com/#x',
+      page: 'b',
+      types: [S('Person')],
+      props: { [S('name')]: value('X') },
+    }),
   ]);
   const conflict = findings.find((finding) => finding.check === 'entity.type-conflict');
   assert.notEqual(conflict, undefined);
@@ -231,7 +314,10 @@ test('a shared name alone is never enough', () => {
     node({ id: 'https://example.com/#a', page: 'a', props: { [S('name')]: value('Support') } }),
     node({ id: 'https://example.com/#b', page: 'b', props: { [S('name')]: value('Support') } }),
   ]);
-  assert.equal(findings.some((finding) => finding.check === 'graph.identity-fracture'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'graph.identity-fracture'),
+    false,
+  );
 });
 
 test('a shared name across conflicting types is not a fracture', () => {
@@ -249,14 +335,21 @@ test('a shared name across conflicting types is not a fracture', () => {
       props: { [S('name')]: value('Atlas'), [S('url')]: ref('https://example.com') },
     }),
   ]);
-  assert.equal(findings.some((finding) => finding.check === 'graph.identity-fracture'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'graph.identity-fracture'),
+    false,
+  );
 });
 
 // --- graph.dangling-reference ------------------------------------------------
 
 test('a dangling entity reference is a warning', () => {
   const { findings } = run([
-    node({ id: 'https://example.com/#site', page: 'a', props: { [S('publisher')]: ref('https://example.com/#ghost') } }),
+    node({
+      id: 'https://example.com/#site',
+      page: 'a',
+      props: { [S('publisher')]: ref('https://example.com/#ghost') },
+    }),
   ]);
   const dangling = findings.find((finding) => finding.check === 'graph.dangling-reference');
   assert.equal(dangling?.subject.id, 'https://example.com/#ghost');
@@ -273,15 +366,25 @@ test('a URL-valued property is never a dangling reference', () => {
       props: { [S('target')]: ref('https://example.com/post/#respond') },
     }),
   ]);
-  assert.equal(findings.some((finding) => finding.check === 'graph.dangling-reference'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'graph.dangling-reference'),
+    false,
+  );
 });
 
 test('a defined reference is not dangling', () => {
   const { findings } = run([
-    node({ id: 'https://example.com/#site', page: 'a', props: { [S('publisher')]: ref('https://example.com/#org') } }),
+    node({
+      id: 'https://example.com/#site',
+      page: 'a',
+      props: { [S('publisher')]: ref('https://example.com/#org') },
+    }),
     node({ id: 'https://example.com/#org', page: 'a', props: { [S('name')]: value('Acme') } }),
   ]);
-  assert.equal(findings.some((finding) => finding.check === 'graph.dangling-reference'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'graph.dangling-reference'),
+    false,
+  );
 });
 
 // --- url.canonical-mismatch --------------------------------------------------
@@ -296,23 +399,42 @@ test('a declared canonical differing only in percent-encoding case is not a find
       }),
     ],
   );
-  assert.equal(findings.some((finding) => finding.check === 'url.canonical-mismatch'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'url.canonical-mismatch'),
+    false,
+  );
 });
 
 test('a genuinely different declared canonical is a warning', () => {
   const { findings } = run(
     [],
-    [page('a', { canonical_url: 'https://example.com/a', declared_canonical: 'https://www.example.com/a' })],
+    [
+      page('a', {
+        canonical_url: 'https://example.com/a',
+        declared_canonical: 'https://www.example.com/a',
+      }),
+    ],
   );
-  assert.equal(findings.find((finding) => finding.check === 'url.canonical-mismatch')?.severity, 'warning');
+  assert.equal(
+    findings.find((finding) => finding.check === 'url.canonical-mismatch')?.severity,
+    'warning',
+  );
 });
 
 // --- engine ------------------------------------------------------------------
 
 test('a disabled check does not run', () => {
   const nodes = [
-    node({ id: 'https://example.com/#org', page: 'a', props: { [S('telephone')]: value('+44 1') } }),
-    node({ id: 'https://example.com/#org', page: 'b', props: { [S('telephone')]: value('+44 2') } }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'a',
+      props: { [S('telephone')]: value('+44 1') },
+    }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'b',
+      props: { [S('telephone')]: value('+44 2') },
+    }),
   ];
   const result = runChecks({
     nodes,
@@ -325,14 +447,32 @@ test('a disabled check does not run', () => {
 });
 
 test('a whole group can be disabled at once', () => {
-  const result = runChecks({ nodes: [], pages: [], partialCoverage: false, disabled: ['coverage'] });
-  assert.equal(result.checksRun.some((check) => check.startsWith('coverage.')), false);
+  const result = runChecks({
+    nodes: [],
+    pages: [],
+    partialCoverage: false,
+    disabled: ['coverage'],
+  });
+  assert.equal(
+    result.checksRun.some((check) => check.startsWith('coverage.')),
+    false,
+  );
 });
 
 test('findings are ordered errors first', () => {
   const { findings } = run([
-    node({ id: 'https://example.com/#o', page: 'a', types: [S('LocalBusiness')], props: { [S('name')]: value('A') } }),
-    node({ id: 'https://example.com/#o', page: 'b', types: [S('Organization')], props: { [S('name')]: value('A') } }),
+    node({
+      id: 'https://example.com/#o',
+      page: 'a',
+      types: [S('LocalBusiness')],
+      props: { [S('name')]: value('A') },
+    }),
+    node({
+      id: 'https://example.com/#o',
+      page: 'b',
+      types: [S('Organization')],
+      props: { [S('name')]: value('A') },
+    }),
     node({ id: 'https://example.com/#p', page: 'a', props: { [S('telephone')]: value('1') } }),
     node({ id: 'https://example.com/#p', page: 'b', props: { [S('telephone')]: value('2') } }),
   ]);
@@ -355,18 +495,32 @@ test('finding ids are stable across runs and independent of the values found', (
 
 test('absence findings are marked coverage-qualified under a partial crawl', () => {
   const result = runChecks({
-    nodes: [node({ id: 'https://example.com/#s', page: 'a', props: { [S('publisher')]: ref('https://example.com/#ghost') } })],
+    nodes: [
+      node({
+        id: 'https://example.com/#s',
+        page: 'a',
+        props: { [S('publisher')]: ref('https://example.com/#ghost') },
+      }),
+    ],
     pages: [page('a')],
     partialCoverage: true,
   });
-  assert.equal(result.findings.find((finding) => finding.check === 'graph.dangling-reference')?.coverage_qualified, true);
+  assert.equal(
+    result.findings.find((finding) => finding.check === 'graph.dangling-reference')
+      ?.coverage_qualified,
+    true,
+  );
 });
 
 // --- value.placeholder --------------------------------------------------------
 
 test('a placeholder value is an error', () => {
   const { findings } = run([
-    node({ id: 'https://example.com/#org', page: 'a', props: { [S('name')]: value('My Website') } }),
+    node({
+      id: 'https://example.com/#org',
+      page: 'a',
+      props: { [S('name')]: value('My Website') },
+    }),
   ]);
   const hit = findings.find((finding) => finding.check === 'value.placeholder');
   assert.equal(hit?.severity, 'error');
@@ -381,17 +535,30 @@ test('placeholders match the whole value, never a substring', () => {
       id: 'https://example.com/#p',
       page: 'a',
       types: [S('Product')],
-      props: { [S('name')]: value('Classic Lorem Ipsum'), [S('description')]: value('Free tool for creating ipsum text.') },
+      props: {
+        [S('name')]: value('Classic Lorem Ipsum'),
+        [S('description')]: value('Free tool for creating ipsum text.'),
+      },
     }),
   ]);
-  assert.equal(findings.some((finding) => finding.check === 'value.placeholder'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'value.placeholder'),
+    false,
+  );
 });
 
 test('placeholder matching ignores case and surrounding whitespace', () => {
   const { findings } = run([
-    node({ id: 'https://example.com/#o', page: 'a', props: { [S('name')]: value('  MY WEBSITE  ') } }),
+    node({
+      id: 'https://example.com/#o',
+      page: 'a',
+      props: { [S('name')]: value('  MY WEBSITE  ') },
+    }),
   ]);
-  assert.equal(findings.some((finding) => finding.check === 'value.placeholder'), true);
+  assert.equal(
+    findings.some((finding) => finding.check === 'value.placeholder'),
+    true,
+  );
 });
 
 // --- value.empty --------------------------------------------------------------
@@ -408,9 +575,16 @@ test('an empty string value is an error, and says why', () => {
 
 test('whitespace-only counts as empty', () => {
   const { findings } = run([
-    node({ id: 'https://example.com/#o', page: 'a', props: { [S('streetAddress')]: value('   ') } }),
+    node({
+      id: 'https://example.com/#o',
+      page: 'a',
+      props: { [S('streetAddress')]: value('   ') },
+    }),
   ]);
-  assert.equal(findings.some((finding) => finding.check === 'value.empty'), true);
+  assert.equal(
+    findings.some((finding) => finding.check === 'value.empty'),
+    true,
+  );
 });
 
 test('empty values are grouped by property, not per page', () => {
@@ -425,33 +599,66 @@ test('empty values are grouped by property, not per page', () => {
 
 test('an http self-reference on an https site is a warning', () => {
   const { findings } = run(
-    [node({ id: 'https://example.com/#o', page: 'a', props: { [S('sameAs')]: ref('http://example.com') } })],
+    [
+      node({
+        id: 'https://example.com/#o',
+        page: 'a',
+        props: { [S('sameAs')]: ref('http://example.com') },
+      }),
+    ],
     [page('a', { canonical_url: 'https://example.com/a' })],
   );
-  assert.equal(findings.find((finding) => finding.check === 'url.insecure-self-reference')?.severity, 'warning');
+  assert.equal(
+    findings.find((finding) => finding.check === 'url.insecure-self-reference')?.severity,
+    'warning',
+  );
 });
 
 test('an http reference to somebody else is not our business', () => {
   const { findings } = run(
-    [node({ id: 'https://example.com/#o', page: 'a', props: { [S('sameAs')]: ref('http://elsewhere.example/x') } })],
+    [
+      node({
+        id: 'https://example.com/#o',
+        page: 'a',
+        props: { [S('sameAs')]: ref('http://elsewhere.example/x') },
+      }),
+    ],
     [page('a', { canonical_url: 'https://example.com/a' })],
   );
-  assert.equal(findings.some((finding) => finding.check === 'url.insecure-self-reference'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'url.insecure-self-reference'),
+    false,
+  );
 });
 
 test('an http site is not told off for using http', () => {
   const { findings } = run(
-    [node({ id: 'http://example.com/#o', page: 'a', props: { [S('sameAs')]: ref('http://example.com') } })],
+    [
+      node({
+        id: 'http://example.com/#o',
+        page: 'a',
+        props: { [S('sameAs')]: ref('http://example.com') },
+      }),
+    ],
     [page('a', { canonical_url: 'http://example.com/a' })],
   );
-  assert.equal(findings.some((finding) => finding.check === 'url.insecure-self-reference'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'url.insecure-self-reference'),
+    false,
+  );
 });
 
 // --- url.foreign-media-host ---------------------------------------------------
 
 test('media on an unrelated host is a warning', () => {
   const { findings } = run(
-    [node({ id: 'https://example.com/#p', page: 'a', props: { [S('image')]: ref('https://oldagency.example/x.png') } })],
+    [
+      node({
+        id: 'https://example.com/#p',
+        page: 'a',
+        props: { [S('image')]: ref('https://oldagency.example/x.png') },
+      }),
+    ],
     [page('a', { canonical_url: 'https://example.com/a' })],
   );
   const hit = findings.find((finding) => finding.check === 'url.foreign-media-host');
@@ -462,33 +669,69 @@ test('media on an unrelated host is a warning', () => {
 
 test('a CDN subdomain of the site is benign', () => {
   const { findings } = run(
-    [node({ id: 'https://example.com/#p', page: 'a', props: { [S('image')]: ref('https://cdn.example.com/x.png') } })],
+    [
+      node({
+        id: 'https://example.com/#p',
+        page: 'a',
+        props: { [S('image')]: ref('https://cdn.example.com/x.png') },
+      }),
+    ],
     [page('a', { canonical_url: 'https://example.com/a' })],
   );
-  assert.equal(findings.some((finding) => finding.check === 'url.foreign-media-host'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'url.foreign-media-host'),
+    false,
+  );
 });
 
 test('gravatar is benign', () => {
   // On 7 of 22 corpus sites. Without this the check fires on most of WordPress.
   const { findings } = run(
-    [node({ id: 'https://example.com/#p', page: 'a', props: { [S('image')]: ref('https://secure.gravatar.com/avatar/abc') } })],
+    [
+      node({
+        id: 'https://example.com/#p',
+        page: 'a',
+        props: { [S('image')]: ref('https://secure.gravatar.com/avatar/abc') },
+      }),
+    ],
     [page('a', { canonical_url: 'https://example.com/a' })],
   );
-  assert.equal(findings.some((finding) => finding.check === 'url.foreign-media-host'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'url.foreign-media-host'),
+    false,
+  );
 });
 
 test('a per-customer CDN subdomain is benign', () => {
   const { findings } = run(
-    [node({ id: 'https://example.com/#p', page: 'a', props: { [S('image')]: ref('https://d123.cloudfront.net/x.png') } })],
+    [
+      node({
+        id: 'https://example.com/#p',
+        page: 'a',
+        props: { [S('image')]: ref('https://d123.cloudfront.net/x.png') },
+      }),
+    ],
     [page('a', { canonical_url: 'https://example.com/a' })],
   );
-  assert.equal(findings.some((finding) => finding.check === 'url.foreign-media-host'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'url.foreign-media-host'),
+    false,
+  );
 });
 
 test('sameAs pointing elsewhere is the entire point of sameAs', () => {
   const { findings } = run(
-    [node({ id: 'https://example.com/#o', page: 'a', props: { [S('sameAs')]: ref('https://linkedin.com/company/x') } })],
+    [
+      node({
+        id: 'https://example.com/#o',
+        page: 'a',
+        props: { [S('sameAs')]: ref('https://linkedin.com/company/x') },
+      }),
+    ],
     [page('a', { canonical_url: 'https://example.com/a' })],
   );
-  assert.equal(findings.some((finding) => finding.check === 'url.foreign-media-host'), false);
+  assert.equal(
+    findings.some((finding) => finding.check === 'url.foreign-media-host'),
+    false,
+  );
 });

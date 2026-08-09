@@ -40,7 +40,11 @@ export function renderDiffMarkdown(diff: ReportDiff, siteOrigin: string): string
   lines.push('');
 
   if (resolved === 0 && appeared === 0 && changed === 0) {
-    lines.push(unchanged === 0 ? 'Both runs were clean.' : `Nothing changed. ${unchanged} finding(s) still open.`);
+    lines.push(
+      unchanged === 0
+        ? 'Both runs were clean.'
+        : `Nothing changed. ${unchanged} finding(s) still open.`,
+    );
     lines.push('');
     return lines.join('\n');
   }
@@ -50,7 +54,9 @@ export function renderDiffMarkdown(diff: ReportDiff, siteOrigin: string): string
     lines.push('');
     for (const finding of diff.resolved) {
       lines.push(`- **${finding.title}**`);
-      lines.push(`  \`${finding.check}\` • \`${finding.finding_id}\` • was ${finding.pages_affected} page(s)`);
+      lines.push(
+        `  \`${finding.check}\` • \`${finding.finding_id}\` • was ${finding.pages_affected} page(s)`,
+      );
       lines.push(`  ${finding.subject.id}`);
     }
     lines.push('');
@@ -59,11 +65,14 @@ export function renderDiffMarkdown(diff: ReportDiff, siteOrigin: string): string
   if (diff.changed.length > 0) {
     lines.push(`## Changed (${diff.changed.length})`);
     lines.push('');
-    lines.push('Same finding, different evidence — the question is still open but the answer moved.');
+    lines.push(
+      'Same finding, different evidence — the question is still open but the answer moved.',
+    );
     lines.push('');
     for (const change of diff.changed) {
       const direction = directionOf(change);
-      const label = direction === 'improved' ? 'improved' : direction === 'worsened' ? 'WORSENED' : 'shifted';
+      const label =
+        direction === 'improved' ? 'improved' : direction === 'worsened' ? 'WORSENED' : 'shifted';
       lines.push(`- **${change.after.title}** — ${label}`);
       lines.push(`  \`${change.after.check}\` • \`${change.after.finding_id}\``);
       lines.push(
@@ -79,7 +88,9 @@ export function renderDiffMarkdown(diff: ReportDiff, siteOrigin: string): string
     lines.push('');
     for (const finding of diff.appeared) {
       lines.push(`- **${finding.title}** (${finding.severity})`);
-      lines.push(`  \`${finding.check}\` • \`${finding.finding_id}\` • ${finding.pages_affected} page(s)`);
+      lines.push(
+        `  \`${finding.check}\` • \`${finding.finding_id}\` • ${finding.pages_affected} page(s)`,
+      );
       lines.push(`  ${finding.subject.id}`);
     }
     lines.push('');
@@ -96,8 +107,12 @@ export function renderDiffMarkdown(diff: ReportDiff, siteOrigin: string): string
 
   lines.push('---');
   lines.push('');
-  lines.push('Finding ids name the *question asked*, not the answer, so a half-fixed problem stays');
-  lines.push('one open finding under **Changed** rather than appearing as one resolved and one new.');
+  lines.push(
+    'Finding ids name the *question asked*, not the answer, so a half-fixed problem stays',
+  );
+  lines.push(
+    'one open finding under **Changed** rather than appearing as one resolved and one new.',
+  );
   lines.push('');
 
   return lines.join('\n');

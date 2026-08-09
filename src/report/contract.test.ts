@@ -138,28 +138,46 @@ function report(): Report {
 const BUMP = 'If this change is deliberate, bump REPORT_SCHEMA and update docs/reports.md.';
 
 test('the top-level shape is exactly what consumers are promised', () => {
-  assert.deepEqual(Object.keys(report()).sort(), [
-    'coverage', 'findings', 'graph', 'run', 'schemanator', 'summary',
-  ], BUMP);
+  assert.deepEqual(
+    Object.keys(report()).sort(),
+    ['coverage', 'findings', 'graph', 'run', 'schemanator', 'summary'],
+    BUMP,
+  );
 });
 
 test('each section holds exactly its documented keys', () => {
   const built = report();
 
   assert.deepEqual(Object.keys(built.schemanator).sort(), ['report_schema', 'version'], BUMP);
-  assert.deepEqual(Object.keys(built.run).sort(), [
-    'finished_at', 'run_id', 'site_origin', 'site_slug', 'started_at',
-  ], BUMP);
-  assert.deepEqual(Object.keys(built.coverage).sort(), [
-    'caveat', 'complete', 'pages_extracted', 'pages_fetched', 'sample_strategy',
-    'truncated', 'urls_discovered', 'urls_queued',
-  ], BUMP);
-  assert.deepEqual(Object.keys(built.graph).sort(), [
-    'entities', 'json_ld_blocks', 'malformed_blocks', 'nodes', 'pages_with_data',
-  ], BUMP);
-  assert.deepEqual(Object.keys(built.summary).sort(), [
-    'by_check', 'by_severity', 'checks_disabled', 'checks_run', 'silenced',
-  ], BUMP);
+  assert.deepEqual(
+    Object.keys(built.run).sort(),
+    ['finished_at', 'run_id', 'site_origin', 'site_slug', 'started_at'],
+    BUMP,
+  );
+  assert.deepEqual(
+    Object.keys(built.coverage).sort(),
+    [
+      'caveat',
+      'complete',
+      'pages_extracted',
+      'pages_fetched',
+      'sample_strategy',
+      'truncated',
+      'urls_discovered',
+      'urls_queued',
+    ],
+    BUMP,
+  );
+  assert.deepEqual(
+    Object.keys(built.graph).sort(),
+    ['entities', 'json_ld_blocks', 'malformed_blocks', 'nodes', 'pages_with_data'],
+    BUMP,
+  );
+  assert.deepEqual(
+    Object.keys(built.summary).sort(),
+    ['by_check', 'by_severity', 'checks_disabled', 'checks_run', 'silenced'],
+    BUMP,
+  );
 });
 
 test('a finding carries every guaranteed key', () => {
@@ -167,19 +185,34 @@ test('a finding carries every guaranteed key', () => {
   assert.notEqual(finding, undefined);
 
   for (const key of [
-    'finding_id', 'check', 'severity', 'origin', 'title', 'subject', 'summary',
-    'expected', 'observed', 'pages_affected', 'coverage_qualified', 'remediation', 'tradeoff',
+    'finding_id',
+    'check',
+    'severity',
+    'origin',
+    'title',
+    'subject',
+    'summary',
+    'expected',
+    'observed',
+    'pages_affected',
+    'coverage_qualified',
+    'remediation',
+    'tradeoff',
   ]) {
     assert.equal(key in (finding as object), true, `findings[].${key} is missing. ${BUMP}`);
   }
 
   assert.deepEqual(Object.keys(finding?.subject ?? {}).sort(), ['id', 'kind', 'property']);
-  assert.deepEqual(Object.keys(finding?.observed[0] ?? {}).sort(), [
-    'observation_count', 'page_count', 'provenance', 'value',
-  ], BUMP);
-  assert.deepEqual(Object.keys(finding?.observed[0]?.provenance[0] ?? {}).sort(), [
-    'block', 'page_id', 'pointer', 'syntax', 'url',
-  ], BUMP);
+  assert.deepEqual(
+    Object.keys(finding?.observed[0] ?? {}).sort(),
+    ['observation_count', 'page_count', 'provenance', 'value'],
+    BUMP,
+  );
+  assert.deepEqual(
+    Object.keys(finding?.observed[0]?.provenance[0] ?? {}).sort(),
+    ['block', 'page_id', 'pointer', 'syntax', 'url'],
+    BUMP,
+  );
 });
 
 test('the report is serialisable and survives a round trip', () => {
@@ -199,7 +232,9 @@ test('docs quote the schema version that is actually emitted', () => {
   // docs/reports.md shows a worked example. A stale number there is worse than
   // no number: it is the value a consumer will hard-code.
   const reports = fs.readFileSync(path.join(ROOT, 'docs', 'reports.md'), 'utf8');
-  const quoted = [...reports.matchAll(/"report_schema":\s*(\d+)/g)].map((match) => Number(match[1]));
+  const quoted = [...reports.matchAll(/"report_schema":\s*(\d+)/g)].map((match) =>
+    Number(match[1]),
+  );
 
   assert.equal(quoted.length > 0, true, 'docs/reports.md no longer shows report_schema');
   for (const value of quoted) {

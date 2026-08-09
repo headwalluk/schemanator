@@ -68,7 +68,9 @@ export function parseCardinalityRules(json: string, source = '<inline>'): Cardin
   try {
     raw = JSON.parse(json) as RawFile;
   } catch (error) {
-    throw new Error(`${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   if (typeof raw.schema_version !== 'number') {
@@ -84,7 +86,9 @@ export function parseCardinalityRules(json: string, source = '<inline>'): Cardin
   const properties = new Map<string, PropertyRule>();
   for (const [iri, entry] of Object.entries(raw.properties)) {
     if (!isCardinality(entry.cardinality)) {
-      throw new Error(`${source}: ${iri} has invalid "cardinality" ${JSON.stringify(entry.cardinality)}`);
+      throw new Error(
+        `${source}: ${iri} has invalid "cardinality" ${JSON.stringify(entry.cardinality)}`,
+      );
     }
     if (entry.basis !== 'observed' && entry.basis !== 'asserted') {
       throw new Error(`${source}: ${iri} has invalid "basis" ${JSON.stringify(entry.basis)}`);

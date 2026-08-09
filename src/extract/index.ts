@@ -85,7 +85,11 @@ function describeJsonError(error: unknown, text: string): string {
   return message;
 }
 
-export async function extract(html: string, pageUrl: string, pageId: string): Promise<ExtractionResult> {
+export async function extract(
+  html: string,
+  pageUrl: string,
+  pageId: string,
+): Promise<ExtractionResult> {
   const blocks: RawBlock[] = [];
   const nodes: ExtractedNode[] = [];
   const errors: string[] = [];

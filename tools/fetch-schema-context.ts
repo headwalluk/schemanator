@@ -20,7 +20,9 @@ import path from 'node:path';
 const SOURCE = 'https://schema.org/docs/jsonldcontext.json';
 const OUTPUT = path.resolve('data', 'schema-context.json');
 
-const response = await fetch(SOURCE, { headers: { accept: 'application/ld+json, application/json' } });
+const response = await fetch(SOURCE, {
+  headers: { accept: 'application/ld+json, application/json' },
+});
 if (!response.ok) throw new Error(`${SOURCE} returned HTTP ${response.status}`);
 
 const body = await response.text();

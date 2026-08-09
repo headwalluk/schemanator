@@ -219,7 +219,10 @@ export function parseSitemap(body: Buffer): ParsedSitemap {
   // silently drop an entire site's URL list over one stray character. So the
   // malformedness becomes a finding, and we still harvest what we can.
   const validation = XMLValidator.validate(text);
-  const malformed = validation === true ? null : `malformed XML: ${validation.err.msg} (line ${validation.err.line})`;
+  const malformed =
+    validation === true
+      ? null
+      : `malformed XML: ${validation.err.msg} (line ${validation.err.line})`;
 
   let document: Record<string, unknown>;
   try {
@@ -249,7 +252,8 @@ export function parseSitemap(body: Buffer): ParsedSitemap {
   }
 
   if (document['rss'] !== undefined) {
-    const channel = (document['rss'] as Record<string, unknown>)['channel'] as Record<string, unknown> | undefined;
+    const channel = (document['rss'] as Record<string, unknown>)['channel'] as
+      Record<string, unknown> | undefined;
     const urls = asArray(channel?.['item'])
       .map((entry) => {
         const record = entry as Record<string, unknown>;
@@ -302,7 +306,13 @@ export async function discoverSitemaps(
   siteOrigin: string,
   options: DiscoverOptions = {},
 ): Promise<SitemapDiscovery> {
-  const { cliSitemaps = [], robotsSitemaps = [], maxDepth = 3, maxSitemaps = 200, onSitemapBody } = options;
+  const {
+    cliSitemaps = [],
+    robotsSitemaps = [],
+    maxDepth = 3,
+    maxSitemaps = 200,
+    onSitemapBody,
+  } = options;
 
   const siteHost = new URL(siteOrigin).host;
   const sitemaps: FetchedSitemap[] = [];
@@ -340,7 +350,9 @@ export async function discoverSitemaps(
 
   while (queue.length > 0) {
     if (sitemaps.length >= maxSitemaps) {
-      errors.push(`stopped after ${maxSitemaps} sitemaps; the remaining ${queue.length} were not fetched`);
+      errors.push(
+        `stopped after ${maxSitemaps} sitemaps; the remaining ${queue.length} were not fetched`,
+      );
       break;
     }
 
@@ -419,7 +431,12 @@ export async function discoverSitemaps(
             }
             // Same site, different spelling of the host. Crawl it — but record
             // the disagreement, because it fractures entity identity.
-            hostDivergence.push({ rawUrl: found.raw, fromSitemap: item.url, crawlHost: siteHost, entryHost });
+            hostDivergence.push({
+              rawUrl: found.raw,
+              fromSitemap: item.url,
+              crawlHost: siteHost,
+              entryHost,
+            });
           }
           if (!urls.has(canonical.url)) {
             urls.set(canonical.url, {
@@ -437,7 +454,8 @@ export async function discoverSitemaps(
 
     // A probe missing is expected and uninteresting. A declared sitemap
     // failing is a finding, and must reach the report.
-    const isExpectedProbeMiss = probing && (entry.httpStatus === 404 || entry.httpStatus === 410 || entry.error !== null);
+    const isExpectedProbeMiss =
+      probing && (entry.httpStatus === 404 || entry.httpStatus === 410 || entry.error !== null);
     if (entry.error !== null && !isExpectedProbeMiss) {
       errors.push(`${item.url}: ${entry.error}`);
     } else if (entry.httpStatus !== null && entry.httpStatus !== 200 && !isExpectedProbeMiss) {

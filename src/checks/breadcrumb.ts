@@ -149,7 +149,11 @@ function crumbUrl(node: ExtractedNode, graph: EntityGraph): string | null {
       break;
     }
     for (const candidate of inner.props[URL_PROP] ?? []) {
-      if (candidate !== null && typeof candidate === 'object' && typeof (candidate as Record<string, unknown>)['@id'] === 'string') {
+      if (
+        candidate !== null &&
+        typeof candidate === 'object' &&
+        typeof (candidate as Record<string, unknown>)['@id'] === 'string'
+      ) {
         raw = String((candidate as Record<string, unknown>)['@id']);
         break;
       }
@@ -362,7 +366,12 @@ const cycle: Check = {
                 `no root, and nothing can walk it to the top.`,
               expected: 'Breadcrumb parents forming a tree, terminating at the site root.',
               observed: [
-                { value: loop.map(pathOf).join(' > '), observation_count: loop.length, page_count: loop.length, provenance: [] },
+                {
+                  value: loop.map(pathOf).join(' > '),
+                  observation_count: loop.length,
+                  page_count: loop.length,
+                  provenance: [],
+                },
               ],
               pages_affected: loop.length,
               coverage_qualified: false,
@@ -464,7 +473,8 @@ const multipleParents: Check = {
           : `${pathOf(child)} is placed under ${byParent.size} different parents — ` +
             `${[...byParent.keys()].map(pathOf).join(' and ')} — depending on which page's trail you ` +
             `read. A breadcrumb asserts where a page sits in the site, and these assertions conflict.`,
-        expected: 'One parent per page, asserted consistently wherever the page appears in a trail.',
+        expected:
+          'One parent per page, asserted consistently wherever the page appears in a trail.',
         observed,
         pages_affected: claimPages.size,
         coverage_qualified: false,
@@ -666,7 +676,8 @@ const inconsistentDepth: Check = {
         observed,
         pages_affected: affected.size,
         coverage_qualified: false,
-        remediation: 'Emit one canonical trail per page, from the route you want treated as primary.',
+        remediation:
+          'Emit one canonical trail per page, from the route you want treated as primary.',
         tradeoff:
           'A page genuinely reachable by several routes has no single true depth. Consistency helps ' +
           'consumers; matching the route the visitor actually took helps people. This tool cannot ' +

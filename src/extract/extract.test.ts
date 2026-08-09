@@ -6,7 +6,8 @@ import { extract } from './index.ts';
 const PAGE = 'https://example.com/about/';
 const PAGE_ID = 'about-4b81ee02';
 
-const page = (head: string): string => `<!DOCTYPE html><html><head>${head}</head><body></body></html>`;
+const page = (head: string): string =>
+  `<!DOCTYPE html><html><head>${head}</head><body></body></html>`;
 const ld = (body: string): string => `<script type="application/ld+json">${body}</script>`;
 
 const short = (iri: string): string => iri.split('/').pop() ?? iri;
@@ -16,14 +17,23 @@ const byType = <T extends { types: string[] }>(nodes: T[], type: string): T[] =>
 // --- @context variants (dev-notes/03) ---------------------------------------
 
 test('resolves a string @context', async () => {
-  const result = await extract(page(ld('{"@context":"https://schema.org","@type":"Organization","name":"Acme"}')), PAGE, PAGE_ID);
+  const result = await extract(
+    page(ld('{"@context":"https://schema.org","@type":"Organization","name":"Acme"}')),
+    PAGE,
+    PAGE_ID,
+  );
   assert.equal(result.counts.json_ld_failed, 0);
   assert.equal(result.nodes.length, 1);
   assert.equal(short(result.nodes[0]?.types[0] ?? ''), 'Organization');
 });
 
 test('resolves http, https and trailing-slash spellings alike', async () => {
-  for (const context of ['http://schema.org', 'https://schema.org', 'http://schema.org/', 'https://schema.org/']) {
+  for (const context of [
+    'http://schema.org',
+    'https://schema.org',
+    'http://schema.org/',
+    'https://schema.org/',
+  ]) {
     const result = await extract(
       page(ld(`{"@context":"${context}","@type":"Person","name":"X"}`)),
       PAGE,
@@ -38,20 +48,40 @@ test('post-expansion IRIs are consistent regardless of the spelling used', async
   // The trap in `03`: http and https produce different IRIs for the same type,
   // so a site with mixed-vintage markup would otherwise report phantom
   // contradictions. Both must land on the same IRI here.
-  const viaHttp = await extract(page(ld('{"@context":"http://schema.org","@type":"Person","name":"X"}')), PAGE, PAGE_ID);
-  const viaHttps = await extract(page(ld('{"@context":"https://schema.org","@type":"Person","name":"X"}')), PAGE, PAGE_ID);
+  const viaHttp = await extract(
+    page(ld('{"@context":"http://schema.org","@type":"Person","name":"X"}')),
+    PAGE,
+    PAGE_ID,
+  );
+  const viaHttps = await extract(
+    page(ld('{"@context":"https://schema.org","@type":"Person","name":"X"}')),
+    PAGE,
+    PAGE_ID,
+  );
   assert.deepEqual(viaHttp.nodes[0]?.types, viaHttps.nodes[0]?.types);
-  assert.deepEqual(Object.keys(viaHttp.nodes[0]?.props ?? {}), Object.keys(viaHttps.nodes[0]?.props ?? {}));
+  assert.deepEqual(
+    Object.keys(viaHttp.nodes[0]?.props ?? {}),
+    Object.keys(viaHttps.nodes[0]?.props ?? {}),
+  );
 });
 
 test('resolves an array @context with an inline object', async () => {
   const result = await extract(
-    page(ld('{"@context":["https://schema.org",{"custom":"https://example.com/vocab#"}],"@type":"Organization","name":"Acme","custom":"x"}')),
+    page(
+      ld(
+        '{"@context":["https://schema.org",{"custom":"https://example.com/vocab#"}],"@type":"Organization","name":"Acme","custom":"x"}',
+      ),
+    ),
     PAGE,
     PAGE_ID,
   );
   assert.equal(result.counts.json_ld_failed, 0);
-  assert.equal(Object.keys(result.nodes[0]?.props ?? {}).some((key) => key.startsWith('https://example.com/vocab#')), true);
+  assert.equal(
+    Object.keys(result.nodes[0]?.props ?? {}).some((key) =>
+      key.startsWith('https://example.com/vocab#'),
+    ),
+    true,
+  );
 });
 
 test('resolves an inline @vocab with no remote context at all', async () => {
@@ -65,7 +95,11 @@ test('resolves an inline @vocab with no remote context at all', async () => {
 });
 
 test('refuses an unknown remote context rather than fetching it', async () => {
-  const result = await extract(page(ld('{"@context":"https://elsewhere.example/ctx.jsonld","@type":"Thing"}')), PAGE, PAGE_ID);
+  const result = await extract(
+    page(ld('{"@context":"https://elsewhere.example/ctx.jsonld","@type":"Thing"}')),
+    PAGE,
+    PAGE_ID,
+  );
   assert.equal(result.counts.json_ld_failed, 1);
   assert.match(result.blocks[0]?.error ?? '', /refusing to fetch remote context/);
 });
@@ -74,7 +108,11 @@ test('refuses an unknown remote context rather than fetching it', async () => {
 
 test('handles @graph at the top level', async () => {
   const result = await extract(
-    page(ld('{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"#o","name":"A"},{"@type":"WebSite","@id":"#w","name":"B"}]}')),
+    page(
+      ld(
+        '{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"#o","name":"A"},{"@type":"WebSite","@id":"#w","name":"B"}]}',
+      ),
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -83,7 +121,11 @@ test('handles @graph at the top level', async () => {
 
 test('handles a bare array of nodes', async () => {
   const result = await extract(
-    page(ld('[{"@context":"https://schema.org","@type":"Organization","name":"A"},{"@context":"https://schema.org","@type":"Person","name":"B"}]')),
+    page(
+      ld(
+        '[{"@context":"https://schema.org","@type":"Organization","name":"A"},{"@context":"https://schema.org","@type":"Person","name":"B"}]',
+      ),
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -93,8 +135,12 @@ test('handles a bare array of nodes', async () => {
 test('handles multiple blocks each with their own @graph', async () => {
   const result = await extract(
     page(
-      ld('{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"#o","name":"A"}]}') +
-        ld('{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"#w","name":"B"}]}'),
+      ld(
+        '{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"#o","name":"A"}]}',
+      ) +
+        ld(
+          '{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"#w","name":"B"}]}',
+        ),
     ),
     PAGE,
     PAGE_ID,
@@ -109,7 +155,10 @@ test('handles multiple blocks each with their own @graph', async () => {
 
 test('a malformed block does not abort the page', async () => {
   const result = await extract(
-    page(ld('{ "@context": "https://schema.org", broken') + ld('{"@context":"https://schema.org","@type":"Person","name":"Survivor"}')),
+    page(
+      ld('{ "@context": "https://schema.org", broken') +
+        ld('{"@context":"https://schema.org","@type":"Person","name":"Survivor"}'),
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -129,12 +178,20 @@ test('the raw text of a malformed block is preserved verbatim', async () => {
 });
 
 test('names a trailing comma as the likely cause', async () => {
-  const result = await extract(page(ld('{"@context":"https://schema.org","@type":"Person","name":"X",}')), PAGE, PAGE_ID);
+  const result = await extract(
+    page(ld('{"@context":"https://schema.org","@type":"Person","name":"X",}')),
+    PAGE,
+    PAGE_ID,
+  );
   assert.match(result.blocks[0]?.error ?? '', /trailing comma/);
 });
 
 test('strips a BOM and leading whitespace', async () => {
-  const result = await extract(page(ld('﻿\n  {"@context":"https://schema.org","@type":"Person","name":"X"}')), PAGE, PAGE_ID);
+  const result = await extract(
+    page(ld('﻿\n  {"@context":"https://schema.org","@type":"Person","name":"X"}')),
+    PAGE,
+    PAGE_ID,
+  );
   assert.equal(result.counts.json_ld_failed, 0);
 });
 
@@ -159,7 +216,9 @@ test('ignores script tags that are not ld+json', async () => {
 
 test('accepts a type attribute carrying a charset parameter', async () => {
   const result = await extract(
-    page('<script type="application/ld+json; charset=UTF-8">{"@context":"https://schema.org","@type":"Person"}</script>'),
+    page(
+      '<script type="application/ld+json; charset=UTF-8">{"@context":"https://schema.org","@type":"Person"}</script>',
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -170,7 +229,11 @@ test('accepts a type attribute carrying a charset parameter', async () => {
 
 test('hoists a nested node and leaves a reference behind', async () => {
   const result = await extract(
-    page(ld('{"@context":"https://schema.org","@type":"Organization","@id":"#o","name":"A","logo":{"@type":"ImageObject","@id":"#l","url":"https://example.com/l.png"}}')),
+    page(
+      ld(
+        '{"@context":"https://schema.org","@type":"Organization","@id":"#o","name":"A","logo":{"@type":"ImageObject","@id":"#l","url":"https://example.com/l.png"}}',
+      ),
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -186,7 +249,9 @@ test('a bare reference is not hoisted into an observation', async () => {
   // Hoisting it would manufacture an empty observation and, at M0, that exact
   // error turned 3 findings into 15.
   const result = await extract(
-    page(ld('{"@context":"https://schema.org","@type":"WebSite","@id":"#w","publisher":{"@id":"#o"}}')),
+    page(
+      ld('{"@context":"https://schema.org","@type":"WebSite","@id":"#w","publisher":{"@id":"#o"}}'),
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -195,7 +260,9 @@ test('a bare reference is not hoisted into an observation', async () => {
 });
 
 test('blank node ids are stable and derived from position', async () => {
-  const markup = ld('{"@context":"https://schema.org","@type":"Article","@id":"#a","author":{"@type":"Person","name":"X"}}');
+  const markup = ld(
+    '{"@context":"https://schema.org","@type":"Article","@id":"#a","author":{"@type":"Person","name":"X"}}',
+  );
   const first = await extract(page(markup), PAGE, PAGE_ID);
   const second = await extract(page(markup), PAGE, PAGE_ID);
 
@@ -213,7 +280,11 @@ test('blank node ids are stable and derived from position', async () => {
 test('an author-supplied blank label keeps its identity within the block', async () => {
   // Two references to one _:label must not become two nodes.
   const result = await extract(
-    page(ld('{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"_:org","name":"A"},{"@type":"WebSite","@id":"#w","publisher":{"@id":"_:org"}}]}')),
+    page(
+      ld(
+        '{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"_:org","name":"A"},{"@type":"WebSite","@id":"#w","publisher":{"@id":"_:org"}}]}',
+      ),
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -223,13 +294,21 @@ test('an author-supplied blank label keeps its identity within the block', async
 });
 
 test('property values are always arrays, even singletons', async () => {
-  const result = await extract(page(ld('{"@context":"https://schema.org","@type":"Person","name":"X"}')), PAGE, PAGE_ID);
+  const result = await extract(
+    page(ld('{"@context":"https://schema.org","@type":"Person","name":"X"}')),
+    PAGE,
+    PAGE_ID,
+  );
   assert.equal(Array.isArray(result.nodes[0]?.props['http://schema.org/name']), true);
 });
 
 test('the same @id defined twice in one block is unioned, not clobbered', async () => {
   const result = await extract(
-    page(ld('{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"#o","name":"A"},{"@type":"Organization","@id":"#o","telephone":"+44"}]}')),
+    page(
+      ld(
+        '{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"#o","name":"A"},{"@type":"Organization","@id":"#o","telephone":"+44"}]}',
+      ),
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -242,7 +321,11 @@ test('the same @id defined twice in one block is unioned, not clobbered', async 
 
 test('records the raw @id when it differed from the resolved one', async () => {
   const result = await extract(
-    page(ld('{"@context":"https://schema.org","@type":"Organization","@id":"#organization","name":"A"}')),
+    page(
+      ld(
+        '{"@context":"https://schema.org","@type":"Organization","@id":"#organization","name":"A"}',
+      ),
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -254,7 +337,11 @@ test('records the raw @id when it differed from the resolved one', async () => {
 
 test('raw_id is null when the author wrote an absolute @id', async () => {
   const result = await extract(
-    page(ld('{"@context":"https://schema.org","@type":"Organization","@id":"https://example.com/#o","name":"A"}')),
+    page(
+      ld(
+        '{"@context":"https://schema.org","@type":"Organization","@id":"https://example.com/#o","name":"A"}',
+      ),
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -270,11 +357,13 @@ test('resolves a relative declared canonical', async () => {
 
 test('reads an absolute declared canonical and a multi-valued rel', async () => {
   assert.equal(
-    (await extract(page('<link rel="canonical" href="https://example.com/x">'), PAGE, PAGE_ID)).declared_canonical,
+    (await extract(page('<link rel="canonical" href="https://example.com/x">'), PAGE, PAGE_ID))
+      .declared_canonical,
     'https://example.com/x',
   );
   assert.equal(
-    (await extract(page('<link rel="shortlink canonical" href="/y">'), PAGE, PAGE_ID)).declared_canonical,
+    (await extract(page('<link rel="shortlink canonical" href="/y">'), PAGE, PAGE_ID))
+      .declared_canonical,
     'https://example.com/y',
   );
 });
@@ -294,7 +383,10 @@ test('records microdata presence and types without a parser', async () => {
   const result = await extract(html, PAGE, PAGE_ID);
 
   assert.equal(result.counts.microdata_items, 2);
-  assert.deepEqual(result.microdata_types, ['https://schema.org/Product', 'https://schema.org/WPHeader']);
+  assert.deepEqual(result.microdata_types, [
+    'https://schema.org/Product',
+    'https://schema.org/WPHeader',
+  ]);
 
   // NOT a per-page error. Microdata beside JSON-LD is the normal state of a
   // WooCommerce site; flagging it per page would emit 242 findings across the
@@ -309,7 +401,10 @@ test('microdata types are deduplicated and multi-valued itemtype is split', asyn
     '<div itemscope itemtype="https://schema.org/Blog"></div>' +
     '</body></html>';
   const result = await extract(html, PAGE, PAGE_ID);
-  assert.deepEqual(result.microdata_types, ['https://schema.org/Blog', 'https://schema.org/CreativeWork']);
+  assert.deepEqual(result.microdata_types, [
+    'https://schema.org/Blog',
+    'https://schema.org/CreativeWork',
+  ]);
 });
 
 test('Open Graph meta tags are not mistaken for RDFa', async () => {
@@ -336,7 +431,11 @@ test('an @id-typed property value survives as a reference, not stripped', async 
   // on the site, which silently loses the flagship M0 finding
   // (a corpus site publishing two url values under one @id).
   const result = await extract(
-    page(ld('{"@context":"https://schema.org","@type":"Organization","@id":"#o","url":"https://example.com/about/"}')),
+    page(
+      ld(
+        '{"@context":"https://schema.org","@type":"Organization","@id":"#o","url":"https://example.com/about/"}',
+      ),
+    ),
     PAGE,
     PAGE_ID,
   );
@@ -355,13 +454,19 @@ test('a blank node embeds its page id, so checks must compare denotation', async
   //
   // This test pins the property that makes the problem detectable, so the
   // constraint on the check engine stays visible.
-  const markup = ld('{"@context":"https://schema.org","@type":"Organization","@id":"#o","address":{"@type":"PostalAddress","postalCode":"RG1 1NU"}}');
+  const markup = ld(
+    '{"@context":"https://schema.org","@type":"Organization","@id":"#o","address":{"@type":"PostalAddress","postalCode":"RG1 1NU"}}',
+  );
 
   const first = await extract(page(markup), 'https://example.com/a/', 'a-1111aaaa');
   const second = await extract(page(markup), 'https://example.com/b/', 'b-2222bbbb');
 
   const addressOf = (result: Awaited<ReturnType<typeof extract>>) =>
-    (result.nodes.find((node) => !node.is_blank)?.props['http://schema.org/address']?.[0] as { '@id': string })['@id'];
+    (
+      result.nodes.find((node) => !node.is_blank)?.props['http://schema.org/address']?.[0] as {
+        '@id': string;
+      }
+    )['@id'];
 
   // Identical markup, different blank ids. Comparing these is a false positive.
   assert.notEqual(addressOf(first), addressOf(second));

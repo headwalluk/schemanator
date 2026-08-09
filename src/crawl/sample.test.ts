@@ -24,7 +24,8 @@ function build(specs: Spec[]): { url: string; source: string; fromSitemap: strin
 
 const countBySitemap = (selected: { fromSitemap: string }[]): Record<string, number> => {
   const counts: Record<string, number> = {};
-  for (const candidate of selected) counts[candidate.fromSitemap] = (counts[candidate.fromSitemap] ?? 0) + 1;
+  for (const candidate of selected)
+    counts[candidate.fromSitemap] = (counts[candidate.fromSitemap] ?? 0) + 1;
   return counts;
 };
 
@@ -88,7 +89,9 @@ test('spread preserves document order within each sitemap', () => {
     { sitemap: 'b.xml', count: 10, prefix: 'b' },
   ]);
   const selected = selectSample(candidates, 6, 'spread', ORIGIN);
-  const fromA = selected.filter((candidate) => candidate.fromSitemap === 'a.xml').map((candidate) => candidate.url);
+  const fromA = selected
+    .filter((candidate) => candidate.fromSitemap === 'a.xml')
+    .map((candidate) => candidate.url);
 
   assert.deepEqual(fromA, [`${ORIGIN}/a-0`, `${ORIGIN}/a-1`, `${ORIGIN}/a-2`]);
 });
@@ -102,7 +105,11 @@ test('the front page is hoisted even when buried in a huge sitemap', () => {
 
   for (const strategy of ['spread', 'document'] as const) {
     const selected = selectSample(candidates, 10, strategy, ORIGIN);
-    assert.equal(selected[0]?.url, `${ORIGIN}/`, `front page should lead under --sample ${strategy}`);
+    assert.equal(
+      selected[0]?.url,
+      `${ORIGIN}/`,
+      `front page should lead under --sample ${strategy}`,
+    );
     assert.equal(
       selected.filter((candidate) => candidate.url === `${ORIGIN}/`).length,
       1,

@@ -14,7 +14,12 @@ import path from 'node:path';
 import { runCrawl } from '../src/crawl/run.ts';
 import { MIN_DELAY_MS } from '../src/net/fetcher.ts';
 import { pageIdFor, type PageRecord } from '../src/store/workdir.ts';
-import { FIXTURE_EXCLUDED_PATHS, FIXTURE_FETCHABLE_PATHS, startFixtureSite, startThrottlingSite } from './fixtures/site.ts';
+import {
+  FIXTURE_EXCLUDED_PATHS,
+  FIXTURE_FETCHABLE_PATHS,
+  startFixtureSite,
+  startThrottlingSite,
+} from './fixtures/site.ts';
 
 async function tempWorkRoot(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), 'schemanator-test-'));
@@ -61,7 +66,10 @@ test('dry run seeds the URL list and fetches no pages', async () => {
 
     // The URL list travels as data in the summary, not as log output, so it
     // can go to stdout while logs go to stderr.
-    assert.equal(summary.queued_urls?.some((url) => url.includes('/about')), true);
+    assert.equal(
+      summary.queued_urls?.some((url) => url.includes('/about')),
+      true,
+    );
     assert.equal(summary.queued_urls?.length, summary.urls_queued);
   } finally {
     await site.close();
@@ -83,11 +91,18 @@ test('a full crawl stores every fetchable page and records the rest', async () =
     assert.equal(summary.aborted, null);
     // The index plus two children.
     assert.equal(summary.sitemaps.length, 3);
-    assert.equal(summary.sitemaps.some((sitemap) => sitemap.gzipped), true);
+    assert.equal(
+      summary.sitemaps.some((sitemap) => sitemap.gzipped),
+      true,
+    );
 
     // --- exclusions ----------------------------------------------------
     assert.equal(summary.urls_disallowed, 1, 'robots.txt Disallow should exclude one URL');
-    assert.equal(site.hits.has(FIXTURE_EXCLUDED_PATHS.disallowed), false, 'must not fetch a disallowed URL');
+    assert.equal(
+      site.hits.has(FIXTURE_EXCLUDED_PATHS.disallowed),
+      false,
+      'must not fetch a disallowed URL',
+    );
     assert.equal(
       summary.dropped_entries.some((entry) => entry.rawUrl === FIXTURE_EXCLUDED_PATHS.crossHost),
       true,
@@ -117,7 +132,10 @@ test('a full crawl stores every fetchable page and records the rest', async () =
       assert.notEqual(record.content_sha256, null);
       assert.deepEqual(record.errors, []);
 
-      const stored = await fs.readFile(path.join(workDir, 'pages', record.page_id, 'page.html'), 'utf8');
+      const stored = await fs.readFile(
+        path.join(workDir, 'pages', record.page_id, 'page.html'),
+        'utf8',
+      );
       assert.match(stored, /<!DOCTYPE html>/);
 
       const meta = JSON.parse(
@@ -166,9 +184,14 @@ test('a full crawl stores every fetchable page and records the rest', async () =
     assert.equal(sitemapFiles.length, 3);
     // The gzipped one is stored decompressed, so it is greppable like the rest.
     const stored = await Promise.all(
-      sitemapFiles.map((name) => fs.readFile(path.join(workDir, 'crawl', 'sitemaps', name), 'utf8')),
+      sitemapFiles.map((name) =>
+        fs.readFile(path.join(workDir, 'crawl', 'sitemaps', name), 'utf8'),
+      ),
     );
-    assert.equal(stored.some((body) => body.includes('/blog/post-one')), true);
+    assert.equal(
+      stored.some((body) => body.includes('/blog/post-one')),
+      true,
+    );
 
     const log = await fs.readFile(path.join(workDir, 'crawl', 'crawl.log'), 'utf8');
     assert.equal(log.trim().split('\n').length, manifest.length);
@@ -281,8 +304,14 @@ test('a run without --resume starts from a clean frontier', async () => {
 test('falls back to the front page when there is no sitemap', async () => {
   const { startTestServer } = await import('./helpers/server.ts');
   const site = await startTestServer({
-    '/robots.txt': { headers: { 'content-type': 'text/plain' }, body: 'User-agent: *\nDisallow:\n' },
-    '/': { headers: { 'content-type': 'text/html' }, body: '<!DOCTYPE html><html><body>only page</body></html>' },
+    '/robots.txt': {
+      headers: { 'content-type': 'text/plain' },
+      body: 'User-agent: *\nDisallow:\n',
+    },
+    '/': {
+      headers: { 'content-type': 'text/html' },
+      body: '<!DOCTYPE html><html><body>only page</body></html>',
+    },
   });
   const workRoot = await tempWorkRoot();
   try {

@@ -53,15 +53,22 @@ function page(id: string): PageRecord {
     bytes: 1,
     html_purged: false,
     microdata_types: [],
-    extraction: { json_ld_blocks: 1, json_ld_failed: 0, microdata_items: 0, rdfa_items: 0, nodes: 1 },
+    extraction: {
+      json_ld_blocks: 1,
+      json_ld_failed: 0,
+      microdata_items: 0,
+      rdfa_items: 0,
+      nodes: 1,
+    },
     errors: [],
   };
 }
 
 /** Only this group. Everything else is another suite's business. */
 function google(nodes: ExtractedNode[], pages: PageRecord[] = [page('a'), page('b')]) {
-  return runChecks({ nodes, pages, partialCoverage: false })
-    .findings.filter((finding) => finding.check.startsWith('google.'));
+  return runChecks({ nodes, pages, partialCoverage: false }).findings.filter((finding) =>
+    finding.check.startsWith('google.'),
+  );
 }
 
 const value = (text: string) => [{ '@value': text }];
@@ -94,12 +101,21 @@ function completeProduct(overrides: Record<string, unknown[]> = {}): ExtractedNo
     node({
       id: 'https://example.com/#offer',
       types: [S('Offer')],
-      props: { [S('price')]: value('9.99'), [S('priceCurrency')]: value('GBP'), [S('availability')]: value('InStock'), [S('priceValidUntil')]: value('2027-01-01') },
+      props: {
+        [S('price')]: value('9.99'),
+        [S('priceCurrency')]: value('GBP'),
+        [S('availability')]: value('InStock'),
+        [S('priceValidUntil')]: value('2027-01-01'),
+      },
     }),
     node({
       id: 'https://example.com/#review',
       types: [S('Review')],
-      props: { [S('author')]: ref('https://example.com/#person'), [S('reviewRating')]: ref('https://example.com/#rating'), [S('datePublished')]: value('2026-01-01') },
+      props: {
+        [S('author')]: ref('https://example.com/#person'),
+        [S('reviewRating')]: ref('https://example.com/#rating'),
+        [S('datePublished')]: value('2026-01-01'),
+      },
     }),
     node({
       id: 'https://example.com/#rating',
@@ -192,15 +208,38 @@ test('an AggregateOffer under a Product is never asked for Offer.price', () => {
     node({
       id: 'https://example.com/#product',
       types: [S('Product')],
-      props: { [S('name')]: value('A Thing'), [S('offers')]: ref('https://example.com/#agg'), [S('image')]: ref('https://example.com/a.jpg'), [S('review')]: ref('https://example.com/#r'), [S('aggregateRating')]: ref('https://example.com/#ar') },
+      props: {
+        [S('name')]: value('A Thing'),
+        [S('offers')]: ref('https://example.com/#agg'),
+        [S('image')]: ref('https://example.com/a.jpg'),
+        [S('review')]: ref('https://example.com/#r'),
+        [S('aggregateRating')]: ref('https://example.com/#ar'),
+      },
     }),
     node({
       id: 'https://example.com/#agg',
       types: [S('AggregateOffer')],
-      props: { [S('lowPrice')]: value('5.00'), [S('priceCurrency')]: value('GBP'), [S('highPrice')]: value('9.00'), [S('offerCount')]: value('3') },
+      props: {
+        [S('lowPrice')]: value('5.00'),
+        [S('priceCurrency')]: value('GBP'),
+        [S('highPrice')]: value('9.00'),
+        [S('offerCount')]: value('3'),
+      },
     }),
-    node({ id: 'https://example.com/#r', types: [S('Review')], props: { [S('author')]: ref('https://example.com/#p'), [S('reviewRating')]: ref('https://example.com/#ar'), [S('datePublished')]: value('2026-01-01') } }),
-    node({ id: 'https://example.com/#ar', types: [S('AggregateRating')], props: { [S('ratingValue')]: value('4'), [S('reviewCount')]: value('2') } }),
+    node({
+      id: 'https://example.com/#r',
+      types: [S('Review')],
+      props: {
+        [S('author')]: ref('https://example.com/#p'),
+        [S('reviewRating')]: ref('https://example.com/#ar'),
+        [S('datePublished')]: value('2026-01-01'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#ar',
+      types: [S('AggregateRating')],
+      props: { [S('ratingValue')]: value('4'), [S('reviewCount')]: value('2') },
+    }),
   ]);
 
   assert.deepEqual(findings, []);
@@ -233,7 +272,10 @@ test('an Offer priced through priceSpecification satisfies the price requirement
     }),
   ]);
 
-  assert.deepEqual(findings.map((finding) => finding.title), []);
+  assert.deepEqual(
+    findings.map((finding) => finding.title),
+    [],
+  );
 });
 
 test('an Offer with neither price nor priceSpecification.price is reported', () => {
@@ -243,7 +285,11 @@ test('an Offer with neither price nor priceSpecification.price is reported', () 
       node({
         id: 'https://example.com/#offer',
         types: [S('Offer')],
-        props: { [S('priceCurrency')]: value('GBP'), [S('availability')]: value('InStock'), [S('priceValidUntil')]: value('2027-01-01') },
+        props: {
+          [S('priceCurrency')]: value('GBP'),
+          [S('availability')]: value('InStock'),
+          [S('priceValidUntil')]: value('2027-01-01'),
+        },
       }),
     ),
   );
@@ -259,7 +305,16 @@ test('an Offer with neither price nor priceSpecification.price is reported', () 
 test('an Offer nobody references is not judged at all', () => {
   // entry: false. Google's Offer requirements belong to the product snippet,
   // not to every Offer node in existence.
-  assert.deepEqual(google([node({ id: '_:stray', types: [S('Offer')], props: { [S('url')]: ref('https://example.com/x') } })]), []);
+  assert.deepEqual(
+    google([
+      node({
+        id: '_:stray',
+        types: [S('Offer')],
+        props: { [S('url')]: ref('https://example.com/x') },
+      }),
+    ]),
+    [],
+  );
 });
 
 test('a Review nested under the thing it reviews is not asked for itemReviewed', () => {
@@ -275,9 +330,17 @@ test('a free-standing Review is asked for itemReviewed', () => {
     node({
       id: 'https://example.com/#review',
       types: [S('Review')],
-      props: { [S('author')]: ref('https://example.com/#p'), [S('reviewRating')]: ref('https://example.com/#rating'), [S('datePublished')]: value('2026-01-01') },
+      props: {
+        [S('author')]: ref('https://example.com/#p'),
+        [S('reviewRating')]: ref('https://example.com/#rating'),
+        [S('datePublished')]: value('2026-01-01'),
+      },
     }),
-    node({ id: 'https://example.com/#rating', types: [S('Rating')], props: { [S('ratingValue')]: value('5') } }),
+    node({
+      id: 'https://example.com/#rating',
+      types: [S('Rating')],
+      props: { [S('ratingValue')]: value('5') },
+    }),
   ]);
 
   assert.equal(findings.length, 1);
@@ -289,7 +352,11 @@ test('a free-standing Review is asked for itemReviewed', () => {
 
 test('a required field is an error and a recommended one an opportunity', () => {
   const findings = google([
-    node({ id: 'https://example.com/#biz', types: [S('LocalBusiness')], props: { [S('name')]: value('Acme') } }),
+    node({
+      id: 'https://example.com/#biz',
+      types: [S('LocalBusiness')],
+      props: { [S('name')]: value('Acme') },
+    }),
   ]);
 
   const required = findings.find((finding) => finding.check === 'google.missing-required');
@@ -306,8 +373,25 @@ test('the recommended check states the trade-off it cannot resolve', () => {
   // Reporting "no aggregateRating" must never read as "go and add ratings".
   // Inventing them is a guidelines violation and risks a manual action.
   const findings = google([
-    node({ id: 'https://example.com/#p', types: [S('Product')], props: { [S('name')]: value('X'), [S('offers')]: ref('https://example.com/#o'), [S('image')]: ref('https://example.com/i.jpg') } }),
-    node({ id: 'https://example.com/#o', types: [S('Offer')], props: { [S('price')]: value('1'), [S('priceCurrency')]: value('GBP'), [S('availability')]: value('InStock'), [S('priceValidUntil')]: value('2027-01-01') } }),
+    node({
+      id: 'https://example.com/#p',
+      types: [S('Product')],
+      props: {
+        [S('name')]: value('X'),
+        [S('offers')]: ref('https://example.com/#o'),
+        [S('image')]: ref('https://example.com/i.jpg'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#o',
+      types: [S('Offer')],
+      props: {
+        [S('price')]: value('1'),
+        [S('priceCurrency')]: value('GBP'),
+        [S('availability')]: value('InStock'),
+        [S('priceValidUntil')]: value('2027-01-01'),
+      },
+    }),
   ]);
 
   const rating = findings.find((finding) => finding.subject.property === 'aggregateRating');
@@ -317,7 +401,11 @@ test('the recommended check states the trade-off it cannot resolve', () => {
 
 test('a Product with none of offers, review or aggregateRating fails the set', () => {
   const findings = google([
-    node({ id: 'https://example.com/#p', types: [S('Product')], props: { [S('name')]: value('X'), [S('image')]: ref('https://example.com/i.jpg') } }),
+    node({
+      id: 'https://example.com/#p',
+      types: [S('Product')],
+      props: { [S('name')]: value('X'), [S('image')]: ref('https://example.com/i.jpg') },
+    }),
   ]);
 
   const alternative = findings.find((finding) => finding.check === 'google.incomplete-alternative');
@@ -330,10 +418,41 @@ test('bestRating and worstRating are never reported', () => {
   // corpus site, which amounted to telling an operator that five is the best of
   // five. Recorded in the rules file.
   const findings = google([
-    node({ id: 'https://example.com/#p', types: [S('Product')], props: { [S('name')]: value('X'), [S('image')]: ref('https://example.com/i.jpg'), [S('review')]: ref('https://example.com/#r'), [S('aggregateRating')]: ref('https://example.com/#ar'), [S('offers')]: ref('https://example.com/#o') } }),
-    node({ id: 'https://example.com/#o', types: [S('Offer')], props: { [S('price')]: value('1'), [S('priceCurrency')]: value('GBP'), [S('availability')]: value('InStock'), [S('priceValidUntil')]: value('2027-01-01') } }),
-    node({ id: 'https://example.com/#r', types: [S('Review')], props: { [S('author')]: ref('https://example.com/#p2'), [S('reviewRating')]: ref('https://example.com/#ar'), [S('datePublished')]: value('2026-01-01') } }),
-    node({ id: 'https://example.com/#ar', types: [S('AggregateRating')], props: { [S('ratingValue')]: value('4'), [S('reviewCount')]: value('9') } }),
+    node({
+      id: 'https://example.com/#p',
+      types: [S('Product')],
+      props: {
+        [S('name')]: value('X'),
+        [S('image')]: ref('https://example.com/i.jpg'),
+        [S('review')]: ref('https://example.com/#r'),
+        [S('aggregateRating')]: ref('https://example.com/#ar'),
+        [S('offers')]: ref('https://example.com/#o'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#o',
+      types: [S('Offer')],
+      props: {
+        [S('price')]: value('1'),
+        [S('priceCurrency')]: value('GBP'),
+        [S('availability')]: value('InStock'),
+        [S('priceValidUntil')]: value('2027-01-01'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#r',
+      types: [S('Review')],
+      props: {
+        [S('author')]: ref('https://example.com/#p2'),
+        [S('reviewRating')]: ref('https://example.com/#ar'),
+        [S('datePublished')]: value('2026-01-01'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#ar',
+      types: [S('AggregateRating')],
+      props: { [S('ratingValue')]: value('4'), [S('reviewCount')]: value('9') },
+    }),
   ]);
 
   assert.deepEqual(findings, []);
@@ -349,14 +468,34 @@ test('one generator omission across many pages is one finding', () => {
       id: `https://example.com/${pageId}#p`,
       page: pageId,
       types: [S('Product')],
-      props: { [S('name')]: value('X'), [S('offers')]: ref(`https://example.com/${pageId}#o`), [S('image')]: ref('https://example.com/i.jpg'), [S('aggregateRating')]: ref(`https://example.com/${pageId}#ar`) },
+      props: {
+        [S('name')]: value('X'),
+        [S('offers')]: ref(`https://example.com/${pageId}#o`),
+        [S('image')]: ref('https://example.com/i.jpg'),
+        [S('aggregateRating')]: ref(`https://example.com/${pageId}#ar`),
+      },
     }),
   );
   const offers = ['a', 'b', 'c', 'd'].map((pageId) =>
-    node({ id: `https://example.com/${pageId}#o`, page: pageId, types: [S('Offer')], props: { [S('price')]: value('1'), [S('priceCurrency')]: value('GBP'), [S('availability')]: value('InStock'), [S('priceValidUntil')]: value('2027-01-01') } }),
+    node({
+      id: `https://example.com/${pageId}#o`,
+      page: pageId,
+      types: [S('Offer')],
+      props: {
+        [S('price')]: value('1'),
+        [S('priceCurrency')]: value('GBP'),
+        [S('availability')]: value('InStock'),
+        [S('priceValidUntil')]: value('2027-01-01'),
+      },
+    }),
   );
   const ratings = ['a', 'b', 'c', 'd'].map((pageId) =>
-    node({ id: `https://example.com/${pageId}#ar`, page: pageId, types: [S('AggregateRating')], props: { [S('ratingValue')]: value('4'), [S('reviewCount')]: value('9') } }),
+    node({
+      id: `https://example.com/${pageId}#ar`,
+      page: pageId,
+      types: [S('AggregateRating')],
+      props: { [S('ratingValue')]: value('4'), [S('reviewCount')]: value('9') },
+    }),
   );
 
   const findings = google([...nodes, ...offers, ...ratings], ['a', 'b', 'c', 'd'].map(page));
@@ -371,8 +510,35 @@ test('partiality is reported here, unlike everywhere else', () => {
   // evaluates a page, not an @id. A corpus LocalBusiness has two observations,
   // one with address and one without, and grouping by @id hid a real error.
   const findings = google([
-    node({ id: 'https://example.com/#biz', page: 'a', types: [S('LocalBusiness')], props: { [S('name')]: value('Acme'), [S('address')]: ref('https://example.com/#addr'), [S('telephone')]: value('1'), [S('priceRange')]: value('££'), [S('openingHoursSpecification')]: ref('https://example.com/#oh'), [S('geo')]: ref('https://example.com/#geo'), [S('url')]: ref('https://example.com/'), [S('image')]: ref('https://example.com/i.jpg') } }),
-    node({ id: 'https://example.com/#biz', page: 'b', types: [S('LocalBusiness')], props: { [S('name')]: value('Acme'), [S('telephone')]: value('1'), [S('priceRange')]: value('££'), [S('openingHoursSpecification')]: ref('https://example.com/#oh'), [S('geo')]: ref('https://example.com/#geo'), [S('url')]: ref('https://example.com/'), [S('image')]: ref('https://example.com/i.jpg') } }),
+    node({
+      id: 'https://example.com/#biz',
+      page: 'a',
+      types: [S('LocalBusiness')],
+      props: {
+        [S('name')]: value('Acme'),
+        [S('address')]: ref('https://example.com/#addr'),
+        [S('telephone')]: value('1'),
+        [S('priceRange')]: value('££'),
+        [S('openingHoursSpecification')]: ref('https://example.com/#oh'),
+        [S('geo')]: ref('https://example.com/#geo'),
+        [S('url')]: ref('https://example.com/'),
+        [S('image')]: ref('https://example.com/i.jpg'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#biz',
+      page: 'b',
+      types: [S('LocalBusiness')],
+      props: {
+        [S('name')]: value('Acme'),
+        [S('telephone')]: value('1'),
+        [S('priceRange')]: value('££'),
+        [S('openingHoursSpecification')]: ref('https://example.com/#oh'),
+        [S('geo')]: ref('https://example.com/#geo'),
+        [S('url')]: ref('https://example.com/'),
+        [S('image')]: ref('https://example.com/i.jpg'),
+      },
+    }),
   ]);
 
   assert.equal(findings.length, 1);
@@ -384,17 +550,37 @@ test('partiality is reported here, unlike everywhere else', () => {
 test('an empty string counts as present, because value.empty owns it', () => {
   // One defect billed under two checks costs an operator more than it tells them.
   const findings = google([
-    node({ id: 'https://example.com/#biz', types: [S('LocalBusiness')], props: { [S('name')]: value(''), [S('address')]: value(''), [S('telephone')]: value('1'), [S('priceRange')]: value('£'), [S('openingHoursSpecification')]: ref('https://example.com/#oh'), [S('geo')]: ref('https://example.com/#geo'), [S('url')]: ref('https://example.com/'), [S('image')]: ref('https://example.com/i.jpg') } }),
+    node({
+      id: 'https://example.com/#biz',
+      types: [S('LocalBusiness')],
+      props: {
+        [S('name')]: value(''),
+        [S('address')]: value(''),
+        [S('telephone')]: value('1'),
+        [S('priceRange')]: value('£'),
+        [S('openingHoursSpecification')]: ref('https://example.com/#oh'),
+        [S('geo')]: ref('https://example.com/#geo'),
+        [S('url')]: ref('https://example.com/'),
+        [S('image')]: ref('https://example.com/i.jpg'),
+      },
+    }),
   ]);
 
-  assert.deepEqual(findings.filter((finding) => finding.check === 'google.missing-required'), []);
+  assert.deepEqual(
+    findings.filter((finding) => finding.check === 'google.missing-required'),
+    [],
+  );
 });
 
 test('findings carry provenance back to the block and pointer', () => {
   // `01` makes this mandatory: a finding you cannot trace to exact source text
   // is unreportable, and unfixable by the person reading it.
   const findings = google([
-    node({ id: 'https://example.com/#biz', types: [S('LocalBusiness')], props: { [S('name')]: value('Acme') } }),
+    node({
+      id: 'https://example.com/#biz',
+      types: [S('LocalBusiness')],
+      props: { [S('name')]: value('Acme') },
+    }),
   ]);
 
   const provenance = findings[0]?.observed[0]?.provenance[0];
@@ -405,11 +591,20 @@ test('findings carry provenance back to the block and pointer', () => {
 
 test('the whole group can be disabled by name', () => {
   const { findings } = runChecks({
-    nodes: [node({ id: 'https://example.com/#biz', types: [S('LocalBusiness')], props: { [S('name')]: value('Acme') } })],
+    nodes: [
+      node({
+        id: 'https://example.com/#biz',
+        types: [S('LocalBusiness')],
+        props: { [S('name')]: value('Acme') },
+      }),
+    ],
     pages: [page('a')],
     partialCoverage: false,
     disabled: ['google'],
   });
 
-  assert.deepEqual(findings.filter((finding) => finding.check.startsWith('google.')), []);
+  assert.deepEqual(
+    findings.filter((finding) => finding.check.startsWith('google.')),
+    [],
+  );
 });

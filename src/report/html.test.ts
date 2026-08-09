@@ -25,8 +25,20 @@ function report(overrides: Partial<Report> = {}): Report {
       sample_strategy: 'spread',
       caveat: null,
     },
-    graph: { nodes: 766, entities: 198, pages_with_data: 47, json_ld_blocks: 60, malformed_blocks: 0 },
-    summary: { by_severity: {}, by_check: {}, silenced: {}, checks_run: ['entity.contradiction'], checks_disabled: [] },
+    graph: {
+      nodes: 766,
+      entities: 198,
+      pages_with_data: 47,
+      json_ld_blocks: 60,
+      malformed_blocks: 0,
+    },
+    summary: {
+      by_severity: {},
+      by_check: {},
+      silenced: {},
+      checks_run: ['entity.contradiction'],
+      checks_disabled: [],
+    },
     findings: [],
     ...overrides,
   };
@@ -39,7 +51,11 @@ function finding(overrides: Partial<Finding> = {}): Finding {
     severity: 'error',
     origin: 'check',
     title: 'url has 2 different values under one @id',
-    subject: { kind: 'entity', id: 'https://example.com/#organization', property: 'http://schema.org/url' },
+    subject: {
+      kind: 'entity',
+      id: 'https://example.com/#organization',
+      property: 'http://schema.org/url',
+    },
     summary: 'The same @id carries 2 different values.',
     expected: 'One url value.',
     observed: [
@@ -48,7 +64,13 @@ function finding(overrides: Partial<Finding> = {}): Finding {
         observation_count: 120,
         page_count: 120,
         provenance: [
-          { page_id: 'about-1', url: 'https://example.com/about/', syntax: 'json-ld', block: 0, pointer: '/5' },
+          {
+            page_id: 'about-1',
+            url: 'https://example.com/about/',
+            syntax: 'json-ld',
+            block: 0,
+            pointer: '/5',
+          },
         ],
       },
     ],
@@ -114,7 +136,11 @@ test('markup in a finding is escaped, not rendered', () => {
     }),
   );
 
-  assert.equal(html.includes('<script>alert(1)</script>'), false, 'raw script survived into the output');
+  assert.equal(
+    html.includes('<script>alert(1)</script>'),
+    false,
+    'raw script survived into the output',
+  );
   assert.match(html, /&lt;script&gt;/, 'it should appear escaped, and visibly');
 });
 
@@ -149,7 +175,9 @@ test('markup in an observed value or provenance URL is escaped', () => {
 });
 
 test('the site origin is escaped in both the title and the heading', () => {
-  const html = renderHtml(report({ run: { ...report().run, site_origin: 'https://x.example/"><script>' } }));
+  const html = renderHtml(
+    report({ run: { ...report().run, site_origin: 'https://x.example/"><script>' } }),
+  );
   assert.equal(html.includes('<script>'), false);
 });
 
@@ -159,7 +187,11 @@ test('the coverage caveat comes before any finding', () => {
   // The single most misleading thing about a partial report, so it leads.
   const html = renderHtml(
     report({
-      coverage: { ...report().coverage, complete: false, caveat: 'Only 20 of 8,341 URLs were audited.' },
+      coverage: {
+        ...report().coverage,
+        complete: false,
+        caveat: 'Only 20 of 8,341 URLs were audited.',
+      },
       findings: [finding()],
     }),
   );
@@ -185,9 +217,19 @@ test('findings are grouped by severity, errors first', () => {
     }),
   );
 
-  const order = ['Errors (1)', 'Warnings (1)', 'Opportunities (1)'].map((heading) => html.indexOf(heading));
-  assert.equal(order.every((at) => at !== -1), true, 'a severity heading is missing');
-  assert.deepEqual([...order].sort((left, right) => left - right), order, 'severities are out of order');
+  const order = ['Errors (1)', 'Warnings (1)', 'Opportunities (1)'].map((heading) =>
+    html.indexOf(heading),
+  );
+  assert.equal(
+    order.every((at) => at !== -1),
+    true,
+    'a severity heading is missing',
+  );
+  assert.deepEqual(
+    [...order].sort((left, right) => left - right),
+    order,
+    'severities are out of order',
+  );
 });
 
 test('severity is conveyed in text, not only in colour', () => {
@@ -213,7 +255,11 @@ test('silenced counts are shown, so silence can be audited', () => {
 
 test('coverage-qualified and trade-off notes are rendered', () => {
   const html = renderHtml(
-    report({ findings: [finding({ coverage_qualified: true, tradeoff: 'Content-matching versus consistency.' })] }),
+    report({
+      findings: [
+        finding({ coverage_qualified: true, tradeoff: 'Content-matching versus consistency.' }),
+      ],
+    }),
   );
   assert.match(html, /Qualified by coverage/);
   assert.match(html, /Trade-off:/);

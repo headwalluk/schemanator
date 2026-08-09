@@ -66,12 +66,24 @@ const sitemapindex = (entries: string[]): string =>
 ${entries.map((loc) => `  <sitemap><loc>${loc}</loc></sitemap>`).join('\n')}
 </sitemapindex>`;
 
-const xmlRoute = (body: string): RouteResponse => ({ headers: { 'content-type': 'application/xml' }, body });
+const xmlRoute = (body: string): RouteResponse => ({
+  headers: { 'content-type': 'application/xml' },
+  body,
+});
 
-const htmlRoute = (body: string): RouteResponse => ({ headers: { 'content-type': 'text/html; charset=utf-8' }, body });
+const htmlRoute = (body: string): RouteResponse => ({
+  headers: { 'content-type': 'text/html; charset=utf-8' },
+  body,
+});
 
 /** Page paths the fixture sitemap advertises and that should end up fetched. */
-export const FIXTURE_FETCHABLE_PATHS = ['/', '/about', '/contact', '/blog/post-one', '/moved-target'];
+export const FIXTURE_FETCHABLE_PATHS = [
+  '/',
+  '/about',
+  '/contact',
+  '/blog/post-one',
+  '/moved-target',
+];
 
 /** Advertised but must NOT be fetched, each for a different reason. */
 export const FIXTURE_EXCLUDED_PATHS = {
@@ -82,7 +94,8 @@ export const FIXTURE_EXCLUDED_PATHS = {
 };
 
 export async function startFixtureSite(): Promise<TestServer> {
-  const origin = (request: { headers: { host?: string | undefined } }): string => `http://${request.headers.host}`;
+  const origin = (request: { headers: { host?: string | undefined } }): string =>
+    `http://${request.headers.host}`;
 
   return startTestServer({
     '/robots.txt': (request) => ({
@@ -98,7 +111,10 @@ export async function startFixtureSite(): Promise<TestServer> {
 
     '/sitemap_index.xml': (request) =>
       xmlRoute(
-        sitemapindex([`${origin(request)}/sitemap-pages.xml`, `${origin(request)}/sitemap-posts.xml.gz`]),
+        sitemapindex([
+          `${origin(request)}/sitemap-pages.xml`,
+          `${origin(request)}/sitemap-posts.xml.gz`,
+        ]),
       ),
 
     '/sitemap-pages.xml': (request) =>
@@ -139,7 +155,11 @@ export async function startFixtureSite(): Promise<TestServer> {
 
     // Same @id, different telephone: the contradiction the whole tool exists for.
     '/contact': htmlRoute(
-      html('Contact', [ORGANIZATION_DIVERGENT, webPage('Contact'), '{ "@context": "https://schema.org", broken ']),
+      html('Contact', [
+        ORGANIZATION_DIVERGENT,
+        webPage('Contact'),
+        '{ "@context": "https://schema.org", broken ',
+      ]),
     ),
 
     '/blog/post-one': htmlRoute(html('Post One', [ORGANIZATION, webPage('Post One')])),
@@ -159,14 +179,16 @@ export async function startFixtureSite(): Promise<TestServer> {
  * the crawl backs off and recovers rather than dropping the page.
  */
 export async function startThrottlingSite(): Promise<TestServer> {
-  const origin = (request: { headers: { host?: string | undefined } }): string => `http://${request.headers.host}`;
+  const origin = (request: { headers: { host?: string | undefined } }): string =>
+    `http://${request.headers.host}`;
 
   return startTestServer({
     '/robots.txt': (request) => ({
       headers: { 'content-type': 'text/plain' },
       body: `User-agent: *\nDisallow:\nSitemap: ${origin(request)}/sitemap.xml\n`,
     }),
-    '/sitemap.xml': (request) => xmlRoute(urlset([`${origin(request)}/`, `${origin(request)}/about`])),
+    '/sitemap.xml': (request) =>
+      xmlRoute(urlset([`${origin(request)}/`, `${origin(request)}/about`])),
     '/': htmlRoute(html('Home', [ORGANIZATION])),
     '/about': (_request, hit) =>
       hit === 1

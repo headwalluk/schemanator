@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 
 import { createLogger, isLogLevel, resolveLogLevel, SILENT_LOGGER } from './log.ts';
 
-function capture(level: Parameters<typeof createLogger>[0]): { lines: string[]; logger: ReturnType<typeof createLogger> } {
+function capture(level: Parameters<typeof createLogger>[0]): {
+  lines: string[];
+  logger: ReturnType<typeof createLogger>;
+} {
   const lines: string[] = [];
   return { lines, logger: createLogger(level, (text) => lines.push(text.trimEnd())) };
 }
