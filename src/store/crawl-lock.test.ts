@@ -219,3 +219,34 @@ test('readAllStatuses lists every site, newest first', async () => {
     ['b.example', 'a.example'],
   );
 });
+
+test('holdsLock is what every destructive command must gate on', () => {
+  // `purge` learned this the hard way: it deleted a site mid-crawl, and the
+  // crawl only found out when its own files vanished. The lock module cannot
+  // stop that on its own, so the invariant is asserted here and the gate lives
+  // in cli.ts — every state a command might see, and whether it may proceed.
+  const base: CrawlStatus = {
+    status_schema: 1,
+    site_slug: 'a.example',
+    site_origin: 'https://a.example',
+    state: 'crawling',
+    pid: process.pid,
+    hostname: os.hostname(),
+    detached: false,
+    started_at: '2026-08-09T00:00:00.000Z',
+    heartbeat_at: '2026-08-09T00:00:00.000Z',
+    finished_at: null,
+    pages_fetched: 0,
+    pages_total: 0,
+    log_path: null,
+    error: null,
+  };
+
+  assert.equal(holdsLock(base), true, 'a live crawl must block destructive work');
+  assert.equal(holdsLock({ ...base, pid: DEAD_PID }), false, 'a dead crawl must not block forever');
+  assert.equal(holdsLock({ ...base, state: 'finished' }), false);
+  assert.equal(holdsLock({ ...base, state: 'failed' }), false);
+  // Another machine: unknowable, so treated as held. Erring the safe way here
+  // costs a wait; erring the other way costs somebody else's bandwidth.
+  assert.equal(holdsLock({ ...base, hostname: 'elsewhere', pid: DEAD_PID }), true);
+});

@@ -43,6 +43,16 @@ finishes. `--detach` removes the reason for the split.
   `--allow-concurrent` relaxes the politeness lock only. The same-site lock is
   correctness and is never relaxed, whatever flags are passed.
 
+- **`purge` refuses to remove a site that is being crawled**, and `--yes` does
+  not override it. Found by working through the sequence rather than by review:
+  purging mid-crawl threw away bandwidth already taken from the site while the
+  crawl was still spending more, and the crawl only discovered it when its own
+  files vanished. `--yes` means "I have read what this removes", which nobody
+  has while the file list is still being written.
+
+  The lock gates `crawl` and `purge` — the two commands that write. `analyse`,
+  `status` and `sites` read, and are never blocked.
+
 - **`analyse` warns rather than blocks while a crawl is running.** An agent
   polling a detached crawl will do this, and a partial answer is honest —
   `coverage.complete` already says so. The warning exists because "17 pages"

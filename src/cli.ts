@@ -360,6 +360,33 @@ async function main(argv: string[]): Promise<ExitCode> {
   if (command === 'purge') {
     const slug = values.site ?? siteSlugFor(coerceToUrl(target));
     const scope = values.html === true ? 'html' : 'all';
+
+    /**
+     * Never delete a site out from under a running crawl.
+     *
+     * `purge` is dry by default because re-crawling costs the *site's*
+     * bandwidth, an hour of it, one polite request at a time — and purging
+     * mid-crawl throws away bandwidth already spent while the crawl is still
+     * spending more. The crawl does notice (it fails, rather than corrupting
+     * anything) but by then the damage is done and the operator has to go back
+     * and take it again.
+     *
+     * Refused rather than warned, and `--yes` does not override it: `--yes`
+     * means "I have read what this removes", which nobody has when the file
+     * list is still being written.
+     */
+    const running = await readStatus(workRoot, slug);
+    if (running !== null && holdsLock(running)) {
+      process.stderr.write(
+        `\n${slug} is being crawled right now (pid ${running.pid}, ` +
+          `${running.pages_fetched} of ${running.pages_total} pages).\n\n` +
+          `Nothing has been removed. Purging mid-crawl throws away bandwidth already\n` +
+          `taken from the site, and the crawl would fail part-written.\n\n` +
+          `  schemanator status ${slug}\n\nWait for it to finish, then purge.\n`,
+      );
+      return EXIT.CRAWL_IN_PROGRESS;
+    }
+
     const plan = await planPurge(workRoot, slug, scope);
 
     if (plan.missing) {

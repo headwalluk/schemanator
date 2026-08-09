@@ -275,7 +275,7 @@ though the disagreement is recorded.
 | `1` | Bad arguments, or an unexpected error |
 | `2` | The crawl was aborted — usually repeated `429 Too Many Requests` |
 | `3` | `robots.txt` was unreadable, so the crawl was refused |
-| `4` | A crawl is already running. Nothing was started — wait and retry |
+| `4` | A crawl is already running. Nothing was started or removed — wait and retry |
 
 Findings deliberately do not fail the command. If you want CI to fail on errors,
 read the JSON:
