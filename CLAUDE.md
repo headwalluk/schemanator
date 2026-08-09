@@ -110,6 +110,88 @@ there's a project-specific reason.
   on purpose is `origin: "check"` on a finding, so a later analysis pass can add
   findings without a schema break.
 
+## Coding standards
+
+### No magic numbers. No magic strings for identifiers.
+
+**An identifier that two pieces of code must agree on gets named once and
+imported.** Check ids, group names, exit codes, severities, property and type
+IRIs, file names under `data/`, JSON keys that form a contract. These are things
+a *caller* depends on — `--disable <group>`, `finding.check` in the JSON, an exit
+code in somebody's shell script — so a second spelling is not a duplicate, it is
+a second version of the contract waiting to disagree with the first.
+
+The failure is quiet, which is what makes it worth a rule. Exit codes were bare
+numbers across sixteen `return`s and a six-branch ladder until 1.3.1; the docs
+described them correctly by luck, and one error class had an exit code nobody had
+chosen. `google.ts` shipped in 1.3.0 with each check id written twice.
+
+**Literal human-readable text is fine anywhere, and hoisting it is worse.**
+Finding titles, summaries, remediation prose, log lines, error messages, `--help`
+output. That text is read by a person, not matched by a program, and it reads far
+better next to the logic it describes than three files away behind a constant
+name. Do not build a message catalogue.
+
+The test is *"would a typo here be caught by a human reading the output, or would
+it silently change behaviour?"* Prose fails loudly to a reader. An identifier
+fails silently to a machine.
+
+### Named constants carry their evidence
+
+A threshold is a decision, so the constant records why the number is what it is —
+`AGGREGATE_THRESHOLD`, `TYPE_GAP_MIN_GROUP`, `TYPE_GAP_MAJORITY` all do. A bare
+`10` in a condition is a decision nobody can review and nobody dares change.
+
+### Every file in `data/` gets a loader that throws
+
+`data/` holds **rules, not configuration** — which properties are functional,
+which values are placeholders, what Google requires. A loader that shrugs at a
+malformed file does not fail: it produces a clean, confident, empty report,
+which is the worst outcome available to a tool whose output people act on.
+
+So each file has a `parse*` function that validates strictly and throws, naming
+the file and the offending key, because these are edited by hand and an error
+saying only "invalid" sends someone hunting. `data-files.test.ts` enforces it —
+a new file fails the suite until it has a parser or a written exemption.
+
+### `report.json` is a published contract
+
+Consumers are told to pin `report_schema`, and `docs/reports.md` promises it
+bumps on any breaking change. Removing or renaming a key, changing a type, or
+making a guaranteed key optional is breaking and needs the bump; **adding** a key
+is not. `report/contract.test.ts` pins the shape, so a change has to be a
+decision rather than a side effect.
+
+Exit codes are the same kind of contract, for the same reason: a caller branches
+on both without reading any prose.
+
+### Prefer a test over a convention
+
+Prose describing a rule reads exactly the same whether or not the code follows
+it — this repository has shipped that failure more than once. Where an invariant
+can be asserted, assert it: `docs-consistency.test.ts` and `exit-codes.test.ts`
+exist precisely so these standards are enforced rather than remembered. **Adding
+a standard means asking what test would catch its violation.**
+
+**Prettier and ESLint are agreed and not yet configured** — decided 2026-08-09,
+tracked as M6 in `dev-notes/00`. Until they land, match the surrounding file:
+single quotes, semicolons, two-space indent, 100-ish columns, trailing commas in
+multi-line literals.
+
+They complement these tests rather than replace them. A linter enforces *shape*;
+`docs-consistency`, `exit-codes`, `contract` and `data-files` enforce *meaning*,
+and no rule set was ever going to catch "this documented check does not exist".
+
+### Naming
+
+- **TypeScript:** `camelCase` for values and functions, `PascalCase` for types
+  and classes, `SCREAMING_SNAKE_CASE` for module-level constants.
+- **The global ALL-CAPS variable rule is for shell scripts only.** It does not
+  apply to TypeScript, and applying it there would fight every convention in the
+  file. See `## Conventions` below.
+- Check ids and group names are `lower-kebab.dotted`, and **an id must begin with
+  its own group** or `--disable <group>` silently misses it. Tested.
+
 ## Conventions
 
 - `dev-notes/` is internal planning for whoever is building this. `docs/` is for

@@ -409,11 +409,30 @@ const SEARCH_CONSOLE_NOTE =
   'Search Console reports this against the page, with no pointer to the block or the node; ' +
   'the provenance below is what schemanator adds.';
 
+/**
+ * The group name and every check id, written once.
+ *
+ * `docs/dev/adding-a-check.md` calls a check id permanent — it appears in
+ * finding ids, in `--disable`, and in cross-run diffs, so renaming one breaks a
+ * user's history. A permanent identifier repeated as a literal in two places is
+ * a rename waiting to go half-done, and the `id`/`group` pair has a second
+ * invariant worth protecting: `--disable <group>` matches on `check.group`, so
+ * an id that does not start with its own group silently survives being
+ * disabled.
+ */
+const GROUP = 'google';
+
+const CHECK = {
+  missingRequired: `${GROUP}.missing-required`,
+  incompleteAlternative: `${GROUP}.incomplete-alternative`,
+  missingRecommended: `${GROUP}.missing-recommended`,
+} as const;
+
 const missingRequired: Check = {
-  id: 'google.missing-required',
-  group: 'google',
+  id: CHECK.missingRequired,
+  group: GROUP,
   run: (context) =>
-    buildFindings(context, 'required', 'google.missing-required', 'error', {
+    buildFindings(context, 'required', CHECK.missingRequired, 'error', {
       title: (typeName, field) => `${typeName} omits ${field}, which Google requires`,
       summary: (typeName, field, nodes, pages) =>
         `${nodes} ${typeName} node(s) across ${pages} page(s) carry no ${field}. Google lists it as ` +
@@ -430,10 +449,10 @@ const missingRequired: Check = {
 };
 
 const incompleteAlternative: Check = {
-  id: 'google.incomplete-alternative',
-  group: 'google',
+  id: CHECK.incompleteAlternative,
+  group: GROUP,
   run: (context) =>
-    buildFindings(context, 'one-of', 'google.incomplete-alternative', 'error', {
+    buildFindings(context, 'one-of', CHECK.incompleteAlternative, 'error', {
       title: (typeName, field) => `${typeName} has none of ${field}`,
       summary: (typeName, field, nodes, pages) =>
         `Google requires at least one of ${field} on a ${typeName}, and ${nodes} node(s) across ` +
@@ -449,10 +468,10 @@ const incompleteAlternative: Check = {
 };
 
 const missingRecommended: Check = {
-  id: 'google.missing-recommended',
-  group: 'google',
+  id: CHECK.missingRecommended,
+  group: GROUP,
   run: (context) =>
-    buildFindings(context, 'recommended', 'google.missing-recommended', 'opportunity', {
+    buildFindings(context, 'recommended', CHECK.missingRecommended, 'opportunity', {
       title: (typeName, field) => `${typeName} omits ${field}, which Google recommends`,
       summary: (typeName, field, nodes, pages) =>
         `${nodes} ${typeName} node(s) across ${pages} page(s) carry no ${field}. Nothing is broken ` +

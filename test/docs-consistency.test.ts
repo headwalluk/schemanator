@@ -62,6 +62,31 @@ const PLANNED = new Set(
   ),
 );
 
+test('check ids are unique, well-formed, and prefixed with their own group', () => {
+  // Three invariants that are cheap here and expensive to discover in the wild.
+  //
+  // `docs/dev/adding-a-check.md` calls an id permanent: it appears in finding
+  // ids, in `--disable`, and in cross-run diffs. A duplicate would silently
+  // collide two checks' finding ids and corrupt a `--since` diff.
+  //
+  // The prefix rule is the one with teeth. `--disable <group>` matches on
+  // `check.group`, while a reader types the group they saw at the front of an
+  // id — so a check whose id and group disagree survives being disabled and
+  // keeps appearing in a report the operator believes they silenced.
+  const seen = new Set<string>();
+
+  for (const check of ALL_CHECKS) {
+    assert.match(check.id, /^[a-z]+\.[a-z][a-z-]*$/, `${check.id} is not a lower-case dotted id`);
+    assert.equal(seen.has(check.id), false, `duplicate check id: ${check.id}`);
+    seen.add(check.id);
+    assert.equal(
+      check.id.startsWith(`${check.group}.`),
+      true,
+      `${check.id} is in group "${check.group}", so --disable ${check.group} would not disable it`,
+    );
+  }
+});
+
 test('every built check is documented', () => {
   const missing = [...BUILT].filter((id) => !DOCUMENTED.has(id)).sort();
   assert.deepEqual(missing, [], `built but undocumented: ${missing.join(', ')}`);

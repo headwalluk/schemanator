@@ -18,6 +18,8 @@ import { createLogger, resolveLogLevel, LOG_LEVELS } from './log.ts';
 import { defaultWorkRoot, DEFAULT_VERBOSE_ERRORS, MODE, VERSION } from './runtime.ts';
 import { siteSlugFor } from './store/workdir.ts';
 import { coerceToUrl, looksLikeTarget, UrlCanonicalisationError } from './url/canonical.ts';
+import { UnresolvableContextError } from './extract/context.ts';
+import { EXIT, type ExitCode } from './exit-codes.ts';
 import { applyPurge, formatBytes, listSites, planPurge } from './store/inventory.ts';
 
 /** Subcommands. Anything not in here, and not hostname-shaped, is an error. */
@@ -101,7 +103,7 @@ User-Agent: ${USER_AGENT}
 Mode:       ${MODE}
 `;
 
-async function main(argv: string[]): Promise<number> {
+async function main(argv: string[]): Promise<ExitCode> {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -135,7 +137,7 @@ async function main(argv: string[]): Promise<number> {
   // banner.
   if (values.version === true) {
     process.stdout.write(`${VERSION}\n`);
-    return 0;
+    return EXIT.OK;
   }
 
   if (values.help === true || positionals.length === 0) {
@@ -156,7 +158,7 @@ async function main(argv: string[]): Promise<number> {
   const format = values.format ?? (values.json === true ? 'json' : 'md');
   if (format !== 'md' && format !== 'json' && format !== 'html') {
     process.stderr.write(`unknown --format ${JSON.stringify(format)}. Expected md, json or html.\n`);
-    return 1;
+    return EXIT.FAILURE;
   }
 
   // `schemanator example.com` and `schemanator crawl example.com` both work.
@@ -169,14 +171,14 @@ async function main(argv: string[]): Promise<number> {
 
   if (!KNOWN_COMMANDS.has(command ?? '')) {
     process.stderr.write(`unknown command ${JSON.stringify(command)}\n\n${USAGE}`);
-    return 1;
+    return EXIT.FAILURE;
   }
   // `sites` operates on the whole work directory, so it is the one command that
   // takes no target. Everything else is checked once the housekeeping commands
   // have had their turn, below.
   if (target === undefined && !WORKDIR_COMMANDS.has(command ?? '')) {
     process.stderr.write(`${command} needs a site\n\n${USAGE}`);
-    return 1;
+    return EXIT.FAILURE;
   }
 
   const numeric = (name: string, raw: string | undefined): number | undefined => {
@@ -204,12 +206,12 @@ async function main(argv: string[]): Promise<number> {
 
     if (format === 'json') {
       process.stdout.write(`${JSON.stringify({ work_dir: workRoot, sites }, null, 2)}\n`);
-      return 0;
+      return EXIT.OK;
     }
 
     if (sites.length === 0) {
       process.stdout.write(`Nothing crawled yet under ${workRoot}\n`);
-      return 0;
+      return EXIT.OK;
     }
 
     const rows = sites.map((site) => ({
@@ -250,14 +252,14 @@ async function main(argv: string[]): Promise<number> {
     for (const site of sites) {
       for (const note of site.notes) logger.warn(`${site.slug}: ${note}`);
     }
-    return 0;
+    return EXIT.OK;
   }
 
   // Everything past here needs a target. `sites` has already returned, so this
   // both reports the error and narrows the type for the rest of the function.
   if (target === undefined) {
     process.stderr.write(`${command} needs a site\n\n${USAGE}`);
-    return 1;
+    return EXIT.FAILURE;
   }
 
   if (command === 'purge') {
@@ -267,13 +269,13 @@ async function main(argv: string[]): Promise<number> {
 
     if (plan.missing) {
       process.stderr.write(`nothing to purge: ${plan.root} does not exist\n`);
-      return 1;
+      return EXIT.FAILURE;
     }
     if (plan.files === 0) {
       process.stdout.write(
         scope === 'html' ? `${slug}: no stored HTML — already purged?\n` : `${slug}: nothing to remove\n`,
       );
-      return 0;
+      return EXIT.OK;
     }
 
     const what =
@@ -292,12 +294,12 @@ async function main(argv: string[]): Promise<number> {
         process.stdout.write(`Reports and extracted nodes are kept, but re-analysis needs the HTML.\n`);
       }
       process.stdout.write(`\nNothing has been deleted. Add --yes to go ahead.\n`);
-      return 0;
+      return EXIT.OK;
     }
 
     await applyPurge(plan);
     process.stdout.write(`Removed ${what}.\n`);
-    return 0;
+    return EXIT.OK;
   }
 
   const maxPages = numeric('max-pages', values['max-pages']);
@@ -347,7 +349,7 @@ async function main(argv: string[]): Promise<number> {
       );
     }
     logger.info(`\nReport: ${result.reportDir}`);
-    return 0;
+    return EXIT.OK;
   }
 
   // A dry run never analyses: there is nothing stored to analyse.
@@ -376,7 +378,7 @@ async function main(argv: string[]): Promise<number> {
     // The URL list is data. It goes to stdout regardless of log level, so
     // `--dry-run --quiet > urls.txt` yields a clean file.
     for (const url of summary.queued_urls ?? []) process.stdout.write(`${url}\n`);
-    return 0;
+    return EXIT.OK;
   }
 
   // Say what this run did, then what is stored. Conflating the two makes a
@@ -389,8 +391,8 @@ async function main(argv: string[]): Promise<number> {
   );
   logger.info(`Output: ${summary.work_dir}`);
 
-  if (summary.aborted !== null) return 2;
-  return 0;
+  if (summary.aborted !== null) return EXIT.CRAWL_ABORTED;
+  return EXIT.OK;
 }
 
 /**
@@ -413,27 +415,45 @@ process.stdout.on('error', (error: NodeJS.ErrnoException) => {
   throw error;
 });
 
+/**
+ * Which exit code each known failure earns.
+ *
+ * A table rather than the `if/else` ladder this replaced, for two reasons: a new
+ * error class becomes one row instead of a branch somebody has to remember to
+ * add in the right place, and `exit-codes.test.ts` can assert that **every**
+ * exported `Error` subclass in `src/` appears here. A class missing from the
+ * ladder used to fall silently into the catch-all, which is how
+ * `UnresolvableContextError` came to have an exit code nobody had chosen.
+ *
+ * Order is significant: first match wins, so a subclass must precede its parent.
+ * Nothing here subclasses anything but `Error` today.
+ */
+const EXIT_BY_ERROR: readonly [new (...args: never[]) => Error, ExitCode][] = [
+  [RobotsUnavailableError, EXIT.ROBOTS_UNAVAILABLE],
+  [CrawlAbortedError, EXIT.CRAWL_ABORTED],
+  [UnknownRunError, EXIT.FAILURE],
+  [UrlCanonicalisationError, EXIT.FAILURE],
+  // Extraction catches this per block and records it on the page, where
+  // `syntax.unresolvable-context` reports it — so it should never reach here.
+  // Listed anyway, and deliberately: if it does escape, that is a bug in
+  // extraction rather than a distinct outcome worth its own code.
+  [UnresolvableContextError, EXIT.FAILURE],
+];
+
 try {
   process.exitCode = await main(process.argv.slice(2));
 } catch (error) {
-  if (error instanceof RobotsUnavailableError) {
+  const matched = EXIT_BY_ERROR.find(([constructor]) => error instanceof constructor);
+
+  if (matched !== undefined && error instanceof Error) {
     process.stderr.write(`\n${error.message}\n`);
-    process.exitCode = 3;
-  } else if (error instanceof CrawlAbortedError) {
-    process.stderr.write(`\n${error.message}\n`);
-    process.exitCode = 2;
-  } else if (error instanceof UnknownRunError) {
-    process.stderr.write(`\n${error.message}\n`);
-    process.exitCode = 1;
-  } else if (error instanceof UrlCanonicalisationError) {
-    process.stderr.write(`\n${error.message}\n`);
-    process.exitCode = 1;
+    process.exitCode = matched[1];
   } else if (error instanceof Error) {
     // A stack trace helps us and means nothing to an operator.
     process.stderr.write(`\n${DEFAULT_VERBOSE_ERRORS ? (error.stack ?? error.message) : error.message}\n`);
-    process.exitCode = 1;
+    process.exitCode = EXIT.FAILURE;
   } else {
     process.stderr.write(`\n${String(error)}\n`);
-    process.exitCode = 1;
+    process.exitCode = EXIT.FAILURE;
   }
 }
