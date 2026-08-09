@@ -2,6 +2,57 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.6.0 — 2026-08-09
+
+The three measures that keep the report readable as the catalogue grows. All
+three come from `dev-notes/07`, where the risk was originally recorded as
+"report.json will drown in data" — and then measured, found to be wrong, and
+replaced with what the problem actually is.
+
+### Changed
+
+- **Findings sort by severity, then by group.** `syntax` leads, because a block
+  that would not parse means every entity in it is *missing* and every other
+  finding was computed from an incomplete graph. Then `entity` and `graph` — the
+  whole-site contradictions this tool exists to find. `coverage` is last, being
+  mostly "you could publish more".
+
+  Without it, page count decided: a routine `page.title-missing` on 400 pages
+  outranked an `entity.contradiction` on 3, burying the rarer finding that no
+  other tool produces. An unlisted group sorts **last**, so a new group has to
+  earn its position rather than inherit the top of the report.
+
+### Added
+
+- **The crawl warns when the sample gets thin.** Below half the discovered URLs
+  it names the consequence rather than just the cap.
+
+  `--max-pages` used to be purely a time-and-politeness knob. It is not any
+  more: checks that compare pages against each other now exist, and for those a
+  small sample produces a **false negative that reads as a pass**. Crawl one URL
+  of a duplicate pair, never see the other, and `indexing.duplicate-content`
+  reports nothing at all — not a maybe, nothing. Findings that assert something
+  is *absent* were already qualified by coverage; this is the class that was not.
+
+- **A finding-count guard.** `finding-volume.test.ts` runs every check against a
+  synthetic 1,000-page site and fails any that emits more than 50 findings.
+
+  `report.json` is bounded — 36 KB for the largest corpus report, and it does not
+  scale with page count — but only because every check respects the caps in
+  `05`. One that forgets `pattern` and emits per page breaks all of them at once.
+
+  **Verified by breaking a check and watching it fail:** removing `pattern` from
+  `graph.blank-node-entity` produced "1000 findings from 1000 pages", precisely
+  the mistake being guarded, and the guard caught it. A test that passes either
+  way proves nothing.
+
+### Notes
+
+The report ordering change was checked against the corpus to confirm it changes
+*order* and never *membership* — finding-id sets before and after are identical.
+
+466 tests, all passing.
+
 ## 1.5.0 — 2026-08-09
 
 Can Google and an AI agent consume this site at all? Nine checks, no extraction

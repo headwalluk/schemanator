@@ -179,7 +179,21 @@ single improvement.
 Comparison ignores wording, so rewording a summary never looks like movement on
 your site.
 
-### The coverage guard
+### Reading order
+
+Findings sort by **severity first, then by group**. The group order is
+deliberate: `syntax` leads, because a block that would not parse means every
+entity in it is *missing* and every other finding was computed from an
+incomplete graph. Then `entity` and `graph` — the whole-site contradictions this
+tool exists to find. Then values, URLs, structure and rich-result eligibility.
+`indexing` and `robots` follow, and `coverage` is last, being mostly *"you could
+publish more"*.
+
+Without that, page count decides: a routine `page.title-missing` affecting 400
+pages would outrank an `entity.contradiction` affecting 3 — and the
+contradiction is the rarer finding that no other tool produces.
+
+## The coverage guard
 
 If the second run audited materially fewer pages, findings can appear resolved
 because the evidence was never looked at. The diff detects that and says so

@@ -883,6 +883,49 @@ export const ALL_CHECKS: Check[] = [
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, opportunity: 2 };
 
+/**
+ * Which group wins when severity and page count tie.
+ *
+ * Severity sorts first and always will. This decides the order *within* a
+ * severity, and it exists because the alternative buries the findings this tool
+ * exists for. Sorting errors by `pages_affected` alone puts a routine
+ * `page.title-missing` on 400 pages above an `entity.contradiction` on 3 — and
+ * the contradiction is the rarer, harder-won finding that no other tool
+ * produces. `07` records the reasoning; the short version:
+ *
+ * 1. **`syntax`** — a block that did not parse means every entity in it is
+ *    *missing*, so every other finding was computed from an incomplete graph.
+ *    Nothing is worth reading before this.
+ * 2. **`entity`, `graph`** — the whole-site contradictions. The product.
+ * 3. **`value`, `url`** — what the values say, and identity hygiene.
+ * 4. **`breadcrumb`, `google`** — structure, and rich-result eligibility.
+ * 5. **`indexing`, `robots`** — real, and the ones an operator is most likely to
+ *    already know about from Search Console.
+ * 6. **`coverage`** — mostly "you could publish more", the least urgent thing
+ *    in any report.
+ *
+ * An unlisted group sorts last rather than first: a new group should have to
+ * earn its position deliberately, not inherit the top of the report by
+ * accident.
+ */
+const GROUP_ORDER: readonly string[] = [
+  'syntax',
+  'entity',
+  'graph',
+  'value',
+  'url',
+  'breadcrumb',
+  'google',
+  'indexing',
+  'robots',
+  'coverage',
+];
+
+function groupRank(check: string): number {
+  const index = GROUP_ORDER.indexOf(check.split('.')[0] ?? '');
+  return index === -1 ? GROUP_ORDER.length : index;
+}
+
 /** Below this, individual findings are more useful than a summary of them. */
 const AGGREGATE_THRESHOLD = 3;
 
@@ -1034,6 +1077,7 @@ export function runChecks(options: {
   aggregated.sort(
     (left, right) =>
       SEVERITY_ORDER[left.severity] - SEVERITY_ORDER[right.severity] ||
+      groupRank(left.check) - groupRank(right.check) ||
       right.pages_affected - left.pages_affected ||
       left.check.localeCompare(right.check),
   );

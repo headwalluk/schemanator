@@ -102,6 +102,25 @@ want the first N in order.
 The report states what the sample covered, and findings that assert something is
 **absent** are marked as qualified by coverage.
 
+### The crawl warns when the sample gets thin
+
+Below half the discovered URLs, the crawl says so:
+
+```
+capped at --max-pages=200 (--sample spread); 2800 of 3000 URL(s) not queued
+WARN  sampling 200 of 3000 URL(s) (7%) — checks that compare pages against each
+      other, such as duplicate-content, can miss a pair when only one half was
+      crawled, and will report nothing rather than a maybe
+```
+
+**That is a different problem from ordinary partial coverage.** A finding that
+asserts something is *absent* is already marked as qualified by coverage. But a
+check comparing pages against each other produces a **false negative that reads
+as a pass** — crawl one URL of a duplicate pair, never see the other, and the
+report is silent rather than uncertain.
+
+Raise `--max-pages` when you need a conclusive answer on those.
+
 ## Re-analysing without re-crawling
 
 ```sh

@@ -85,6 +85,12 @@ export interface CrawlSummary {
 
 const HTML_TYPES = ['text/html', 'application/xhtml+xml'];
 
+/**
+ * Below this share of the discovered URLs, the crawl warns that cross-page
+ * checks become unreliable. See the use site for why a half.
+ */
+const SAMPLING_WARNING_SHARE = 0.5;
+
 interface Candidate {
   url: string;
   source: string;
@@ -313,6 +319,37 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     for (const [sitemap, count] of perSitemap) {
       const available = allowed.filter((candidate) => candidate.fromSitemap === sitemap).length;
       logger.info(`    ${String(count).padStart(5)} of ${String(available).padEnd(6)} ${sitemap}`);
+    }
+
+    /**
+     * Say which conclusions get weaker, not just that the crawl was capped.
+     *
+     * `--max-pages` used to be purely a time-and-politeness knob: it changed how
+     * long the crawl took and set `coverage.complete`, and nothing else. Some
+     * checks now *reason across the sample*, and for those a small share is not
+     * merely less coverage — it produces a **false negative that reads as a
+     * pass**, which is the worst outcome available.
+     *
+     * `indexing.duplicate-content` is the live example: crawl one URL of a
+     * duplicate pair and never see the other, and it reports nothing at all.
+     * The same will apply to boilerplate and near-duplicate detection when they
+     * arrive (`07`).
+     *
+     * The threshold is a half. Below that the sample is a minority of the site
+     * and comparisons across it stop being representative; above it, the
+     * existing `coverage_qualified` machinery already says enough.
+     */
+    const share = allowed.length === 0 ? 1 : queued.length / allowed.length;
+    if (share < SAMPLING_WARNING_SHARE) {
+      logger.warn(
+        `  sampling ${queued.length} of ${allowed.length} URL(s) (${Math.round(share * 100)}%) — ` +
+          `checks that compare pages against each other, such as duplicate-content, can miss a ` +
+          `pair when only one half was crawled, and will report nothing rather than a maybe`,
+      );
+      logger.warn(
+        `  raise --max-pages for a conclusive answer on those; findings that assert something is ` +
+          `absent are already marked as qualified by coverage`,
+      );
     }
   }
 
