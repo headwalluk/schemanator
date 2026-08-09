@@ -2,6 +2,79 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.5.0 — 2026-08-09
+
+Can Google and an AI agent consume this site at all? Nine checks, no extraction
+change, no re-crawl.
+
+The framing comes from `dev-notes/07`: structured data is machine-readable
+*metadata*, and this is the layer below — whether a machine can fetch the site,
+and whether the signals about indexing it agree. Same thesis as everything else
+here, one layer up, and the admission test is **"does this stop a machine
+consuming the page?"** rather than "is this good SEO practice".
+
+### Added
+
+- **Group `robots`** — `ai-crawler-blocked`, `resource-blocked`,
+  `sitemap-missing`. These read the `robots.txt` your crawl already stored
+  verbatim, so they work on any existing crawl.
+
+  `robots.ai-crawler-blocked` is the one worth reading twice. It reports when
+  `robots.txt` disallows GPTBot, ClaudeBot, Google-Extended and the rest — and
+  it is a **Warning, never an Error**, because blocking them is a legitimate
+  choice. It exists because the block is more often *inherited* than chosen:
+  security and SEO plugins add these by default. The finding separates training
+  crawlers (blocking them changes nothing about answers today) from retrieval
+  crawlers (blocking those makes you invisible at the moment somebody asks about
+  you), because the two need different decisions.
+
+  A site blocking *everything* is deliberately not reported here. That is a much
+  larger problem and burying it inside an AI-crawler finding would be the wrong
+  headline.
+
+- **Group `indexing`** — `sitemap-dead-url`, `sitemap-redirects`,
+  `redirect-chain`, `canonical-to-redirect`, `canonical-chain`,
+  `duplicate-content`. Every one is two claims contradicting each other: a
+  sitemap entry is a request to index, a 404 is the page saying it does not
+  exist, and both cannot be true.
+
+  All of it reads fields the crawl has stored since 1.0.0 and nothing had ever
+  read — `redirect_chain`, `http_status`, `content_sha256`, and `source`, which
+  records which sitemap file each URL came from.
+
+- **`data/ai-crawlers.json`** — fourteen crawler tokens, each citing the
+  operator's own documentation, each tagged training or retrieval. The loader
+  refuses an entry without a source.
+
+### Notes
+
+Two false-positive classes, 20 findings across 6 sites, **every one wrong**, and
+neither visible from reading the code:
+
+- **`duplicate-content` was reporting redirects.** Three URLs redirecting to one
+  page share a `canonical_url` and a body hash, so they looked byte-identical.
+  They are one page reached three ways — already reported by
+  `sitemap-redirects` — and billing it twice charged the operator twice for one
+  defect.
+- **Both canonical checks looked up the wrong URL.** Keying on `canonical_url`
+  collides, because several requests land on one destination and the map keeps
+  whichever came last; a page redirecting *to* `/login/` shadowed the real
+  `/login/`. Six pages were told their canonical redirects when it does not.
+  "Does this URL redirect?" is a question about the **requested** URL.
+
+Both are pinned as regression tests.
+
+Six of the nine ship untriggered against the corpus, recorded in the tracker. The
+three `robots` checks were proven to fire against a synthetic `robots.txt`
+through the real CLI first — so the silence is the corpus, not a broken pipe.
+That distinction is the whole reason to check: a plumbing bug and a clean site
+produce identical output.
+
+The client-name leak test earned its place again, catching a real client domain
+in a source comment before it could reach a published tarball.
+
+462 tests, all passing.
+
 ## 1.4.0 — 2026-08-09
 
 Background crawls, so an agent can start one without its shell timing out.

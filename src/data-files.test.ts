@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parseCardinalityRules } from './checks/cardinality.ts';
 import { parseGoogleRules } from './checks/google.ts';
+import { parseAiCrawlers } from './checks/robots.ts';
 import { parseHierarchy } from './checks/hierarchy.ts';
 import { parseValueHeuristics } from './checks/values.ts';
 
@@ -35,6 +36,7 @@ const DATA_DIR = path.join(ROOT, 'data');
 /** Files that carry rules, with the parser that guards each. */
 const GUARDED: Record<string, (json: string, source?: string) => unknown> = {
   'functional-properties.json': parseCardinalityRules,
+  'ai-crawlers.json': parseAiCrawlers,
   'google-rich-results.json': parseGoogleRules,
   'schema-subclasses.json': parseHierarchy,
   'value-heuristics.json': parseValueHeuristics,

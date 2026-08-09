@@ -14,6 +14,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { buildGraph } from './checks/graph.ts';
+import { readStoredRobots } from './checks/robots.ts';
 import { runChecks } from './checks/run.ts';
 import type { CrawlSummary } from './crawl/run.ts';
 import { readGraph, runExtraction } from './extract/run.ts';
@@ -123,6 +124,8 @@ export async function runAnalysis(options: AnalyseOptions): Promise<AnalyseResul
     nodes,
     pages,
     partialCoverage: crawl.truncated !== null,
+    robots: await readStoredRobots(workDir.crawlDir),
+    sitemapsFound: crawl.sitemaps.map((entry) => (typeof entry === 'string' ? entry : entry.url)),
     ...(options.disabledChecks === undefined ? {} : { disabled: options.disabledChecks }),
   });
 

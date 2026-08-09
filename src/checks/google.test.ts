@@ -49,7 +49,10 @@ function page(id: string): PageRecord {
     redirect_chain: [],
     content_type: 'text/html',
     fetched_at: '2026-08-01T00:00:00Z',
-    content_sha256: 'x',
+    // Unique per page: a shared hash would mean these fixtures are
+    // byte-identical, which `indexing.duplicate-content` would rightly
+    // report and no suite here means to say.
+    content_sha256: `sha-${id}`,
     bytes: 1,
     html_purged: false,
     microdata_types: [],

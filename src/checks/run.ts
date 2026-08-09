@@ -20,6 +20,8 @@ import {
 } from './values.ts';
 import { BREADCRUMB_CHECKS } from './breadcrumb.ts';
 import { GOOGLE_CHECKS, loadGoogleRules } from './google.ts';
+import { INDEXING_CHECKS } from './indexing.ts';
+import { ROBOTS_CHECKS, loadAiCrawlers, type RobotsFile } from './robots.ts';
 import { SYNTAX_CHECKS } from './syntax.ts';
 import { STRUCTURE_CHECKS } from './structure.ts';
 import {
@@ -875,6 +877,8 @@ export const ALL_CHECKS: Check[] = [
   ...BREADCRUMB_CHECKS,
   ...SYNTAX_CHECKS,
   ...GOOGLE_CHECKS,
+  ...ROBOTS_CHECKS,
+  ...INDEXING_CHECKS,
 ];
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, opportunity: 2 };
@@ -977,6 +981,14 @@ export function runChecks(options: {
   pages: PageRecord[];
   partialCoverage: boolean;
   disabled?: readonly string[];
+  /**
+   * The site's parsed `robots.txt`. Null when unavailable — an older crawl, or
+   * a file that could not be read. Group `robots` reports nothing rather than
+   * assuming permission, which `02` is emphatic about.
+   */
+  robots?: RobotsFile | null;
+  /** Sitemaps the crawl found, however it found them. */
+  sitemapsFound?: readonly string[];
 }): RunChecksResult {
   const disabled = new Set(options.disabled ?? []);
   const silenced: Record<string, number> = {};
@@ -1000,6 +1012,9 @@ export function runChecks(options: {
     hierarchy: loadHierarchy(),
     heuristics: loadValueHeuristics(),
     google: loadGoogleRules(),
+    robots: options.robots ?? null,
+    aiCrawlers: loadAiCrawlers(),
+    sitemapsFound: options.sitemapsFound ?? [],
     siteHost,
     partialCoverage: options.partialCoverage,
     silenced,

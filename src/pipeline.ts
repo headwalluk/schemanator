@@ -7,6 +7,7 @@
 
 import { runChecks } from './checks/run.ts';
 import { buildGraph } from './checks/graph.ts';
+import { readStoredRobots } from './checks/robots.ts';
 import { runCrawl, type CrawlOptions, type CrawlSummary } from './crawl/run.ts';
 import { readGraph, runExtraction } from './extract/run.ts';
 import { SILENT_LOGGER, type Logger } from './log.ts';
@@ -58,6 +59,8 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
     nodes,
     pages,
     partialCoverage: crawl.truncated !== null,
+    robots: await readStoredRobots(workDir.crawlDir),
+    sitemapsFound: crawl.sitemaps.map((entry) => (typeof entry === 'string' ? entry : entry.url)),
     ...(options.disabledChecks === undefined ? {} : { disabled: options.disabledChecks }),
   });
 

@@ -441,6 +441,116 @@ reported: they default to 5 and 1, so their absence says nothing.
 
 ---
 
+## `robots` — can a machine fetch the site at all?
+
+The first thing that can stop a consumer, before indexing and before anything
+else. If `robots.txt` says no, nothing downstream matters.
+
+These read the `robots.txt` your crawl already stored verbatim, so they need no
+network and work on any existing crawl.
+
+### `robots.ai-crawler-blocked` — Warning
+
+`robots.txt` disallows crawlers that feed AI systems — `GPTBot`, `ClaudeBot`,
+`Google-Extended`, `PerplexityBot` and others. The full list, with a citation
+for every token, is in `data/ai-crawlers.json`.
+
+**This may be exactly what you intended, and if so there is nothing to do.** It
+is reported because the block is more often inherited than chosen: WordPress
+security and SEO plugins add these by default, and an unexamined default is
+worth seeing once. Confirming it and moving on is a perfectly good outcome —
+`--disable robots.ai-crawler-blocked` silences it for good.
+
+The finding separates two things that need different decisions:
+
+- **Training** crawlers collect text to train a model. Blocking them does not
+  affect whether an assistant can answer questions about your site today.
+- **Retrieval** crawlers fetch a page to answer a user's question *at the moment
+  they ask it*, often because that user asked about your site. Blocking those
+  makes you invisible exactly when somebody is looking for you.
+
+A site blocking *everything* — `User-agent: *` with `Disallow: /` — is not
+reported here. That is a much larger problem, and burying it inside a finding
+about AI crawlers would be the wrong headline.
+
+### `robots.resource-blocked` — Warning
+
+CSS, JavaScript or theme assets disallowed for all crawlers. Google renders a
+page before judging it, so blocking these means it sees an unstyled skeleton —
+and any conclusion that depends on layout is drawn from something no visitor
+ever sees.
+
+Blocking `/wp-admin/` is normal and is not reported. Blocking
+`/wp-content/themes/` or `/wp-includes/` is. An `Allow` rule covering the same
+path is the documented fix and silences the finding.
+
+### `robots.sitemap-missing` — Opportunity
+
+Sitemaps exist and were found by probing well-known paths, but `robots.txt`
+carries no `Sitemap:` line. Nothing is broken — the major search engines probe
+the same paths — but a crawler that does not guess has no way to find them, and
+the directive is one line.
+
+---
+
+## `indexing` — the signals disagree about whether to index a page
+
+The group closest to what this tool already does everywhere else. Every check
+here is **two claims contradicting each other**: a sitemap entry is a request to
+index, a `404` is the page saying it does not exist, and both cannot be true.
+
+Everything in this group reads data the crawl already stored. No re-crawl.
+
+### `indexing.sitemap-dead-url` — Error
+
+A sitemap lists URLs that return 404 or 5xx. A sitemap is a set of claims that
+these pages exist and are worth indexing; the server disagrees. Reported once
+per status code rather than once per URL.
+
+Stale entries usually mean the generator's sitemap cache needs clearing.
+
+### `indexing.sitemap-redirects` — Warning
+
+A sitemap lists URLs that redirect. Nothing is broken and the destination is
+reached, but the sitemap nominates a URL the site itself disclaims — so every
+crawler pays an extra request, and the sitemap and the redirect disagree about
+which URL is real.
+
+Keep the redirects; update the sitemap to list the destinations.
+
+### `indexing.redirect-chain` — Opportunity
+
+Two or more hops before a page is served. Chains are usually accidental — two
+migrations layered on each other, where the first rule was never repointed at
+the final destination.
+
+### `indexing.canonical-to-redirect` — Warning
+
+A page declares a canonical URL which then redirects somewhere else. The
+canonical claims that URL is authoritative; the redirect says it is not. Which
+claim wins is not something you control.
+
+### `indexing.canonical-chain` — Warning
+
+A canonicals to B, and B canonicals to C. Consumers generally follow one hop, so
+the end of the chain may never be reached.
+
+### `indexing.duplicate-content` — Warning
+
+Two distinct URLs returning byte-identical content. Indexing has to choose which
+represents the page, and anything you have said about one of them — links,
+canonicals, structured data — is split across the set.
+
+**This compares whole responses, so it finds only exact duplicates.** Two pages
+differing by a single highlighted menu item are not reported. Near-duplicate
+detection needs text extraction and is not built yet.
+
+URLs that *redirect* to one page are not duplicates and are not reported here —
+`indexing.sitemap-redirects` covers those, and billing one defect twice helps
+nobody.
+
+---
+
 ## Not yet implemented
 
 Designed and specified, but **not built** — they will not appear in a report:

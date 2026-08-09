@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "retrieved": "2026-08-09",
+
+  "_what_this_is": [
+    "User-agent tokens for crawlers that feed AI systems: model training,",
+    "retrieval-augmented answers, and the live fetches an agent makes on a",
+    "user's behalf. `robots.ai-crawler-blocked` reports when a site's",
+    "robots.txt disallows one.",
+    "",
+    "Hand-curated. Each entry cites the operator's own published documentation,",
+    "because a user-agent token nobody can check against its source is folklore",
+    "and this list decides what we tell an operator about their own site."
+  ],
+
+  "_this_is_not_a_defect": [
+    "Blocking AI crawlers is a legitimate, and increasingly common, decision.",
+    "The finding is a Warning and its wording must never read as though the site",
+    "is broken.",
+    "",
+    "It exists because the decision is usually *inherited* rather than made:",
+    "WordPress security and SEO plugins add these blocks by default, and the",
+    "site owner often does not know. Making an unexamined default visible is",
+    "the whole value. Confirming it and moving on is a perfectly good outcome."
+  ],
+
+  "_purpose_matters": [
+    "`purpose` separates two very different things, and a report that conflates",
+    "them gives bad advice.",
+    "",
+    "`training` — the crawler collects text to train a model. Blocking it has no",
+    "effect on whether an assistant can answer questions about the site today.",
+    "",
+    "`retrieval` — the crawler fetches pages to answer a user's question, now,",
+    "often because that user asked about this site. Blocking it means the site",
+    "is invisible at the moment somebody is actively looking for it, which is",
+    "usually not what the operator intended.",
+    "",
+    "`both` — the operator uses one token for both, or does not distinguish."
+  ],
+
+  "_absent_deliberately": [
+    "Search-engine crawlers — Googlebot, Bingbot — are out of scope here. A site",
+    "blocking Googlebot has a much larger problem than this check describes, and",
+    "conflating 'not in AI answers' with 'not in search results' would bury the",
+    "more serious finding inside the newer one.",
+    "",
+    "Scrapers with no published documentation are also absent. Without a source",
+    "to cite, an entry is a rumour."
+  ],
+
+  "crawlers": [
+    {
+      "token": "GPTBot",
+      "operator": "OpenAI",
+      "purpose": "training",
+      "source": "https://platform.openai.com/docs/bots"
+    },
+    {
+      "token": "OAI-SearchBot",
+      "operator": "OpenAI",
+      "purpose": "retrieval",
+      "source": "https://platform.openai.com/docs/bots"
+    },
+    {
+      "token": "ChatGPT-User",
+      "operator": "OpenAI",
+      "purpose": "retrieval",
+      "note": "Fetches a page because a user asked about it during a conversation.",
+      "source": "https://platform.openai.com/docs/bots"
+    },
+    {
+      "token": "ClaudeBot",
+      "operator": "Anthropic",
+      "purpose": "training",
+      "source": "https://support.anthropic.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler"
+    },
+    {
+      "token": "Claude-User",
+      "operator": "Anthropic",
+      "purpose": "retrieval",
+      "note": "A live fetch made on behalf of a user in conversation.",
+      "source": "https://support.anthropic.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler"
+    },
+    {
+      "token": "Claude-SearchBot",
+      "operator": "Anthropic",
+      "purpose": "retrieval",
+      "source": "https://support.anthropic.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler"
+    },
+    {
+      "token": "Google-Extended",
+      "operator": "Google",
+      "purpose": "training",
+      "note": [
+        "Not a crawler with its own user agent. It is a token Googlebot honours",
+        "to decide whether already-fetched content may be used for Gemini and",
+        "AI Overviews. Blocking it does NOT affect Search indexing, and the",
+        "finding must say so or it reads as a far more serious problem."
+      ],
+      "source": "https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers"
+    },
+    {
+      "token": "PerplexityBot",
+      "operator": "Perplexity",
+      "purpose": "retrieval",
+      "source": "https://docs.perplexity.ai/guides/bots"
+    },
+    {
+      "token": "Perplexity-User",
+      "operator": "Perplexity",
+      "purpose": "retrieval",
+      "source": "https://docs.perplexity.ai/guides/bots"
+    },
+    {
+      "token": "CCBot",
+      "operator": "Common Crawl",
+      "purpose": "training",
+      "note": [
+        "Not an AI company, but its archive is a primary training corpus for",
+        "many models, so blocking it has the same practical effect."
+      ],
+      "source": "https://commoncrawl.org/ccbot"
+    },
+    {
+      "token": "Applebot-Extended",
+      "operator": "Apple",
+      "purpose": "training",
+      "note": "Same shape as Google-Extended: a use-permission token, not a crawler.",
+      "source": "https://support.apple.com/en-us/119829"
+    },
+    {
+      "token": "Meta-ExternalAgent",
+      "operator": "Meta",
+      "purpose": "both",
+      "source": "https://developers.facebook.com/docs/sharing/webmasters/web-crawlers/"
+    },
+    {
+      "token": "Bytespider",
+      "operator": "ByteDance",
+      "purpose": "training",
+      "source": "https://support.bytespider.net/"
+    },
+    {
+      "token": "Amazonbot",
+      "operator": "Amazon",
+      "purpose": "both",
+      "source": "https://developer.amazon.com/en/amazonbot"
+    }
+  ]
+}
