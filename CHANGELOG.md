@@ -20,8 +20,17 @@ finishes. `--detach` removes the reason for the split.
   directory with nothing to read.
 
 - **`schemanator status [site]`** — how far a crawl has got, or how it ended.
-  `--json` for polling; no site argument lists every one. Poll until `state` is
-  no longer `crawling`, then analyse.
+  No site argument lists every one.
+
+  **Poll `--json`, and poll `running` rather than `state`.** They differ in the
+  case that matters: a crawl whose process was killed keeps `state: "crawling"`,
+  because that is what it was doing when it stopped, while `running` goes false.
+  Anything waiting on `state` alone waits forever. `running` applies the
+  liveness rules so a consumer never reasons about pids.
+
+  The JSON carries `status_schema` and is pinned by `test/status-contract.test.ts`,
+  the same guarantee `report.json` has. The plain-text output is for people and
+  is explicitly not a contract.
 
 - **`--allow-concurrent` and `--force`.** Neither is needed in normal use.
 

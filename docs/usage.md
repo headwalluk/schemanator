@@ -253,6 +253,42 @@ schemanator analyse example.com
 Output goes to `crawl/detached.log` under the run directory rather than being
 discarded, so a crawl that fails has somewhere to say why.
 
+### What to poll
+
+**Use `--json`. The plain-text output is for people and is not a contract** —
+its wording and layout change without notice. The JSON carries `status_schema`,
+an integer that bumps on any breaking change, exactly as `report_schema` does.
+
+```json
+{
+  "work_dir": "/home/you/.local/state/schemanator",
+  "statuses": [
+    {
+      "status_schema": 1,
+      "site_slug": "example.com",
+      "state": "crawling",
+      "running": true,
+      "pages_fetched": 187,
+      "pages_total": 500,
+      "heartbeat_age_ms": 1200,
+      "detached": true,
+      "log_path": "…/example.com/crawl/detached.log",
+      "error": null
+    }
+  ]
+}
+```
+
+**Poll `running`, not `state`.** They differ in the case that matters: a crawl
+whose process was killed keeps `state: "crawling"` — that is what it was doing
+when it stopped — while `running` becomes `false`. Something waiting on `state`
+alone waits forever. `running` applies the liveness rules for you, so you never
+have to reason about pids.
+
+`state` is `crawling`, `finished` or `failed`; `error` says why on `failed`. An
+unknown site returns an empty `statuses` array rather than an error, so "not
+started yet" is distinguishable from "the call broke".
+
 ### Only one crawl runs at a time
 
 A second crawl — of any site, detached or not — exits **4** and starts nothing:

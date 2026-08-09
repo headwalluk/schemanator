@@ -26,9 +26,14 @@ Since 1.4.0 the agent can start the crawl itself and poll for it:
 
 ```sh
 schemanator crawl example.com --detach     # returns at once
-schemanator status example.com --json      # poll until state != "crawling"
+schemanator status example.com --json      # poll .statuses[0].running == false
 schemanator analyse example.com            # then read the report
 ```
+
+Poll **`running`**, not `state`. A crawl whose process was killed keeps
+`state: "crawling"` — that is what it was doing when it stopped — while
+`running` goes `false`, so an agent waiting on `state` waits forever. And use
+`--json`: the plain-text output is for people and its layout is not a contract.
 
 `--detach` exists because of the first reason below and removes it. The other
 two still stand, so handing the crawl to a human remains a perfectly good
