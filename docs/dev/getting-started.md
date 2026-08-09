@@ -72,13 +72,15 @@ the false positives that review does not. See
 | --- | --- |
 | `npm test` | The whole suite. ~17 seconds |
 | `npm run typecheck` | `tsc --noEmit`. Strict, plus `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` |
+| `npm run lint` | ESLint, `--max-warnings 0`. Shape only — the suites below enforce meaning |
+| `npm run format` | Prettier. `format:check` is the read-only form |
 | `npm run build` | Emit `dist/`. Only needed when touching packaging |
 | `tools/shakedown.sh --detail` | Every check against all crawled sites. No network |
 
 ## Before you commit
 
 ```sh
-npm run typecheck && npm test
+npm run typecheck && npm run lint && npm run format:check && npm test
 ```
 
 Both must pass. If you touched a check, run the shakedown as well and **read the

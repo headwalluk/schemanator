@@ -145,7 +145,7 @@ Three places, and a test enforces the first two:
 ## 6. Check in
 
 ```sh
-npm run typecheck && npm test
+npm run typecheck && npm run lint && npm run format:check && npm test
 ```
 
 Then update the README's check count and test count badges if they moved.
