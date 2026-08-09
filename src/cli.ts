@@ -21,12 +21,25 @@ import { coerceToUrl, looksLikeTarget, UrlCanonicalisationError } from './url/ca
 import { UnresolvableContextError } from './extract/context.ts';
 import { EXIT, type ExitCode } from './exit-codes.ts';
 import { applyPurge, formatBytes, listSites, planPurge } from './store/inventory.ts';
+import {
+  acquireCrawlLock,
+  adoptCrawlLock,
+  CrawlInProgressError,
+  heartbeatAgeMs,
+  holdsLock,
+  readAllStatuses,
+  readStatus,
+  type CrawlLock,
+} from './store/crawl-lock.ts';
+import { spawn } from 'node:child_process';
+import fsSync from 'node:fs';
+import pathModule from 'node:path';
 
 /** Subcommands. Anything not in here, and not hostname-shaped, is an error. */
-const KNOWN_COMMANDS = new Set(['scan', 'crawl', 'analyse', 'analyze', 'sites', 'purge']);
+const KNOWN_COMMANDS = new Set(['scan', 'crawl', 'analyse', 'analyze', 'sites', 'purge', 'status']);
 
 /** Commands that operate on the work directory rather than on one site. */
-const WORKDIR_COMMANDS = new Set(['sites']);
+const WORKDIR_COMMANDS = new Set(['sites', 'status']);
 
 const USAGE = `schemanator — whole-site structured-data integrity checking
 
@@ -40,6 +53,8 @@ Usage:
                                         is costing on disk.
   schemanator purge <site> [--html]     Remove a crawl. Prints what it would
                                         remove; needs --yes to act.
+  schemanator status [site]             Progress of a running or finished crawl.
+                                        No site lists every one.
 
 <site> may be a bare hostname — "example.com" is read as "https://example.com".
 
@@ -65,6 +80,16 @@ Options:
                          installed. $SCHEMANATOR_WORK_DIR overrides.
   --site <slug>          Site key under the work directory. Default: the hostname.
   --resume               Continue from an existing frontier rather than starting over.
+  --detach               Crawl in the background and return at once. Poll with
+                         'schemanator status <site>'. Output goes to a log file
+                         under the run directory, never discarded.
+  --allow-concurrent     Permit a crawl while one is running for a DIFFERENT
+                         site. One crawl at a time is the default because the
+                         polite queue governs a single process, and sites often
+                         share hosting. Never relaxes the same-site lock.
+  --force                Take a lock held by a process whose liveness cannot be
+                         checked - one taken on another machine. A dead lock on
+                         this machine is reclaimed without it.
   --no-sort-query        Do not sort query parameters when canonicalising.
   --disable <check>      Disable a check or a whole group. Repeatable.
   --format <fmt>         md (default), json, or html. All three are written to
@@ -129,6 +154,9 @@ async function main(argv: string[]): Promise<ExitCode> {
       version: { type: 'boolean', default: false },
       yes: { type: 'boolean', default: false },
       html: { type: 'boolean', default: false },
+      detach: { type: 'boolean', default: false },
+      'allow-concurrent': { type: 'boolean', default: false },
+      force: { type: 'boolean', default: false },
     },
   });
 
@@ -142,7 +170,7 @@ async function main(argv: string[]): Promise<ExitCode> {
 
   if (values.help === true || positionals.length === 0) {
     process.stdout.write(USAGE);
-    return values.help === true ? 0 : 1;
+    return values.help === true ? EXIT.OK : EXIT.FAILURE;
   }
 
   /**
@@ -255,8 +283,75 @@ async function main(argv: string[]): Promise<ExitCode> {
     return EXIT.OK;
   }
 
-  // Everything past here needs a target. `sites` has already returned, so this
-  // both reports the error and narrows the type for the rest of the function.
+  if (command === 'status') {
+    // `status <site>` narrows to one; bare `status` lists everything, which is
+    // what you want after a detached crawl you have lost track of.
+    const wanted = target === undefined ? null : (values.site ?? siteSlugFor(coerceToUrl(target)));
+    const all = await readAllStatuses(workRoot);
+    const statuses = wanted === null ? all : all.filter((entry) => entry.site_slug === wanted);
+
+    if (format === 'json') {
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            work_dir: workRoot,
+            statuses: statuses.map((entry) => ({
+              ...entry,
+              running: holdsLock(entry),
+              heartbeat_age_ms: heartbeatAgeMs(entry),
+            })),
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      return EXIT.OK;
+    }
+
+    if (statuses.length === 0) {
+      process.stdout.write(
+        wanted === null
+          ? `No crawl has been started under ${workRoot}\n`
+          : `No crawl recorded for ${wanted}\n`,
+      );
+      return EXIT.OK;
+    }
+
+    for (const entry of statuses) {
+      const running = holdsLock(entry);
+      // "crawling" from a dead process is the one state a reader must never be
+      // shown as live — it is the stale lock, and naming it is how they know to
+      // re-run rather than wait.
+      const state = entry.state !== 'crawling' ? entry.state : running ? 'crawling' : 'stalled';
+      const progress =
+        entry.pages_total > 0
+          ? `${entry.pages_fetched}/${entry.pages_total} pages`
+          : `${entry.pages_fetched} pages`;
+
+      process.stdout.write(`${entry.site_slug}\n`);
+      process.stdout.write(`  state     ${state}${entry.detached ? ' (detached)' : ''}\n`);
+      process.stdout.write(`  progress  ${progress}\n`);
+      process.stdout.write(`  started   ${entry.started_at}\n`);
+      if (entry.finished_at !== null) process.stdout.write(`  finished  ${entry.finished_at}\n`);
+      if (entry.state === 'crawling') {
+        process.stdout.write(`  heartbeat ${Math.round(heartbeatAgeMs(entry) / 1000)}s ago (pid ${entry.pid})\n`);
+      }
+      if (entry.log_path !== null) process.stdout.write(`  log       ${entry.log_path}\n`);
+      if (entry.error !== null) process.stdout.write(`  error     ${entry.error}\n`);
+
+      if (state === 'stalled') {
+        process.stdout.write(
+          `\n  This crawl's process is gone. The lock will be reclaimed automatically by the\n` +
+            `  next crawl; add --resume to continue from where it stopped.\n`,
+        );
+      }
+      process.stdout.write('\n');
+    }
+    return EXIT.OK;
+  }
+
+  // Everything past here needs a target. `sites` and `status` have already
+  // returned, so this both reports the error and narrows the type below.
   if (target === undefined) {
     process.stderr.write(`${command} needs a site\n\n${USAGE}`);
     return EXIT.FAILURE;
@@ -323,6 +418,19 @@ async function main(argv: string[]): Promise<ExitCode> {
 
   if (command === 'analyse' || command === 'analyze') {
     const slug = values.site ?? siteSlugFor(coerceToUrl(target));
+
+    // Warn, never block. An agent polling a detached crawl will do exactly this,
+    // and a partial answer is honest — `coverage.complete` already says so. The
+    // warning exists because "17 pages" reads like a finding about the site
+    // rather than a snapshot of a crawl still running.
+    const live = await readStatus(workRoot, slug);
+    if (live !== null && holdsLock(live)) {
+      logger.warn(
+        `A crawl of ${slug} is still running (${live.pages_fetched} of ${live.pages_total} pages). ` +
+          `This report covers only what has been stored so far.`,
+      );
+    }
+
     const result = await runAnalysis({
       workRoot: values['work-dir'] ?? defaultWorkRoot(),
       siteSlug: slug,
@@ -352,11 +460,70 @@ async function main(argv: string[]): Promise<ExitCode> {
     return EXIT.OK;
   }
 
+  const slug = values.site ?? siteSlugFor(coerceToUrl(target));
+
+  /**
+   * A dry run takes no lock and cannot detach.
+   *
+   * It fetches `robots.txt` and the sitemaps and nothing else, so it neither
+   * writes the work directory nor puts a meaningful load on the host — the two
+   * things the lock exists to govern. Blocking it would make "what would this
+   * crawl do?" unanswerable while a crawl is running, which is precisely when
+   * somebody asks.
+   */
+  const wantsLock = values['dry-run'] !== true;
+
+  if (values.detach === true && !wantsLock) {
+    process.stderr.write('--detach has nothing to detach from under --dry-run.\n');
+    return EXIT.FAILURE;
+  }
+
+  if (values.detach === true) {
+    return await detachCrawl({ argv, workRoot, slug, origin: coerceToUrl(target), values, logger });
+  }
+
+  // A detached child is handed the lock its parent already took, so ownership
+  // moves without the file ever being unheld. Falling back to acquiring covers
+  // the case where the file has gone -- never proceeding unlocked.
+  const inherited = process.env['SCHEMANATOR_LOCK_HELD'];
+  const lock: CrawlLock | null = !wantsLock
+    ? null
+    : ((inherited === undefined ? null : await adoptCrawlLock(inherited)) ??
+      (await acquireCrawlLock({
+        workRoot,
+        siteSlug: slug,
+        siteOrigin: coerceToUrl(target),
+        allowConcurrent: values['allow-concurrent'] === true,
+        force: values.force === true,
+        logger,
+      })));
+
+  // The lock must outlive every path out of the crawl, including a throw —
+  // otherwise a failed crawl leaves a lock nothing will reclaim until the pid
+  // happens to be checked.
+  try {
+    return await runCrawlCommand();
+  } catch (error) {
+    await lock?.finish('failed', { error: error instanceof Error ? error.message : String(error) });
+    throw error;
+  }
+
+  async function runCrawlCommand(): Promise<ExitCode> {
+  const progress: PipelineOptions['onProgress'] = (update) => {
+    void lock?.update({ pages_fetched: update.fetched, pages_total: update.total });
+  };
+
   // A dry run never analyses: there is nothing stored to analyse.
   if (command === 'scan' && values['dry-run'] !== true) {
     const result = await runPipeline({
       ...shared,
+      onProgress: progress,
       disabledChecks: values.disable ?? [],
+    });
+
+    await lock?.finish('finished', {
+      pages_fetched: result.crawl.fetched_this_run,
+      ...(result.crawl.aborted === null ? {} : { error: result.crawl.aborted }),
     });
 
     // Report to stdout, logs to stderr, so this pipes into a pager, a file or
@@ -369,10 +536,10 @@ async function main(argv: string[]): Promise<ExitCode> {
           : result.markdown,
     );
     logger.info(`\nReport: ${result.reportDir}`);
-    return result.crawl.aborted !== null ? 2 : 0;
+    return result.crawl.aborted !== null ? EXIT.CRAWL_ABORTED : EXIT.OK;
   }
 
-  const summary = await runCrawl(shared);
+  const summary = await runCrawl({ ...shared, onProgress: progress });
 
   if (summary.dry_run) {
     // The URL list is data. It goes to stdout regardless of log level, so
@@ -380,6 +547,11 @@ async function main(argv: string[]): Promise<ExitCode> {
     for (const url of summary.queued_urls ?? []) process.stdout.write(`${url}\n`);
     return EXIT.OK;
   }
+
+  await lock?.finish('finished', {
+    pages_fetched: summary.fetched_this_run,
+    ...(summary.aborted === null ? {} : { error: summary.aborted }),
+  });
 
   // Say what this run did, then what is stored. Conflating the two makes a
   // resumed crawl claim it fetched pages it did not touch.
@@ -392,6 +564,77 @@ async function main(argv: string[]): Promise<ExitCode> {
   logger.info(`Output: ${summary.work_dir}`);
 
   if (summary.aborted !== null) return EXIT.CRAWL_ABORTED;
+  return EXIT.OK;
+  }
+}
+
+/**
+ * Start a crawl in a detached child and return immediately.
+ *
+ * The lock is taken **here, in the parent, before the child exists**, and the
+ * child's pid is written into it the moment `spawn` returns. Letting the child
+ * take its own lock would leave a window — the parent has already exited, and a
+ * second `crawl` invoked straight afterwards would find nothing holding it.
+ *
+ * Output goes to a log file rather than being discarded. A detached crawl that
+ * fails silently is worse than one that fails loudly: the operator sees a
+ * "started" message, waits, and finds an empty work directory with no
+ * explanation anywhere.
+ */
+async function detachCrawl(context: {
+  argv: string[];
+  workRoot: string;
+  slug: string;
+  origin: string;
+  values: Record<string, unknown>;
+  logger: ReturnType<typeof createLogger>;
+}): Promise<ExitCode> {
+  const { argv, workRoot, slug, origin, values, logger } = context;
+
+  const lock = await acquireCrawlLock({
+    workRoot,
+    siteSlug: slug,
+    siteOrigin: origin,
+    detached: true,
+    // Filled in below. Until then the lock is held by *this* process, which is
+    // alive, so the window is covered rather than merely short.
+    pid: process.pid,
+    allowConcurrent: values['allow-concurrent'] === true,
+    force: values.force === true,
+    logger,
+  });
+
+  const logDir = pathModule.join(workRoot, slug, 'crawl');
+  fsSync.mkdirSync(logDir, { recursive: true });
+  const logPath = pathModule.join(logDir, 'detached.log');
+  const logFd = fsSync.openSync(logPath, 'a');
+
+  // Same arguments minus --detach, so the child runs an ordinary foreground
+  // crawl. It inherits nothing else: no stdin, and its own session.
+  const childArgv = argv.filter((argument) => argument !== '--detach');
+
+  const child = spawn(process.execPath, [process.argv[1] ?? '', ...childArgv], {
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+    env: { ...process.env, SCHEMANATOR_LOCK_HELD: lock.path },
+  });
+
+  child.unref();
+  fsSync.closeSync(logFd);
+
+  if (child.pid === undefined) {
+    await lock.finish('failed', { error: 'the detached process could not be started' });
+    process.stderr.write('Could not start the detached crawl.\n');
+    return EXIT.FAILURE;
+  }
+
+  await lock.update({ pid: child.pid, log_path: logPath });
+
+  process.stdout.write(`Crawling ${slug} in the background (pid ${child.pid}).\n\n`);
+  process.stdout.write(`  schemanator status ${slug}        progress\n`);
+  process.stdout.write(`  ${logPath}\n\n`);
+  process.stdout.write(`Poll status until state is no longer "crawling", then analyse.\n`);
+
   return EXIT.OK;
 }
 
@@ -429,6 +672,7 @@ process.stdout.on('error', (error: NodeJS.ErrnoException) => {
  * Nothing here subclasses anything but `Error` today.
  */
 const EXIT_BY_ERROR: readonly [new (...args: never[]) => Error, ExitCode][] = [
+  [CrawlInProgressError, EXIT.CRAWL_IN_PROGRESS],
   [RobotsUnavailableError, EXIT.ROBOTS_UNAVAILABLE],
   [CrawlAbortedError, EXIT.CRAWL_ABORTED],
   [UnknownRunError, EXIT.FAILURE],

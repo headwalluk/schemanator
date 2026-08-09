@@ -22,6 +22,18 @@ schemanator crawl example.com
 schemanator analyse example.com
 ```
 
+Since 1.4.0 the agent can start the crawl itself and poll for it:
+
+```sh
+schemanator crawl example.com --detach     # returns at once
+schemanator status example.com --json      # poll until state != "crawling"
+schemanator analyse example.com            # then read the report
+```
+
+`--detach` exists because of the first reason below and removes it. The other
+two still stand, so handing the crawl to a human remains a perfectly good
+answer.
+
 Three reasons, and only the first is about convenience:
 
 - **`crawl` is slow by design.** One request per second, per host. A 500-page
@@ -33,6 +45,17 @@ Three reasons, and only the first is about convenience:
 - **It keeps the agent away from the one command that fetches other people's
   websites.** Politeness is the tool's responsibility, but an agent in a retry
   loop is a good way to undo it.
+
+**Only one crawl runs at a time.** A second start exits **4** — distinct from
+`1` so the agent can tell "wait and retry" from "stop and look" without reading
+the message. Retry on 4; investigate on 1. The limit is politeness rather than
+bookkeeping: the polite queue governs a single process, and sites often share
+hosting, so concurrent crawls of different sites can still hammer one network.
+
+`analyse` during a live crawl warns and proceeds. That is deliberate — it
+reports only what has been stored so far, and `coverage.complete` says so — but
+poll `status` rather than analysing repeatedly, or the agent reasons about a
+half-crawled site as though it were the whole one.
 
 ## The pitfall: sandboxed agents cannot see your work directory
 

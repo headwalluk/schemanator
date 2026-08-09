@@ -35,6 +35,11 @@ export interface CrawlOptions {
   resume?: boolean;
   sortQuery?: boolean;
   logger?: Logger;
+  /**
+   * Called after each page is stored, so a detached crawl can publish
+   * progress. Kept to counters: this must not become a second logger.
+   */
+  onProgress?: (progress: { fetched: number; total: number }) => void;
 }
 
 export interface CrawlSummary {
@@ -164,6 +169,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     resume = false,
     sortQuery = true,
     logger = SILENT_LOGGER,
+    onProgress,
   } = options;
 
   const startedAt = new Date().toISOString();
@@ -368,6 +374,8 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     logger.info(
       `  [${String(index).padStart(width)}/${total}] ${String(outcome).padEnd(7)}${size.padStart(9)}  ${item.url}${note}`,
     );
+
+    onProgress?.({ fetched: index, total });
   }
 
   const counts = frontier.counts();

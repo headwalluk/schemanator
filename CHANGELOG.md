@@ -2,6 +2,78 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.4.0 — 2026-08-09
+
+Background crawls, so an agent can start one without its shell timing out.
+
+The loop that has emerged in real use is: crawl in a human's terminal, then let
+the agent run `analyse`. That works, and `docs/agents.md` recommends it, but the
+split exists only because `shell_exec` gives up long before a 500-page crawl
+finishes. `--detach` removes the reason for the split.
+
+### Added
+
+- **`crawl --detach`** — start a crawl in the background and return at once.
+  Output goes to `crawl/detached.log` under the run directory rather than being
+  discarded: a detached crawl that fails silently is worse than one that fails
+  loudly, because the operator sees "started", waits, and finds an empty work
+  directory with nothing to read.
+
+- **`schemanator status [site]`** — how far a crawl has got, or how it ended.
+  `--json` for polling; no site argument lists every one. Poll until `state` is
+  no longer `crawling`, then analyse.
+
+- **`--allow-concurrent` and `--force`.** Neither is needed in normal use.
+
+- **Exit code 4** — a crawl is already running and nothing was started.
+  Deliberately distinct from `1`: this is "wait and retry" where failure is
+  "stop and look", and an agent that cannot tell them apart either retries a
+  real error forever or abandons a queue that would have cleared in a minute.
+
+### Changed
+
+- **One crawl runs at a time, across the whole work directory.** Not per-site,
+  and the second reason is the stronger one. The obvious one is correctness:
+  two processes appending to one site's `pages.jsonl` corrupt it. But `02`'s
+  polite queue governs **a single process** — `tools/crawl-batch.sh` has
+  serialised every crawl for this reason since the corpus was built — and
+  client sites share hosting, so five detached crawls of five different sites
+  can put five requests in flight against one network.
+
+  `--allow-concurrent` relaxes the politeness lock only. The same-site lock is
+  correctness and is never relaxed, whatever flags are passed.
+
+- **`analyse` warns rather than blocks while a crawl is running.** An agent
+  polling a detached crawl will do this, and a partial answer is honest —
+  `coverage.complete` already says so. The warning exists because "17 pages"
+  reads like a fact about the site rather than a snapshot of a crawl in flight.
+
+### Notes
+
+The lock **is** the status file: a crawl writes progress on an interval, and
+that same write proves it is alive. Keeping them separate would mean a lockfile
+that can disagree with reality — held by a process that died an hour ago, with
+no way to tell that from one merely being slow.
+
+Stale locks are what kill designs like this, so the rules are explicit. A lock
+whose process is provably gone *on this machine* is reclaimed automatically and
+audibly. One taken on another host cannot be checked from here, so it blocks
+until `--force`. **A stale heartbeat alone never reclaims anything** — a crawl
+blocked on a 30-second timeout is alive, and stealing its lock is how two
+crawls end up racing, which is the thing the lock exists to prevent.
+
+Three bugs found by testing rather than by review, all in the paths that only
+matter when something has already gone wrong:
+
+- The detached child took its own lock, found the parent's, and refused to
+  start. It now adopts the parent's, so ownership moves in one step and the
+  file is never unheld.
+- A torn status file blocked every future crawl of that site. `readStatus`
+  correctly reported it absent, so it passed the blocker check and then
+  collided with the atomic create, refusing with a message offering no way out.
+- `readAllStatuses` ordered by timestamp alone, and two locks taken in the same
+  millisecond ordered by whatever `readdir` returned.
+
 ## 1.3.0 — 2026-08-08
 
 The findings Search Console raises, found before it raises them.

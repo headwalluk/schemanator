@@ -28,6 +28,15 @@ export const EXIT = {
   CRAWL_ABORTED: 2,
   /** `robots.txt` could not be read, so crawling was refused rather than assumed (`02`). */
   ROBOTS_UNAVAILABLE: 3,
+  /**
+   * A crawl is already running, and nothing was started.
+   *
+   * Distinct from `FAILURE` on purpose: this is "wait and retry", where failure
+   * is "stop and look". An agent that cannot tell them apart either retries a
+   * genuine error forever or gives up on a queue that would have cleared in a
+   * minute.
+   */
+  CRAWL_IN_PROGRESS: 4,
 } as const;
 
 export type ExitCodeName = keyof typeof EXIT;

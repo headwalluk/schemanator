@@ -172,6 +172,9 @@ Keep `--max-pages` the same across runs you intend to compare.
 | `--max-depth <n>` | Sitemap index recursion depth. Default 3 |
 | `--delay <ms>` | Delay between requests to one host. Default 1000, floor 200 |
 | `--resume` | Continue an interrupted crawl rather than starting over |
+| `--detach` | Crawl in the background and return at once. Poll with `status` |
+| `--allow-concurrent` | Permit a crawl while one runs for a *different* site |
+| `--force` | Take a lock whose owning process cannot be checked from here |
 | `--work-dir <path>` | Where output goes |
 | `--site <slug>` | Site key under the work directory. Default: the hostname |
 | `--disable <check>` | Disable a check or a whole group. Repeatable |
@@ -272,6 +275,7 @@ though the disagreement is recorded.
 | `1` | Bad arguments, or an unexpected error |
 | `2` | The crawl was aborted — usually repeated `429 Too Many Requests` |
 | `3` | `robots.txt` was unreadable, so the crawl was refused |
+| `4` | A crawl is already running. Nothing was started — wait and retry |
 
 Findings deliberately do not fail the command. If you want CI to fail on errors,
 read the JSON:

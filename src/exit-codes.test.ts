@@ -67,9 +67,29 @@ test('codes cited in prose elsewhere in docs are real', () => {
 
 test('cli.ts contains no bare exit-code literals', () => {
   // The regression this whole module exists to prevent.
+  //
+  // The first version of this test matched `^\s*return \d+;$` and missed two
+  // survivors on the day it was written — `return values.help === true ? 0 : 1`
+  // and `return result.crawl.aborted !== null ? 2 : 0`. A ternary is still a
+  // bare exit code, so the rule is now "no bare integer anywhere in a `return`
+  // from this file", which has no such blind spot.
   const cli = read('src/cli.ts');
-  assert.equal(/process\.exitCode = \d/.test(cli), false, 'cli.ts assigns a numeric literal to exitCode');
-  assert.equal(/^\s*return \d+;$/m.test(cli), false, 'cli.ts returns a bare number as an exit code');
+
+  assert.equal(
+    /process\.exitCode = \d/.test(cli),
+    false,
+    'cli.ts assigns a numeric literal to exitCode',
+  );
+
+  const offenders = [...cli.matchAll(/^.*\breturn\b[^;\n]*;/gm)]
+    .map((match) => match[0])
+    .filter((line) => /\breturn\b[^;\n]*(?<![\w.])\d+/.test(line));
+
+  assert.deepEqual(
+    offenders.map((line) => line.trim()),
+    [],
+    'these return a bare number where an EXIT constant belongs',
+  );
 });
 
 test('every exported Error class has a deliberate exit code', () => {
@@ -77,7 +97,16 @@ test('every exported Error class has a deliberate exit code', () => {
   // it was absent from the if/else ladder and fell into the catch-all. A new
   // error class must be a decision, not an omission.
   const cli = read('src/cli.ts');
-  const table = cli.slice(cli.indexOf('const EXIT_BY_ERROR'), cli.indexOf('try {'));
+
+  // Bounded by the table's own closing bracket, not by whatever happens to come
+  // after it. The first version sliced up to the next `try {`, and silently
+  // inverted into an empty string the moment an earlier `try` was added
+  // elsewhere in the file — reporting every error class as missing.
+  const start = cli.indexOf('const EXIT_BY_ERROR');
+  assert.notEqual(start, -1, 'the EXIT_BY_ERROR table has gone missing from cli.ts');
+  const end = cli.indexOf('\n];', start);
+  assert.notEqual(end, -1, 'the EXIT_BY_ERROR table is not closed as expected');
+  const table = cli.slice(start, end);
 
   const classes = fs
     .readdirSync(path.join(ROOT, 'src'), { recursive: true, encoding: 'utf8' })
