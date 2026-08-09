@@ -8,6 +8,7 @@ schemanator crawl <site> [options]     # crawl only, no analysis
 schemanator analyse <site> [options]   # re-analyse a stored crawl, no network
 schemanator sites                      # what has been crawled, and what it costs
 schemanator purge <site> [--html]      # reclaim disk
+schemanator status [site]              # progress of a running or finished crawl
 ```
 
 `<site>` may be a bare hostname. `example.com` is read as `https://example.com`.
@@ -238,6 +239,42 @@ inconvenience, it means going back and taking it again.
 `--html` also sets `html_purged` in the manifest. Deleting the files by hand
 works but leaves `pages.jsonl` claiming the HTML is still there.
 
+## Crawling in the background
+
+A 500-page crawl takes about nine minutes, which is longer than most agent shell
+tools will wait. `--detach` starts one and returns immediately:
+
+```sh
+schemanator crawl example.com --detach
+schemanator status example.com --json     # poll until state is not "crawling"
+schemanator analyse example.com
+```
+
+Output goes to `crawl/detached.log` under the run directory rather than being
+discarded, so a crawl that fails has somewhere to say why.
+
+### Only one crawl runs at a time
+
+A second crawl — of any site, detached or not — exits **4** and starts nothing:
+
+```
+A crawl of another site is already running, and only one runs at a time.
+
+  example.com (pid 40122, running 3m 12s, 187 of 500 pages)
+  status: schemanator status example.com
+```
+
+That limit is politeness rather than bookkeeping. The polite queue governs a
+single process, so two crawls put two requests in flight at once — and sites
+frequently share hosting, so "different site" does not mean "different server".
+`--allow-concurrent` opts out when you know the targets are unrelated. It never
+relaxes the same-site lock, which exists to stop two processes writing one
+manifest.
+
+`analyse`, `status` and `sites` only read, and are never blocked. Analysing one
+site while another crawls is fine. `purge` is blocked for the site being
+crawled, and `--yes` does not override it.
+
 ## Interrupted crawls
 
 A crawl records its queue state after every fetch, so it survives being killed:
@@ -248,6 +285,13 @@ schemanator example.com --resume
 
 Pages already stored are not re-fetched. Without `--resume`, a fresh run starts
 from scratch and discards the previous crawl for that site.
+
+If a crawl was killed, `status` shows it as **stalled** rather than crawling —
+the process is gone, and the next crawl reclaims the lock automatically and says
+so. A crawl merely *blocked* on a slow response is still alive and keeps its
+lock, however quiet it looks; only a process that can be proved gone releases
+one. A lock taken on a different machine cannot be checked from here at all, so
+it holds until `--force`.
 
 ## Sitemaps
 

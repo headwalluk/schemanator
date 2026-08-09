@@ -11,6 +11,7 @@ rather than for your convenience.
 | | |
 | --- | --- |
 | Requests in flight | **One per host.** Not one per crawl — one per host |
+| Crawls in flight | **One**, across the whole work directory |
 | Delay between requests | **1000 ms**, measured from the previous request *finishing* |
 | Minimum delay | **200 ms**, even if you ask for less |
 | `robots.txt` | Fully obeyed, including `Disallow` and `Crawl-delay` |
@@ -22,6 +23,26 @@ rather than for your convenience.
 
 A 500-page crawl therefore takes about nine minutes, and there is no option to
 make it dramatically faster. That is the point.
+
+### Why only one crawl at a time
+
+"One request in flight per host" is enforced by a queue that lives **inside a
+single process**. Two schemanator processes have two queues and know nothing of
+each other, so each politely waits its turn while between them putting two
+requests in flight at once.
+
+Running two crawls therefore doubles the load and defeats the guarantee above,
+even though every individual crawl still looks well-behaved. Starting a second
+one exits 4 and starts nothing.
+
+**"A different site" is not the same as "a different server."** Sites commonly
+share hosting — an agency or host will have many clients on one machine or one
+network — and this tool has no way to know from the outside which of your
+targets are neighbours. So the default assumes they might be.
+
+`--allow-concurrent` opts out. It is a statement that you know the targets are
+on unrelated infrastructure, and the consequences of being wrong land on
+somebody else's server rather than yours.
 
 ## What it never does
 
