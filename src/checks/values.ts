@@ -39,6 +39,7 @@ export function parseValueHeuristics(json: string, source = '<inline>'): ValueHe
   } catch (error) {
     throw new Error(
       `${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     );
   }
   if (typeof raw.schema_version !== 'number')
@@ -57,7 +58,9 @@ export function parseValueHeuristics(json: string, source = '<inline>'): ValueHe
     try {
       pattern = new RegExp(entry.pattern, 'i');
     } catch (error) {
-      throw new Error(`${source}: placeholder ${index} has an invalid regex — ${String(error)}`);
+      throw new Error(`${source}: placeholder ${index} has an invalid regex — ${String(error)}`, {
+        cause: error,
+      });
     }
     return {
       pattern,

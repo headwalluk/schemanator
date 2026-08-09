@@ -274,8 +274,7 @@ const SUBSTANTIAL_ANCESTORS = ['Organization', 'Person', 'Product'];
 const blankNodeEntity: Check = {
   id: 'graph.blank-node-entity',
   group: 'graph',
-  run({ graph, pages, hierarchy }) {
-    const pageIndex = indexPagesById(pages);
+  run({ graph, hierarchy }) {
     const byType = new Map<string, ExtractedNode[]>();
 
     for (const node of graph.allNodes) {
@@ -294,8 +293,8 @@ const blankNodeEntity: Check = {
         nodes.flatMap((node) =>
           (node.props[NAME] ?? [])
             .map((value) =>
-              value !== null && typeof value === 'object' && '@value' in (value as object)
-                ? String((value as { '@value': unknown })['@value']).trim()
+              value !== null && typeof value === 'object' && '@value' in value
+                ? String(value['@value']).trim()
                 : null,
             )
             .filter((value): value is string => value !== null && value !== ''),
@@ -386,7 +385,7 @@ const trailingSlashDrift: Check = {
     const drifted = [...seen.entries()].filter(([, variants]) => variants.size > 1);
     if (drifted.length === 0) return [];
 
-    const observed: Observed[] = drifted.slice(0, 10).map(([key, variants]) => ({
+    const observed: Observed[] = drifted.slice(0, 10).map(([, variants]) => ({
       value: [...variants].join('  vs  '),
       observation_count: variants.size,
       page_count: 0,

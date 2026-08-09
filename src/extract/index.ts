@@ -117,13 +117,13 @@ export async function extract(
 
     let expanded: unknown[];
     try {
-      expanded = (await jsonld.expand(parsed as jsonld.JsonLdDocument, {
+      expanded = await jsonld.expand(parsed as jsonld.JsonLdDocument, {
         // Spec-correct: relative `@id`s resolve against the page. See the
         // base-IRI discussion in `00` — we resolve, and keep the raw string
         // alongside so one finding can cover N pages.
         base: pageUrl,
         documentLoader: staticDocumentLoader as never,
-      })) as unknown[];
+      });
     } catch (error) {
       const cause = unwrapCause(error);
       record.error =

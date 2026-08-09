@@ -26,11 +26,11 @@ function escapePointerToken(token: string): string {
 }
 
 function isValueObject(value: unknown): boolean {
-  return value !== null && typeof value === 'object' && '@value' in (value as object);
+  return value !== null && typeof value === 'object' && '@value' in value;
 }
 
 function isListObject(value: unknown): boolean {
-  return value !== null && typeof value === 'object' && '@list' in (value as object);
+  return value !== null && typeof value === 'object' && '@list' in value;
 }
 
 /**
@@ -97,7 +97,7 @@ export function flattenExpanded(expanded: unknown[], options: FlattenOptions): E
           pointer,
           declaredId?.startsWith('_:') ? declaredId.slice(2) : undefined,
         )
-      : (declaredId as string);
+      : declaredId;
 
     const types = (
       Array.isArray(raw['@type']) ? raw['@type'] : raw['@type'] === undefined ? [] : [raw['@type']]

@@ -50,6 +50,7 @@ export function parseHierarchy(json: string, source = '<inline>'): Hierarchy {
   } catch (error) {
     throw new Error(
       `${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     );
   }
   if (typeof raw.schema_version !== 'number')

@@ -169,7 +169,9 @@ test('the finding id is shown, so two runs can be compared by eye', () => {
 
 test('output survives being pasted into a chat window', () => {
   const output = renderMarkdown(report({ findings: [finding()] }));
-  // No ANSI colour, no box drawing.
+  // No ANSI colour, no box drawing. The escape below is the thing being
+  // asserted against, so `no-control-regex` has nothing useful to say here.
+  // eslint-disable-next-line no-control-regex
   assert.equal(/\[/.test(output), false);
   assert.equal(/[┌┐└┘│─├┤]/.test(output), false);
 });

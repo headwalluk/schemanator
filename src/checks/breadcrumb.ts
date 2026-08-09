@@ -414,7 +414,7 @@ const multipleParents: Check = {
   id: 'breadcrumb.multiple-parents',
   group: 'breadcrumb',
   run(context) {
-    const { sequences, pageIndex } = trailContext(context);
+    const { sequences } = trailContext(context);
     const findings: Finding[] = [];
 
     // url -> parent url -> the pages asserting it
@@ -710,7 +710,7 @@ const missing: Check = {
   id: 'breadcrumb.missing',
   group: 'breadcrumb',
   run(context) {
-    const { sequences, pageIndex } = trailContext(context);
+    const { sequences } = trailContext(context);
     if (context.partialCoverage) return [];
 
     const pagesWithTrail = new Set(sequences.map(({ trail }) => trail.page_id));

@@ -245,7 +245,7 @@ export class WorkDir {
   /** Wipe derived artefacts so a re-extract cannot accumulate stale nodes. */
   async resetExtraction(): Promise<void> {
     await fs.rm(this.graphNodesPath, { force: true });
-    let pages: string[] = [];
+    let pages: string[];
     try {
       pages = await fs.readdir(this.pagesDir);
     } catch {
@@ -297,7 +297,7 @@ export class WorkDir {
     }
   }
 
-  async readReport(runId: string): Promise<unknown | null> {
+  async readReport(runId: string): Promise<unknown> {
     try {
       return JSON.parse(
         await fs.readFile(path.join(this.reportsDir(runId), 'report.json'), 'utf8'),

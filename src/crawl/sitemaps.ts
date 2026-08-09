@@ -190,7 +190,10 @@ interface ParsedSitemap {
  * @throws {Error} when the body is not a sitemap in any recognised form.
  */
 export function parseSitemap(body: Buffer): ParsedSitemap {
-  const text = body.toString('utf8').replace(/^﻿/, '').trim();
+  const text = body
+    .toString('utf8')
+    .replace(/^\uFEFF/, '')
+    .trim();
 
   if (text === '') throw new Error('empty sitemap body');
 
@@ -228,7 +231,9 @@ export function parseSitemap(body: Buffer): ParsedSitemap {
   try {
     document = xmlParser.parse(text) as Record<string, unknown>;
   } catch (error) {
-    throw new Error(`XML parse failed: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`XML parse failed: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    });
   }
 
   if (document['sitemapindex'] !== undefined) {

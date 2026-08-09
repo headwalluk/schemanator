@@ -63,7 +63,7 @@ async function directoryUsage(root: string): Promise<SiteUsage> {
       }
       if (!entry.isFile()) continue;
 
-      let size = 0;
+      let size: number;
       try {
         size = (await fs.stat(full)).size;
       } catch {
@@ -231,7 +231,7 @@ export async function applyPurge(plan: PurgePlan): Promise<void> {
   }
 
   const pagesDir = path.join(plan.root, 'pages');
-  let entries: import('node:fs').Dirent[] = [];
+  let entries: import('node:fs').Dirent[];
   try {
     entries = await fs.readdir(pagesDir, { withFileTypes: true });
   } catch {

@@ -70,6 +70,7 @@ export function parseCardinalityRules(json: string, source = '<inline>'): Cardin
   } catch (error) {
     throw new Error(
       `${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     );
   }
 

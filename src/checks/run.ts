@@ -282,25 +282,11 @@ const dangling: Check = {
 
 // --- graph.identity-fracture -------------------------------------------------
 
-/** Literal values of a property, ignoring references. Used for the name signal. */
-function literalsOf(node: ExtractedNode, property: string): string[] {
-  return (node.props[property] ?? [])
-    .map((value) =>
-      value !== null && typeof value === 'object' && '@value' in (value as object)
-        ? String((value as { '@value': unknown })['@value'])
-        : null,
-    )
-    .filter((value): value is string => value !== null)
-    .map((value) => value.trim().toLowerCase());
-}
-
 /** `@id`-typed values, which is how `url` and `sameAs` arrive after expansion. */
 function idsOf(node: ExtractedNode, property: string): string[] {
   return (node.props[property] ?? [])
     .map((value) =>
-      value !== null && typeof value === 'object' && '@id' in (value as object)
-        ? String((value as { '@id': unknown })['@id'])
-        : null,
+      value !== null && typeof value === 'object' && '@id' in value ? String(value['@id']) : null,
     )
     .filter((value): value is string => value !== null);
 }
@@ -329,8 +315,8 @@ const identityFracture: Check = {
     for (const group of graph.groups.values()) {
       for (const node of group.observations) {
         for (const raw of node.props[NAME] ?? []) {
-          if (raw === null || typeof raw !== 'object' || !('@value' in (raw as object))) continue;
-          const original = String((raw as { '@value': unknown })['@value']).trim();
+          if (raw === null || typeof raw !== 'object' || !('@value' in raw)) continue;
+          const original = String(raw['@value']).trim();
           const folded = original.toLowerCase();
           if (folded === '') continue;
           if (!displayName.has(folded)) displayName.set(folded, original);
@@ -653,8 +639,7 @@ const insecureSelfReference: Check = {
 const foreignMediaHost: Check = {
   id: 'url.foreign-media-host',
   group: 'url',
-  run({ graph, pages, siteHost, heuristics }) {
-    const pageIndex = indexPagesById(pages);
+  run({ graph, siteHost, heuristics }) {
     const byHost = new Map<
       string,
       { urls: Set<string>; nodes: ExtractedNode[]; properties: Set<string> }

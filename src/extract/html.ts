@@ -11,7 +11,7 @@ import * as cheerio from 'cheerio';
 
 /** Leading BOM and whitespace before the JSON are endemic. */
 function stripLeading(text: string): string {
-  return text.replace(/^﻿/, '').trim();
+  return text.replace(/^\uFEFF/, '').trim();
 }
 
 /**

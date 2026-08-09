@@ -46,7 +46,7 @@ test('a lock is taken, recorded, and released as finished rather than deleted', 
   const held = await readStatus(root, 'a.example');
   assert.equal(held?.state, 'crawling');
   assert.equal(held?.pid, process.pid);
-  assert.equal(holdsLock(held as CrawlStatus), true);
+  assert.equal(holdsLock(held), true);
 
   await lock.finish('finished', { pages_fetched: 12 });
 
@@ -56,7 +56,7 @@ test('a lock is taken, recorded, and released as finished rather than deleted', 
   assert.equal(done?.state, 'finished');
   assert.equal(done?.pages_fetched, 12);
   assert.equal(done?.finished_at !== null, true);
-  assert.equal(holdsLock(done as CrawlStatus), false);
+  assert.equal(holdsLock(done), false);
 });
 
 test('a second crawl of the same site is refused', async () => {
@@ -156,7 +156,7 @@ test('a failed crawl records why', async () => {
   const status = await readStatus(root, 'a.example');
   assert.equal(status?.state, 'failed');
   assert.equal(status?.error, 'robots.txt was unreadable');
-  assert.equal(holdsLock(status as CrawlStatus), false);
+  assert.equal(holdsLock(status), false);
 });
 
 test('a detached child adopts its parent lock rather than taking a second', async () => {

@@ -49,7 +49,7 @@ import {
   type Finding,
 } from './framework.ts';
 import type { EntityGraph } from './graph.ts';
-import { bareTypeName, closure, type Hierarchy } from './hierarchy.ts';
+import { closure, type Hierarchy } from './hierarchy.ts';
 
 // --- the rules file ----------------------------------------------------------
 
@@ -104,6 +104,7 @@ export function parseGoogleRules(json: string, source = '<inline>'): GoogleRules
   } catch (error) {
     throw new Error(
       `${source}: not valid JSON — ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     );
   }
 

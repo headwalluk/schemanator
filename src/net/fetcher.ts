@@ -398,7 +398,16 @@ export class PoliteFetcher {
   private async drainCapped(response: Response): Promise<Buffer | null> {
     if (response.body === null) return Buffer.alloc(0);
 
-    const reader = response.body.getReader();
+    /**
+     * Typed at the boundary rather than disabled three times below.
+     *
+     * The Web Streams types reaching us here resolve `getReader()` loosely, so
+     * `value` arrives as `any` and every use of it — the size tally, the push —
+     * reads as unsafe. The runtime contract is not in doubt: a byte stream
+     * yields `Uint8Array`. Naming that once here is honest and keeps the
+     * unsafe-any rules live for places where the type genuinely is unknown.
+     */
+    const reader = response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
     const chunks: Uint8Array[] = [];
     let total = 0;
 
