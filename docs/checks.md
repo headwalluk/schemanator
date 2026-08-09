@@ -616,6 +616,73 @@ carry it.
 
 ---
 
+## `page` — the content was found, but can a machine parse the document?
+
+Everything here is something a machine *uses* to build its model of the page.
+Nothing here is a style opinion, and each check reports **once for the site**: a
+per-page finding for missing alt text on a 500-page site is 500 findings
+describing one template.
+
+### `page.title-missing` — Error
+
+No `<title>`. It is the strongest single signal a machine has for what a page
+is, used as the heading in search results and as the label almost everywhere
+else a page is referenced.
+
+### `page.h1-missing` — Warning
+
+No top-level heading, so a consumer building an outline has nothing to hang it
+on and the page's own statement of what it is about is missing.
+
+### `page.h1-multiple` — Opportunity
+
+More than one `<h1>`.
+
+**This is valid HTML and Google has said it is fine**, so nothing is broken —
+the finding exists because a consumer picking one line to represent the document
+has to choose, and it will not always choose the one you meant. The one-`h1`
+rule is HTML4 and is still widely repeated as though it applied; this is
+reported as an ambiguity to resolve, not an error to fix.
+
+### `page.image-alt-missing` — Warning
+
+Images with **no `alt` attribute at all**. To anything reading the page as text
+an image without alt is simply absent — whatever it shows, says or sells is
+invisible to a search engine, an AI agent and a screen reader alike.
+
+An explicitly empty `alt=""` is *not* reported: that is the correct way to mark
+an image as decorative.
+
+### `page.image-alt-useless` — Warning
+
+Alt text that exists and describes nothing — `1000005782`, `IMG`, `untitled`.
+It passes every automated check that only asks whether the attribute exists, and
+tells a reader nothing, which is arguably worse than an empty one because it
+looks handled.
+
+A file extension alone is not enough to qualify: `Rural Pie Co logo.jpg`
+describes its image perfectly well and is not reported.
+
+### `page.lang-missing` — Opportunity
+
+No `lang` on `<html>`, so anything processing the text has to guess the
+language. Guessing is usually right, and silent when it is not.
+
+### `page.title-duplicate` — Warning
+
+One title used on several pages. Site-wide by nature, so a per-page tool can see
+a title but not that it is shared. Where several pages claim the same title,
+nothing distinguishes them — not in a search result, and not to anything
+deciding which of them to keep.
+
+**Not reported:** skipped heading levels. 549 of 1,831 pages in the test corpus
+skip one — 29% — so at that incidence it is normal practice rather than a
+defect, and a slightly malformed outline does not stop a machine consuming the
+page. Title and description *length* are excluded too: Google truncates on pixel
+width, and nobody can act on "63 characters" without looking at the page.
+
+---
+
 ## Not yet implemented
 
 Designed and specified, but **not built** — they will not appear in a report:

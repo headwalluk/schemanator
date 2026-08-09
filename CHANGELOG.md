@@ -2,6 +2,59 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.9.0 — 2026-08-09
+
+Group `page` — the last of the four stages in `dev-notes/07`. Seven checks, and
+**one planned check deleted by the survey before a line of it was written**.
+
+### Added
+
+- **`page.title-missing`** (Error), **`page.h1-missing`** (Warning),
+  **`page.lang-missing`** (Opportunity) — the signals a machine uses to work out
+  what a page is and what language it is in.
+- **`page.image-alt-missing`** (Warning) — images with *no* alt attribute. To
+  anything reading the page as text, an image without alt is simply absent. An
+  explicitly empty `alt=""` is correct for decoration and is not reported.
+- **`page.image-alt-useless`** (Warning) — `1000005782`, `IMG`, `untitled`.
+  Passes every check that only asks whether the attribute exists.
+- **`page.title-duplicate`** (Warning) — one title on several pages. Site-wide
+  by nature, so a per-page tool can see a title but not that it is shared.
+- **`page.h1-multiple`** (Opportunity) — see below.
+
+Every check reports **once for the site**. A per-page finding for missing alt
+text on a 500-page site is 500 findings describing one template.
+
+### Notes
+
+**`page.heading-sequence` is not built, and a test keeps it that way.** 549 of
+1,831 corpus pages skip a heading level — 29%. At that incidence it is normal
+practice rather than a defect, and a slightly malformed outline does not stop a
+machine consuming anything. It fails `07`'s admission test: *does this stop a
+machine consuming the page?*
+
+**`page.h1-multiple` is an opportunity, not a warning.** The one-`h1` rule is
+HTML4 and is still repeated as though it applied; HTML5 sectioning permits
+several and Google has said so. 205 corpus pages have more than one. The finding
+reports an ambiguity to resolve — a consumer picking one line to represent the
+document has to choose — and says plainly that the markup is valid.
+
+`page.image-alt-useless` was narrowed after the shakedown. Flagging any alt
+ending in a file extension caught alt text that describes its image perfectly
+well and merely carries a suffix; telling somebody to rewrite those is the
+low-value advice that makes a report get skimmed. The stem has to be
+uninformative too, which leaves the real thing — one value repeated on 142 pages
+of a single site.
+
+Two of the seven ship untriggered: every corpus page has a `<title>` and
+declares a language.
+
+The docs-consistency suite needed widening, having been written before any check
+id contained a digit — `page.h1-missing` failed its own naming rule. And the
+client-name leak test earned its place for the second time in two days, catching
+a client's name in a source comment before it reached a tarball.
+
+505 tests, all passing.
+
 ## 1.8.0 — 2026-08-09
 
 Group `content` — the flagship of `dev-notes/07`, and the group that answers the

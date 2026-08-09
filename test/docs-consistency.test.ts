@@ -54,14 +54,14 @@ const CHECKS_DOC = read('docs/checks.md');
 
 /** Checks with a full write-up: `### \`id\` — Severity`. */
 const DOCUMENTED = new Set(
-  [...CHECKS_DOC.matchAll(/^### `([a-z][a-z.-]+)` — /gm)].map((match) => match[1] as string),
+  [...CHECKS_DOC.matchAll(/^### `([a-z][a-z0-9.-]+)` — /gm)].map((match) => match[1] as string),
 );
 
 /** The "Not yet implemented" table, which promises nothing. */
 const PLANNED = new Set(
   [
     ...CHECKS_DOC.slice(CHECKS_DOC.indexOf('## Not yet implemented')).matchAll(
-      /^\| `([a-z][a-z.*-]+)`/gm,
+      /^\| `([a-z][a-z0-9.*-]+)`/gm,
     ),
   ].map((match) => match[1] as string),
 );
@@ -80,7 +80,12 @@ test('check ids are unique, well-formed, and prefixed with their own group', () 
   const seen = new Set<string>();
 
   for (const check of ALL_CHECKS) {
-    assert.match(check.id, /^[a-z]+\.[a-z][a-z-]*$/, `${check.id} is not a lower-case dotted id`);
+    // Digits are legal after the first letter: `page.h1-missing`.
+    assert.match(
+      check.id,
+      /^[a-z]+\.[a-z][a-z0-9-]*$/,
+      `${check.id} is not a lower-case dotted id`,
+    );
     assert.equal(seen.has(check.id), false, `duplicate check id: ${check.id}`);
     seen.add(check.id);
     assert.equal(

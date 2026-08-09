@@ -21,6 +21,7 @@ import {
 import { BREADCRUMB_CHECKS } from './breadcrumb.ts';
 import { GOOGLE_CHECKS, loadGoogleRules } from './google.ts';
 import { CONTENT_CHECKS } from './content.ts';
+import { PAGE_CHECKS } from './page.ts';
 import { INDEXING_CHECKS } from './indexing.ts';
 import { ROBOTS_CHECKS, loadAiCrawlers, type RobotsFile } from './robots.ts';
 import { SYNTAX_CHECKS } from './syntax.ts';
@@ -881,6 +882,7 @@ export const ALL_CHECKS: Check[] = [
   ...ROBOTS_CHECKS,
   ...INDEXING_CHECKS,
   ...CONTENT_CHECKS,
+  ...PAGE_CHECKS,
 ];
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, opportunity: 2 };
@@ -918,6 +920,7 @@ const GROUP_ORDER: readonly string[] = [
   'url',
   'breadcrumb',
   'content',
+  'page',
   'google',
   'indexing',
   'robots',

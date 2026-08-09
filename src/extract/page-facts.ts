@@ -136,17 +136,29 @@ export function blockHash(text: string): string {
   return createHash('sha256').update(normalise(text).toLowerCase()).digest('hex').slice(0, 16);
 }
 
-/** Alt text that exists but says nothing a consumer can use. */
-const USELESS_ALT = [
-  /^(dsc|img|image|photo|pic|untitled|screenshot|banner)[-_ ]?\d*$/i,
-  /\.(jpe?g|png|gif|webp|svg)$/i,
-  /^\d+$/,
+/**
+ * Alt text that exists but says nothing a consumer can use.
+ *
+ * **A file extension alone is not enough**, and the corpus said so. An earlier
+ * version flagged anything ending `.jpg`, which caught alt text like `"<company>
+ * logo.jpg"` and `"<product>-print-to-perfection-banner-circle.png"` — both of
+ * which describe their image perfectly well. The suffix is untidy;
+ * telling somebody to rewrite them is low-value advice, and low-value advice is
+ * what makes a report get skimmed.
+ *
+ * So the *stem* has to be uninformative too. What survives is the real thing:
+ * `"1000005782"` on 142 pages of one site, and `"IMG"` on twelve more.
+ */
+const USELESS_STEM = [
+  /^(dsc|dscn|img|image|photo|pic|untitled|screenshot|banner|logo)[-_ ]?\d*$/i,
+  /^\d[\d-_ ]*$/,
 ];
 
 export function isUselessAlt(alt: string): boolean {
   const trimmed = alt.trim();
   if (trimmed === '') return false; // Empty alt is *decorative*, and legitimate.
-  return USELESS_ALT.some((pattern) => pattern.test(trimmed));
+  const stem = trimmed.replace(/\.(jpe?g|png|gif|webp|svg|avif)$/i, '').trim();
+  return USELESS_STEM.some((pattern) => pattern.test(stem));
 }
 
 /**

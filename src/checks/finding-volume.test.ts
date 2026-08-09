@@ -202,6 +202,7 @@ test('every check is registered under a group the sort knows about', () => {
     'url',
     'breadcrumb',
     'content',
+    'page',
     'google',
     'indexing',
     'robots',

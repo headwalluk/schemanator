@@ -77,8 +77,27 @@ test('an empty alt is decorative, not useless', () => {
   assert.equal(isUselessAlt('   '), false);
   assert.equal(isUselessAlt('A rack of servers'), false);
 
-  for (const useless of ['DSC00213.JPEG', 'IMG_4021', 'image1', 'untitled', 'photo.png', '12345']) {
+  for (const useless of [
+    'DSC00213.JPEG',
+    'IMG_4021',
+    'image1',
+    'untitled',
+    'photo.png',
+    '12345',
+    '1000005782',
+    'IMG',
+  ]) {
     assert.equal(isUselessAlt(useless), true, `${useless} should be useless`);
+  }
+
+  // A file extension alone is not enough. All of these describe their image
+  // perfectly well, and an earlier version flagged this shape on real sites.
+  for (const fine of [
+    'Rural Pie Co logo.jpg',
+    'print-to-perfection-banner.png',
+    'Cropped Joe Williams.jpg',
+  ]) {
+    assert.equal(isUselessAlt(fine), false, `${fine} describes the image`);
   }
 });
 
