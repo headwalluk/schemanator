@@ -48,6 +48,20 @@ function sameUrl(left: string, right: string): boolean {
  * *redirecting* record, and six pages were told their canonical redirects when
  * it does not.
  */
+/**
+ * One record per destination URL.
+ *
+ * Several requests can land on one page — `/checkout/` redirecting to
+ * `/basket/` gives two records with one `canonical_url` — and a finding that
+ * lists the same URL twice reads as a bug in the tool. Found by reading a real
+ * report, where one URL appeared twice in three separate findings.
+ */
+export function dedupeByUrl(pages: readonly PageRecord[]): PageRecord[] {
+  const seen = new Map<string, PageRecord>();
+  for (const page of pages) if (!seen.has(page.canonical_url)) seen.set(page.canonical_url, page);
+  return [...seen.values()];
+}
+
 function pageByRequestedUrl(pages: readonly PageRecord[]): Map<string, PageRecord> {
   const index = new Map<string, PageRecord>();
   for (const page of pages) {
@@ -393,7 +407,97 @@ const duplicateContent: Check = {
   },
 };
 
+// --- indexing.thin-sitemap-entry ---------------------------------------------
+
+/**
+ * Below this a page has essentially nothing of its own to index.
+ *
+ * Measured: 154 of 1,829 corpus sitemap pages fall under 25 words once site
+ * boilerplate is removed — 8% — and reading them, they are carts, baskets,
+ * account pages, wishlists, "no access" gates and thank-you pages.
+ */
+const THIN_SITEMAP_WORDS = 25;
+
+/**
+ * A sitemap entry for a page with no content of its own.
+ *
+ * A sitemap is a request to index. These pages have nothing to index: a cart, a
+ * login gate, an account screen. Nothing is broken — they work fine — but every
+ * crawler spends a request on them, and anything that does index them is
+ * indexing furniture.
+ *
+ * ## Why this reports rather than decides
+ *
+ * **Word count cannot tell a cart from a contact page.** One corpus site's
+ * `/contact-us/` carries five words and belongs in a sitemap absolutely; the
+ * `/basket/` beside it carries eight and does not. So this lists what it found
+ * and says which kinds usually belong out, rather than asserting a fix — the
+ * same posture as `coverage.missing-expected-entity`, and for the same reason:
+ * the tool cannot read the page and the operator can, in about four seconds.
+ *
+ * ## What it deliberately does not claim
+ *
+ * `07` planned a `low-value-archive` check keyed on "high link-to-text ratio".
+ * **Measured, that signal does not exist**: on the corpus, a WooCommerce product
+ * archive renders full descriptions and scores 0.00 links per word, while a
+ * single product page scores 0.03. Archives look exactly like content pages by
+ * every text measure available here, so this check does not pretend to find
+ * them. A product archive with nothing unique on it still needs a human eye.
+ */
+const thinSitemapEntry: Check = {
+  id: 'indexing.thin-sitemap-entry',
+  group: 'indexing',
+  run({ pages }) {
+    const thin = pages.filter(
+      (page) =>
+        sitemapOf(page) !== null &&
+        page.http_status === 200 &&
+        page.redirect_chain.length === 0 &&
+        page.page_facts !== null &&
+        page.page_facts.text.extractable_words < THIN_SITEMAP_WORDS,
+    );
+    if (thin.length === 0) return [];
+
+    return [
+      {
+        finding_id: findingId('indexing.thin-sitemap-entry', 'site'),
+        check: 'indexing.thin-sitemap-entry',
+        severity: 'opportunity',
+        origin: 'check',
+        title: `${thin.length} sitemap URL(s) have almost no content of their own`,
+        subject: { kind: 'site', id: 'sitemap' },
+        summary:
+          `${thin.length} URL(s) listed in the sitemap carry fewer than ${THIN_SITEMAP_WORDS} words ` +
+          `once site furniture is removed. A sitemap is a request to index, and these have little ` +
+          `to index — carts, baskets, account screens, login gates and thank-you pages are the ` +
+          `usual set. Nothing is broken; every crawler simply spends a request on each of them.\n\n` +
+          `**Read the list before acting.** Word count cannot tell a cart from a contact page — a ` +
+          `contact page is often a form and a phone number, and belongs in the sitemap. ` +
+          `Transactional and account pages generally do not, and are usually better set to ` +
+          `\`noindex\`.`,
+        expected: null,
+        observed: dedupeByUrl(thin)
+          .slice(0, 15)
+          .map((page) => ({
+            value: `${page.canonical_url} — ${page.page_facts?.text.extractable_words ?? 0} words`,
+            observation_count: 1,
+            page_count: 1,
+            provenance: [],
+          })),
+        pages_affected: dedupeByUrl(thin).length,
+        coverage_qualified: false,
+        remediation:
+          'Remove the ones that are not meant to be found in search from the sitemap, and set them ' +
+          'to noindex. Most SEO plugins have a per-post-type switch for exactly this.',
+        tradeoff: null,
+        page_ids: thin.map((page) => page.page_id),
+      },
+    ];
+  },
+};
+
 export const INDEXING_CHECKS: Check[] = [
+  thinSitemapEntry,
   sitemapDeadUrl,
   sitemapRedirects,
   redirectChain,

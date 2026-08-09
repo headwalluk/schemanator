@@ -315,10 +315,13 @@ const blankNodeEntity: Check = {
           `appear to a consumer as ${nodes.length} separate anonymous entities. Each page is valid ` +
           `on its own; the loss only shows when you look at the site as a whole.`,
         expected: `A stable @id on every ${types}, identical wherever it appears.`,
+        // These are distinct *names*, not pages. Claiming "on 1 page(s)" beside
+        // a finding that says 28 invites the reader to distrust the count; zero
+        // renders as no claim at all, which is the honest reading.
         observed: [...names].slice(0, 5).map((name) => ({
           value: name,
           observation_count: 1,
-          page_count: 1,
+          page_count: 0,
           provenance: [],
         })),
         pages_affected: pageIds.size,

@@ -184,3 +184,45 @@ test('distinct titles are silent', () => {
     [],
   );
 });
+
+/**
+ * Found by reading a real report rather than by any shakedown.
+ *
+ * `/checkout/` redirecting to `/basket/` leaves two records sharing one
+ * `canonical_url`. That put the same URL twice in three separate findings, made
+ * a title say "9 page(s)" above a field saying 8 — and made
+ * `page.title-duplicate` report a page as a duplicate of itself.
+ *
+ * The fix is deduplicating the *input*, not the display: every check in this
+ * group reasons about the page a reader arrives at, never the request that got
+ * them there.
+ */
+test('several requests landing on one page count once', () => {
+  const arrived = page(facts({ heading_levels: [2] }));
+  const viaRedirect: PageRecord = {
+    ...page(facts({ heading_levels: [2] })),
+    canonical_url: arrived.canonical_url,
+    redirect_chain: [
+      { url: 'https://example.com/checkout', status: 301, location: arrived.canonical_url },
+    ],
+  };
+
+  const findings = only([arrived, viaRedirect], 'page.h1-missing');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.pages_affected, 1, 'one destination, one page');
+  assert.match(findings[0]?.title ?? '', /^1 page/, 'the title must agree with the count');
+  assert.equal(findings[0]?.observed.length, 1, 'and the URL must not be listed twice');
+});
+
+test('a page is never a duplicate title of itself', () => {
+  const arrived = page(facts({ title: 'Basket' }));
+  const viaRedirect: PageRecord = {
+    ...page(facts({ title: 'Basket' })),
+    canonical_url: arrived.canonical_url,
+    redirect_chain: [
+      { url: 'https://example.com/checkout', status: 301, location: arrived.canonical_url },
+    ],
+  };
+
+  assert.deepEqual(only([arrived, viaRedirect], 'page.title-duplicate'), []);
+});

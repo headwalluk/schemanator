@@ -61,7 +61,12 @@ function renderFinding(finding: Finding, index: number): string {
   lines.push(`- **Subject:** \`${finding.subject.id}\``);
   if (finding.subject.property !== undefined)
     lines.push(`- **Property:** \`${finding.subject.property}\``);
-  lines.push(`- **Pages affected:** ${finding.pages_affected}`);
+  // A site-level finding computed from the graph rather than from pages has no
+  // page count, and printing "Pages affected: 0" reads as a broken tool rather
+  // than as a fact about the site.
+  if (finding.pages_affected > 0) {
+    lines.push(`- **Pages affected:** ${finding.pages_affected}`);
+  }
   lines.push(`- **Finding id:** \`${finding.finding_id}\``);
   lines.push('');
   lines.push(finding.summary);
@@ -76,7 +81,13 @@ function renderFinding(finding: Finding, index: number): string {
     lines.push('**Observed:**');
     lines.push('');
     for (const observed of finding.observed) {
-      lines.push(`- \`${decodeValue(observed.value)}\` — on ${observed.page_count} page(s)`);
+      // A zero page count means the value is not page-scoped — a name, a type,
+      // a URL pair — so the suffix is omitted rather than printed as "0 page(s)".
+      lines.push(
+        observed.page_count > 0
+          ? `- \`${decodeValue(observed.value)}\` — on ${observed.page_count} page(s)`
+          : `- \`${decodeValue(observed.value)}\``,
+      );
       for (const provenance of observed.provenance) {
         lines.push(`    - ${provenance.url}`);
         lines.push(

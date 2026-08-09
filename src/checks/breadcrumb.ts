@@ -483,9 +483,12 @@ const multipleParents: Check = {
           : 'Pick the correct parent and make every trail that includes this page agree.',
         tradeoff: null,
         pattern: competing ? 'competing trails on one page' : 'parents disagree across pages',
+        // "subjects", not "pages": the aggregate's own `pages_affected` is the
+        // union across constituents and is routinely larger, so saying "pages"
+        // here put two contradictory numbers in one finding.
         aggregate_title: competing
-          ? 'pages carry two breadcrumb trails that disagree'
-          : 'pages are given conflicting breadcrumb parents',
+          ? 'subjects carry two breadcrumb trails that disagree'
+          : 'subjects are given conflicting breadcrumb parents',
         page_ids: [...claimPages],
       });
     }
@@ -683,7 +686,7 @@ const inconsistentDepth: Check = {
           'consumers; matching the route the visitor actually took helps people. This tool cannot ' +
           'settle which matters more for your site.',
         pattern: 'page sits at more than one depth',
-        aggregate_title: 'pages appear at inconsistent breadcrumb depths',
+        aggregate_title: 'subjects appear at inconsistent breadcrumb depths',
         page_ids: [...affected],
       });
     }

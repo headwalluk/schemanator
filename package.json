@@ -1,6 +1,6 @@
 {
   "name": "@headwall/schemanator",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Whole-site structured-data integrity checking",
   "keywords": [
     "schema.org",

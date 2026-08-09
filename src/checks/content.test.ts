@@ -206,3 +206,19 @@ test('a non-200 page is never a content finding', () => {
   const dead = { ...page(facts({ dom: 10 }), 60_000), http_status: 404 };
   assert.deepEqual(content([dead], 'content.javascript-only'), []);
 });
+
+/**
+ * The sparse-page guard, applied to `hidden-text` when it was written and not
+ * carried across to its sibling until a real report was read.
+ *
+ * Eight utility pages of one site — carts, wishlists, a login gate — carry 9 to
+ * 32 words of content, so any sidebar exceeds the body. The advice was wrong
+ * twice over: those pages did not need their markup rearranged, they needed
+ * taking out of the sitemap, which `indexing.thin-sitemap-entry` now says.
+ */
+test('a utility page with a sidebar is not "content in an aside"', () => {
+  assert.deepEqual(
+    content([page(facts({ extractable: 9, main: 29, aside: 59 }))], 'content.main-in-aside'),
+    [],
+  );
+});

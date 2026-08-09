@@ -535,6 +535,24 @@ claim wins is not something you control.
 A canonicals to B, and B canonicals to C. Consumers generally follow one hop, so
 the end of the chain may never be reached.
 
+### `indexing.thin-sitemap-entry` — Opportunity
+
+URLs in the sitemap with fewer than 25 words of their own content, once site
+furniture is removed. A sitemap is a request to index, and these have little to
+index — carts, baskets, account screens, login gates and thank-you pages are the
+usual set.
+
+**Read the list before acting.** Word count cannot tell a cart from a contact
+page: a contact page is often a form and a phone number, and belongs in the
+sitemap. Transactional and account pages generally do not, and are usually
+better set to `noindex`.
+
+It does **not** claim to find low-value *archives*. That was designed and then
+measured away: on the test corpus a WooCommerce product archive renders full
+descriptions and scores 0.00 links per word, while a single product page scores
+0.03 — archives look exactly like content pages by every text measure available
+here. An archive with nothing unique on it still needs a human eye.
+
 ### `indexing.duplicate-content` — Warning
 
 Two distinct URLs returning byte-identical content. Indexing has to choose which

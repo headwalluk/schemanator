@@ -982,6 +982,12 @@ function aggregate(findings: readonly Finding[]): Finding[] {
         first.aggregate_title === undefined
           ? `${group.length} × ${first.title}`
           : `${group.length} ${first.aggregate_title}`,
+      // `pages_affected` on an aggregate is the union of its constituents, so
+      // it is routinely larger than the constituent count in the title. A
+      // real report read "32 pages carry two breadcrumb trails" above
+      // "Pages affected: 56", which invites the reader to distrust both numbers.
+      // `aggregate_title` must therefore name what is being counted — subjects,
+      // properties, entities — and never "pages".
       subject: { kind: 'site', id: 'site' },
       summary:
         `${group.length} subjects share this problem — ${first.pattern}. Reported once rather than ` +

@@ -2,6 +2,60 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.10.0 — 2026-08-09
+
+Everything here came from reading one report end to end, as a stranger would.
+The shakedowns could not have found any of it: every finding involved was
+*true*, and every one of them read badly.
+
+### Added
+
+- **`indexing.thin-sitemap-entry`** (Opportunity) — sitemap URLs with under 25
+  words of their own content. Carts, baskets, account screens, login gates and
+  thank-you pages: a sitemap is a request to index, and these have little to
+  index.
+
+  It lists what it found rather than asserting a fix, because **word count
+  cannot tell a cart from a contact page** — one corpus site's `/contact-us/`
+  carries five words and belongs in a sitemap absolutely. The operator can tell
+  in four seconds; the tool cannot tell at all.
+
+  It does **not** claim to find low-value *archives*. `07` designed that around
+  a high link-to-text ratio, and measurement killed it: a WooCommerce product
+  archive scores 0.00 links per word while a single product page scores 0.03.
+  Archives look exactly like content pages by every text measure available here.
+
+### Fixed
+
+- **`content.main-in-aside` fired on eight utility pages of one site**, all with
+  9 to 32 words of content — where any sidebar exceeds the body. The advice was
+  wrong twice over: those pages did not need their markup rearranged, they
+  needed taking out of the sitemap. This is the same sparse-page guard written
+  for `content.hidden-text` and not carried across to its sibling.
+
+- **One page counted twice, in three separate findings.** `/checkout/`
+  redirecting to `/basket/` leaves two records sharing a `canonical_url`, so the
+  same URL was listed twice, a title read "9 page(s)" above a field reading 8,
+  and `page.title-duplicate` reported a page as a duplicate of *itself*.
+
+  Fixed by deduplicating the **input** rather than the display: `page` and
+  `content` reason about the page a reader arrives at, never the request that
+  got them there. `indexing` deliberately still sees every request — a sitemap
+  entry that redirects is a fact about the request, and collapsing it would
+  erase the finding.
+
+- **An aggregate title said "pages" when it counted subjects**, so one finding
+  read "32 pages carry two breadcrumb trails" directly above "Pages affected:
+  56". `aggregate_title` must name what is being counted.
+
+- **"Pages affected: 0"** is no longer printed. A site-level finding computed
+  from the graph has no page count, and a zero read as a broken tool.
+
+- **"on 1 page(s)"** is no longer printed beside values that are not pages —
+  entity names, types, URL pairs — where it sat beside a finding claiming 28.
+
+508 tests, all passing.
+
 ## 1.9.0 — 2026-08-09
 
 Group `page` — the last of the four stages in `dev-notes/07`. Seven checks, and

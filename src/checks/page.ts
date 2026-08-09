@@ -28,10 +28,24 @@
  */
 
 import type { PageRecord } from '../store/workdir.ts';
+import { dedupeByUrl } from './indexing.ts';
 import { findingId, type Check, type Finding } from './framework.ts';
 
+/**
+ * Fetched, extracted, and **one record per destination URL**.
+ *
+ * Several requests can land on one page — `/checkout/` redirecting to
+ * `/basket/` leaves two records sharing a `canonical_url` — and every check
+ * here reasons about the page a reader arrives at, not the request that got
+ * them there. Deduplicating only the *display* was not enough: it left titles
+ * counting 9 while the field beneath said 8, and it let `page.title-duplicate`
+ * report one page as a duplicate of itself.
+ *
+ * `indexing` deliberately does not do this. A sitemap entry that redirects is a
+ * fact about the request, and collapsing it would erase the finding.
+ */
 function withFacts(pages: readonly PageRecord[]): PageRecord[] {
-  return pages.filter((page) => page.http_status === 200 && page.page_facts !== null);
+  return dedupeByUrl(pages.filter((page) => page.http_status === 200 && page.page_facts !== null));
 }
 
 /** One finding for the site, listing a sample of the pages behind it. */
@@ -55,6 +69,8 @@ function siteFinding(options: {
     subject: { kind: 'site', id: 'page' },
     summary: options.summary,
     expected: options.expected,
+    // One row per URL. Several requests can land on one page, and listing the
+    // same URL twice reads as a bug in the tool rather than a fact about the site.
     observed: options.pages.slice(0, 10).map((page) => ({
       value: options.describe === undefined ? page.canonical_url : options.describe(page),
       observation_count: 1,

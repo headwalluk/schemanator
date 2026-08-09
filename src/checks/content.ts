@@ -22,11 +22,13 @@
  */
 
 import type { PageRecord } from '../store/workdir.ts';
+import { dedupeByUrl } from './indexing.ts';
 import { findingId, type Check } from './framework.ts';
 
 /** Pages we can say anything about: fetched, extracted, and carrying facts. */
+/** Fetched, extracted, and one record per destination URL. See `page.ts`. */
 function withFacts(pages: readonly PageRecord[]): PageRecord[] {
-  return pages.filter((page) => page.http_status === 200 && page.page_facts !== null);
+  return dedupeByUrl(pages.filter((page) => page.http_status === 200 && page.page_facts !== null));
 }
 
 /**
@@ -86,17 +88,19 @@ const notExtractable: Check = {
           `document's structure just does not point at them. The usual cause is a body wrapped in a ` +
           `plain \`<div>\` while \`<article>\` is used for something else, such as related-post cards.`,
         expected: 'The page body inside <main> or <article>.',
-        observed: affected.slice(0, 10).map((page) => {
-          const text = page.page_facts?.text;
-          return {
-            value:
-              `${page.canonical_url} — landmarks hold ${text?.main_words ?? 0} of ` +
-              `${text?.extractable_words ?? 0} words`,
-            observation_count: 1,
-            page_count: 1,
-            provenance: [],
-          };
-        }),
+        observed: dedupeByUrl(affected)
+          .slice(0, 10)
+          .map((page) => {
+            const text = page.page_facts?.text;
+            return {
+              value:
+                `${page.canonical_url} — landmarks hold ${text?.main_words ?? 0} of ` +
+                `${text?.extractable_words ?? 0} words`,
+              observation_count: 1,
+              page_count: 1,
+              provenance: [],
+            };
+          }),
         pages_affected: affected.length,
         coverage_qualified: false,
         remediation:
@@ -149,12 +153,14 @@ const noLandmark: Check = {
           `Nothing is broken, and a person reading the site sees no difference. This is about what ` +
           `a machine can be *sure* of.`,
         expected: 'A <main> element wrapping the page body.',
-        observed: bare.slice(0, 5).map((page) => ({
-          value: page.canonical_url,
-          observation_count: 1,
-          page_count: 1,
-          provenance: [],
-        })),
+        observed: dedupeByUrl(bare)
+          .slice(0, 5)
+          .map((page) => ({
+            value: page.canonical_url,
+            observation_count: 1,
+            page_count: 1,
+            provenance: [],
+          })),
         pages_affected: bare.length,
         coverage_qualified: false,
         remediation:
@@ -175,7 +181,19 @@ const mainInAside: Check = {
     const affected = withFacts(pages).filter((page) => {
       const text = page.page_facts?.text;
       if (text === undefined) return false;
-      return text.aside_words >= MIN_WORDS_FOR_RATIO && text.aside_words > text.main_words;
+      // The claim is "this page's substance is in an aside", so the page must
+      // have substance. Without this it fired on 8 utility pages of one site
+      // with 9-32 words of content apiece, where any sidebar exceeds the body —
+      // and the advice was wrong twice over, because those pages should not have
+      // been in the sitemap at all. `indexing.thin-sitemap-entry` says so.
+      //
+      // Exactly the flaw fixed in `content.hidden-text`, not carried across to
+      // its sibling at the time.
+      return (
+        text.aside_words >= MIN_WORDS_FOR_RATIO &&
+        text.extractable_words >= MIN_WORDS_FOR_RATIO &&
+        text.aside_words > text.main_words
+      );
     });
     if (affected.length === 0) return [];
 
@@ -193,15 +211,17 @@ const mainInAside: Check = {
           `secondary and commonly drop it, so if that is where the page's substance lives, the ` +
           `substance is what gets dropped.`,
         expected: 'The page body in <main>, with <aside> for genuinely secondary material.',
-        observed: affected.slice(0, 10).map((page) => {
-          const text = page.page_facts?.text;
-          return {
-            value: `${page.canonical_url} — aside ${text?.aside_words ?? 0} words, main ${text?.main_words ?? 0}`,
-            observation_count: 1,
-            page_count: 1,
-            provenance: [],
-          };
-        }),
+        observed: dedupeByUrl(affected)
+          .slice(0, 10)
+          .map((page) => {
+            const text = page.page_facts?.text;
+            return {
+              value: `${page.canonical_url} — aside ${text?.aside_words ?? 0} words, main ${text?.main_words ?? 0}`,
+              observation_count: 1,
+              page_count: 1,
+              provenance: [],
+            };
+          }),
         pages_affected: affected.length,
         coverage_qualified: false,
         remediation: 'Move the body into <main>, and keep <aside> for sidebars and related links.',
@@ -256,12 +276,14 @@ const javascriptOnly: Check = {
           `agents are and what Google's first indexing pass is. Anything only assembled in a browser ` +
           `is invisible to them, and to this report.`,
         expected: 'The page content present in the HTML as served.',
-        observed: affected.slice(0, 10).map((page) => ({
-          value: `${page.canonical_url} — ${Math.round(page.bytes / 1024)} KB, ${page.page_facts?.text.dom_words ?? 0} words`,
-          observation_count: 1,
-          page_count: 1,
-          provenance: [],
-        })),
+        observed: dedupeByUrl(affected)
+          .slice(0, 10)
+          .map((page) => ({
+            value: `${page.canonical_url} — ${Math.round(page.bytes / 1024)} KB, ${page.page_facts?.text.dom_words ?? 0} words`,
+            observation_count: 1,
+            page_count: 1,
+            provenance: [],
+          })),
         pages_affected: affected.length,
         coverage_qualified: false,
         remediation:
@@ -317,15 +339,17 @@ const hiddenText: Check = {
           `whose substance is concealed from anything that honours those attributes, which includes ` +
           `screen readers and most text extractors.`,
         expected: 'The page substance visible without interaction.',
-        observed: affected.slice(0, 10).map((page) => {
-          const text = page.page_facts?.text;
-          return {
-            value: `${page.canonical_url} — ${text?.hidden_words ?? 0} hidden, ${text?.extractable_words ?? 0} visible`,
-            observation_count: 1,
-            page_count: 1,
-            provenance: [],
-          };
-        }),
+        observed: dedupeByUrl(affected)
+          .slice(0, 10)
+          .map((page) => {
+            const text = page.page_facts?.text;
+            return {
+              value: `${page.canonical_url} — ${text?.hidden_words ?? 0} hidden, ${text?.extractable_words ?? 0} visible`,
+              observation_count: 1,
+              page_count: 1,
+              provenance: [],
+            };
+          }),
         pages_affected: affected.length,
         coverage_qualified: false,
         remediation:
