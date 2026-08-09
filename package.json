@@ -32,6 +32,8 @@
     "schemanator": "node src/cli.ts",
     "crawl": "node src/cli.ts crawl",
     "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "refresh-schema": "node tools/fetch-schema-hierarchy.ts",
@@ -46,6 +48,9 @@
   "devDependencies": {
     "@types/jsonld": "^1.5.15",
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
+    "eslint": "^10.8.1",
+    "prettier": "^3.9.6",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.66.0"
   }
 }
