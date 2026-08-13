@@ -1022,6 +1022,23 @@ function aggregate(findings: readonly Finding[]): Finding[] {
         first.remediation === null
           ? null
           : `${first.remediation} Apply this to each of the ${group.length} subjects listed above.`,
+      /**
+       * Every constituent's trade-off, not the first one's.
+       *
+       * `...first` spreads the first finding's, which was harmless while a
+       * whole check shared one trade-off and became wrong the moment they were
+       * attached to properties instead: an `Offer` aggregate led by
+       * `availability` — which has none — would silently drop the warning that
+       * a stale `priceValidUntil` invalidates the offer. That is advice
+       * disappearing because of the order a Map happened to iterate in.
+       *
+       * Distinct texts only. Constituents commonly share one, and printing it
+       * twice reads as a fault in the report.
+       */
+      tradeoff:
+        [...new Set(group.map((finding) => finding.tradeoff).filter((text) => text !== null))].join(
+          '\n\n',
+        ) || null,
       ...(first.pattern === undefined ? {} : { pattern: first.pattern }),
     });
 

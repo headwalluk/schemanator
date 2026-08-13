@@ -63,6 +63,15 @@ export interface GoogleTypeRule {
   /** Required unless something else in the graph points at this node. */
   requiredUnlessReferenced: string[];
   recommended: string[];
+  /**
+   * Recommended fields where any one satisfies the set.
+   *
+   * Our judgement rather than Google's, and the data file says so: Google lists
+   * `aggregateRating` and `review` as two recommendations, which reported as two
+   * findings over the same nodes and the same pages, asking one question — does
+   * this site hold review data at all. One decision is one finding (rule 5).
+   */
+  recommendedOneOf: string[][];
   /** Properties walked to reach nested types that carry their own rules. */
   follow: string[];
 }
@@ -71,6 +80,14 @@ export interface GoogleRules {
   schemaVersion: number;
   retrieved: string;
   types: Map<string, GoogleTypeRule>;
+  /**
+   * Trade-off prose keyed by property, because a trade-off belongs to the field
+   * and not to the check that noticed it missing. Hung on the check, the note
+   * about invented ratings printed under `priceValidUntil` and under
+   * `openingHoursSpecification`, where it is nonsense — and boilerplate in the
+   * place where a warning matters is what stops it being read (`dev-notes/10`).
+   */
+  tradeoffs: Map<string, string>;
 }
 
 interface RawTypeRule {
@@ -80,6 +97,7 @@ interface RawTypeRule {
   one_of?: unknown;
   required_unless_referenced?: unknown;
   recommended?: unknown;
+  recommended_one_of?: unknown;
   follow?: unknown;
 }
 
@@ -91,6 +109,19 @@ function stringArray(value: unknown, context: string): string[] {
   return value as string[];
 }
 
+/** `one_of` and `recommended_one_of` share a shape, and both are worthless with one member. */
+function alternativeSets(value: unknown, context: string): string[][] {
+  const sets = value ?? [];
+  if (!Array.isArray(sets)) throw new Error(`${context} must be an array`);
+  return sets.map((set, index) => {
+    const parsed = stringArray(set, `${context}[${index}]`);
+    if (parsed.length < 2) {
+      throw new Error(`${context}[${index}] needs at least two alternatives`);
+    }
+    return parsed;
+  });
+}
+
 /**
  * Parse and validate. Strict and throwing, for the reason `cardinality.ts`
  * gives: a typo that silently degraded this to "no type has any requirement"
@@ -98,7 +129,12 @@ function stringArray(value: unknown, context: string): string[] {
  * available to a tool whose output people act on.
  */
 export function parseGoogleRules(json: string, source = '<inline>'): GoogleRules {
-  let raw: { schema_version?: unknown; retrieved?: unknown; types?: Record<string, RawTypeRule> };
+  let raw: {
+    schema_version?: unknown;
+    retrieved?: unknown;
+    tradeoffs?: unknown;
+    types?: Record<string, RawTypeRule>;
+  };
   try {
     raw = JSON.parse(json) as typeof raw;
   } catch (error) {
@@ -125,15 +161,24 @@ export function parseGoogleRules(json: string, source = '<inline>'): GoogleRules
       );
     }
 
-    const oneOfRaw = entry.one_of ?? [];
-    if (!Array.isArray(oneOfRaw)) throw new Error(`${source}: ${name}.one_of must be an array`);
-    const oneOf = oneOfRaw.map((set, index) => {
-      const parsed = stringArray(set, `${source}: ${name}.one_of[${index}]`);
-      if (parsed.length < 2) {
-        throw new Error(`${source}: ${name}.one_of[${index}] needs at least two alternatives`);
-      }
-      return parsed;
-    });
+    const oneOf = alternativeSets(entry.one_of, `${source}: ${name}.one_of`);
+    const recommendedOneOf = alternativeSets(
+      entry.recommended_one_of,
+      `${source}: ${name}.recommended_one_of`,
+    );
+    const recommended = stringArray(entry.recommended, `${source}: ${name}.recommended`);
+
+    // A property in both lists is reported twice — once alone and once inside
+    // its set — which is the duplication `recommended_one_of` exists to remove.
+    // Easy to leave behind when moving a field into a set, and invisible in the
+    // output until somebody counts the findings.
+    const both = recommendedOneOf.flat().filter((field) => recommended.includes(field));
+    if (both.length > 0) {
+      throw new Error(
+        `${source}: ${name} lists ${both.join(', ')} in both "recommended" and ` +
+          `"recommended_one_of" — it would be reported twice`,
+      );
+    }
 
     types.set(name, {
       entry: entry.entry,
@@ -144,17 +189,36 @@ export function parseGoogleRules(json: string, source = '<inline>'): GoogleRules
         entry.required_unless_referenced,
         `${source}: ${name}.required_unless_referenced`,
       ),
-      recommended: stringArray(entry.recommended, `${source}: ${name}.recommended`),
+      recommended,
+      recommendedOneOf,
       follow: stringArray(entry.follow, `${source}: ${name}.follow`),
     });
   }
 
   if (types.size === 0) throw new Error(`${source}: "types" is empty`);
 
+  const tradeoffs = new Map<string, string>();
+  if (raw.tradeoffs !== undefined) {
+    if (
+      typeof raw.tradeoffs !== 'object' ||
+      raw.tradeoffs === null ||
+      Array.isArray(raw.tradeoffs)
+    ) {
+      throw new Error(`${source}: "tradeoffs" must be an object keyed by property name`);
+    }
+    for (const [property, text] of Object.entries(raw.tradeoffs)) {
+      if (typeof text !== 'string' || text.trim() === '') {
+        throw new Error(`${source}: tradeoffs.${property} must be a non-empty string`);
+      }
+      tradeoffs.set(property, text);
+    }
+  }
+
   return {
     schemaVersion: raw.schema_version,
     retrieved: typeof raw.retrieved === 'string' ? raw.retrieved : 'unknown',
     types,
+    tradeoffs,
   };
 }
 
@@ -250,13 +314,15 @@ export function ruleFor(
 
 // --- the walk ----------------------------------------------------------------
 
-type GapKind = 'required' | 'one-of' | 'recommended';
+type GapKind = 'required' | 'one-of' | 'recommended' | 'recommended-one-of';
 
 interface Gap {
   kind: GapKind;
   typeName: string;
-  /** Display form. For `one-of`, the alternatives joined. */
+  /** Display form, and the grouping key. For a set, the alternatives joined. */
   field: string;
+  /** The individual properties behind `field`. One entry unless this is a set. */
+  fields: string[];
   source: string;
   node: ExtractedNode;
 }
@@ -283,7 +349,14 @@ function collectGaps(context: CheckContext): Gap[] {
 
     for (const field of rule.required) {
       if (!isPresent(node, field, graph)) {
-        gaps.push({ kind: 'required', typeName, field, source: rule.source, node });
+        gaps.push({
+          kind: 'required',
+          typeName,
+          field,
+          fields: [field],
+          source: rule.source,
+          node,
+        });
       }
     }
 
@@ -294,24 +367,44 @@ function collectGaps(context: CheckContext): Gap[] {
     for (const field of rule.requiredUnlessReferenced) {
       if (graph.referencedAnywhere.has(node.node_id)) continue;
       if (!isPresent(node, field, graph)) {
-        gaps.push({ kind: 'required', typeName, field, source: rule.source, node });
+        gaps.push({
+          kind: 'required',
+          typeName,
+          field,
+          fields: [field],
+          source: rule.source,
+          node,
+        });
       }
     }
 
-    for (const alternatives of rule.oneOf) {
-      if (alternatives.some((field) => isPresent(node, field, graph))) continue;
-      gaps.push({
-        kind: 'one-of',
-        typeName,
-        field: alternatives.join(', '),
-        source: rule.source,
-        node,
-      });
+    for (const [kind, sets] of [
+      ['one-of', rule.oneOf],
+      ['recommended-one-of', rule.recommendedOneOf],
+    ] as const) {
+      for (const alternatives of sets) {
+        if (alternatives.some((field) => isPresent(node, field, graph))) continue;
+        gaps.push({
+          kind,
+          typeName,
+          field: alternatives.join(', '),
+          fields: alternatives,
+          source: rule.source,
+          node,
+        });
+      }
     }
 
     for (const field of rule.recommended) {
       if (!isPresent(node, field, graph)) {
-        gaps.push({ kind: 'recommended', typeName, field, source: rule.source, node });
+        gaps.push({
+          kind: 'recommended',
+          typeName,
+          field,
+          fields: [field],
+          source: rule.source,
+          node,
+        });
       }
     }
 
@@ -356,7 +449,28 @@ interface Wording {
   remediation: (typeName: string, field: string, source: string) => string;
   aggregateTitle: (typeName: string) => string;
   pattern: (typeName: string) => string;
-  tradeoff: string | null;
+}
+
+/**
+ * The trade-offs owed to the properties this finding is about.
+ *
+ * Distinct texts only, and in the file's own order: a set whose members share
+ * one trade-off — which `aggregateRating` and `review` do — must print it once,
+ * not twice.
+ */
+function tradeoffFor(fields: readonly string[], rules: GoogleRules): string | null {
+  const texts: string[] = [];
+  for (const field of fields) {
+    const text = rules.tradeoffs.get(field);
+    if (text !== undefined && !texts.includes(text)) texts.push(text);
+  }
+  return texts.length === 0 ? null : texts.join('\n\n');
+}
+
+/** "a and b" reads better than "a, b" in a sentence, and this is prose. */
+function inWords(fields: readonly string[]): string {
+  if (fields.length < 2) return fields.join('');
+  return `${fields.slice(0, -1).join(', ')} and ${fields[fields.length - 1]}`;
 }
 
 function buildFindings(
@@ -403,26 +517,45 @@ function buildFindings(
           // Several blank nodes on one page collapse to one URL, so the same
           // line would otherwise repeat. One row per distinct subject; the
           // count says how many nodes are behind it.
-          const rows = new Map<string, { node: ExtractedNode; count: number }>();
+          //
+          // **A row spans pages, and must say how many.** A sitewide `@id`
+          // collapses to one row carrying every observation of it — 53 of them
+          // on a corpus site — and `page_count` was hardcoded to 1, so the
+          // report read "53 nodes — on 1 page(s)" directly beneath "Pages
+          // affected: 53". A reader believed the row over the heading and
+          // published a wrong diagnosis from it, which is the whole cost of a
+          // number that cannot be true (`dev-notes/10`): two nodes on one page
+          // can only be a definition plus a reference, so the count looked like
+          // proof that references were being counted as observations. They are
+          // not — `flatten.ts` refuses to hoist them — and the finding was
+          // right. Only its evidence lied.
+          const rows = new Map<string, { nodes: ExtractedNode[]; pages: Set<string> }>();
           for (const node of nodes) {
             const label = node.node_id.startsWith('_:')
               ? (pageIndex.get(node.page_id)?.canonical_url ?? node.page_id)
               : node.node_id;
-            const seen = rows.get(label);
-            if (seen === undefined) rows.set(label, { node, count: 1 });
-            else seen.count += 1;
+            let row = rows.get(label);
+            if (row === undefined) {
+              row = { nodes: [], pages: new Set() };
+              rows.set(label, row);
+            }
+            row.nodes.push(node);
+            row.pages.add(node.page_id);
           }
           return [...rows.entries()].slice(0, OBSERVED_SAMPLE).map(([label, row]) => ({
-            value: row.count > 1 ? `${label} — ${row.count} nodes` : label,
-            observation_count: row.count,
-            page_count: 1,
-            provenance: provenanceOf([row.node], pageIndex),
+            value: row.nodes.length > 1 ? `${label} — ${row.nodes.length} nodes` : label,
+            observation_count: row.nodes.length,
+            page_count: row.pages.size,
+            // The whole row, so `provenanceOf`'s cap of 3 has something to cap.
+            // Passing one node made a 53-page finding cite a single page, which
+            // is the same failure in a second field.
+            provenance: provenanceOf(row.nodes, pageIndex),
           }));
         })(),
         pages_affected: pageIds.size,
         coverage_qualified: false,
         remediation: wording.remediation(typeName, field, source),
-        tradeoff: wording.tradeoff,
+        tradeoff: tradeoffFor(first.fields, context.google),
         // Collapse within a type, never across: "Product is missing review" and
         // "LocalBusiness is missing image" are two decisions, and merging them
         // would produce an aggregate whose constituents share nothing but this
@@ -473,7 +606,6 @@ const missingRequired: Check = {
         `Emit ${field} on every ${typeName}. Google's requirements: ${source}`,
       pattern: (typeName) => `${typeName} is missing a field Google requires`,
       aggregateTitle: (typeName) => `fields Google requires for ${typeName} are absent`,
-      tradeoff: null,
     }),
 };
 
@@ -492,15 +624,23 @@ const incompleteAlternative: Check = {
         `Add whichever of ${field} the ${typeName} genuinely has. Google's requirements: ${source}`,
       pattern: (typeName) => `${typeName} satisfies none of a required set`,
       aggregateTitle: (typeName) => `required field sets are unsatisfied on ${typeName}`,
-      tradeoff: null,
     }),
 };
 
+/**
+ * The recommended set and the single recommended field are one check.
+ *
+ * Same id, because they are the same problem to the person reading: a rich
+ * result that could be richer. Same `pattern`, so a type missing several of
+ * them still collapses to one aggregate. Only the wording differs, and it has
+ * to — "omits X" and "has neither X nor Y" are different sentences, and reusing
+ * the required set's "has none of" at opportunity severity would overstate it.
+ */
 const missingRecommended: Check = {
   id: CHECK.missingRecommended,
   group: GROUP,
-  run: (context) =>
-    buildFindings(context, 'recommended', CHECK.missingRecommended, 'opportunity', {
+  run: (context) => [
+    ...buildFindings(context, 'recommended', CHECK.missingRecommended, 'opportunity', {
       title: (typeName, field) => `${typeName} omits ${field}, which Google recommends`,
       summary: (typeName, field, nodes, pages) =>
         `${nodes} ${typeName} node(s) across ${pages} page(s) carry no ${field}. Nothing is broken ` +
@@ -512,12 +652,29 @@ const missingRecommended: Check = {
         `Add ${field} where the ${typeName} genuinely has one. Google's recommendations: ${source}`,
       pattern: (typeName) => `${typeName} is missing a field Google recommends`,
       aggregateTitle: (typeName) => `fields Google recommends for ${typeName} are absent`,
-      tradeoff:
-        'Only add these where the underlying fact exists. Ratings nobody gave and reviews nobody ' +
-        'wrote are a guidelines violation and risk a manual action, and a business reviewing itself ' +
-        'is ineligible for the star treatment however the markup is written. This check reports an ' +
-        'absence; it cannot tell whether you have anything true to put there.',
     }),
+    ...buildFindings(context, 'recommended-one-of', CHECK.missingRecommended, 'opportunity', {
+      title: (typeName, field) => {
+        const fields = field.split(', ');
+        return fields.length === 2
+          ? `${typeName} has neither ${fields[0]} nor ${fields[1]}`
+          : `${typeName} has none of ${field}`;
+      },
+      summary: (typeName, field, nodes, pages) =>
+        `${nodes} ${typeName} node(s) across ${pages} page(s) carry none of ${inWords(field.split(', '))}. ` +
+        `Google recommends them separately, and this tool reports them together, because either one ` +
+        `answers the same question — does this site hold review data at all — and the fix is one ` +
+        `decision rather than two. Nothing is broken and the rich result can still appear. ` +
+        `${SEARCH_CONSOLE_NOTE}`,
+      expected: (typeName, field) =>
+        `At least one of ${field} on every ${typeName} that has one to give.`,
+      remediation: (typeName, field, source) =>
+        `Add whichever of ${field} the ${typeName} genuinely has — either satisfies this. ` +
+        `Google's recommendations: ${source}`,
+      pattern: (typeName) => `${typeName} is missing a field Google recommends`,
+      aggregateTitle: (typeName) => `fields Google recommends for ${typeName} are absent`,
+    }),
+  ],
 };
 
 export const GOOGLE_CHECKS: Check[] = [missingRequired, incompleteAlternative, missingRecommended];

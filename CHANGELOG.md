@@ -2,6 +2,87 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## Unreleased
+
+What a field report found. 1.11.1 was run against a real site by somebody using
+it to check their own work rather than to test the tool, and the nine
+observations that came back are being worked through here.
+
+**The first read-through to find output that was wrong rather than merely
+unconvincing.** The three before it each found a reader being invited to distrust
+a correct finding. This one found a number that could not be true, in a field
+consumers are told to rely on — and because the finding above it *was* right, the
+reader trusted the number and reasoned to a wrong conclusion from it.
+
+### Fixed
+
+- **`observed[].page_count` was hardcoded to 1 on every `google` finding.** A
+  defect on 53 pages reported `53 nodes — on 1 page(s)`, directly beneath a
+  heading reading *"Pages affected: 53"*. Rows that aggregate one `@id` across a
+  site now count the pages they actually span, and the provenance beneath them
+  spends its three examples on distinct pages instead of citing one page for a
+  sitewide problem.
+
+  Worth stating plainly, because it is the cost of the bug rather than the bug:
+  two nodes on one page can only be a definition plus a reference, so the number
+  read as proof that bare `@id` references were being counted as observations.
+  They are not, and never have been — extraction refuses to hoist them. The
+  finding was right; only its evidence lied.
+
+- **The same class, guarded rather than patched.** A new catalogue-wide test
+  asserts that no observed row may claim more pages than the finding containing
+  it, or contradict its own provenance. It found a second instance on its first
+  run — aggregate rows use `observation_count` to mean "one constituent finding"
+  — which is recorded as a known exemption with its reason, and fixed when the
+  work it depends on lands rather than papered over now.
+
+- **A trade-off now belongs to the property, not to the check that noticed it.**
+  The warning about inventing ratings and reviews was attached to
+  `google.missing-recommended` as a whole, so it printed verbatim under *"Offer
+  omits priceValidUntil"* and *"LocalBusiness omits openingHoursSpecification"*,
+  where it means nothing. It was three of four findings on one real site.
+  Boilerplate in the place where a warning matters is what stops it being read.
+
+  `priceValidUntil` gains one of its own, and it is the more useful advice there:
+  a **wrong** date is worse than none, because once it is in the past the offer
+  can be treated as expired.
+
+- **An aggregate keeps every constituent's trade-off.** It inherited the first
+  one's, which was invisible while a whole check shared a single trade-off and
+  became wrong the moment they varied by property.
+
+### Changed
+
+- **`aggregateRating` and `review` are reported as one opportunity.** They were
+  two findings over the same nodes, the same pages, asking one question: does
+  this site hold review data at all. Google lists them as two recommendations
+  and this tool now reports them as one decision — *"Product has neither
+  aggregateRating nor review"*. The required-set wording, "has none of", is
+  deliberately not reused: it sounds like an obligation, and this is not one.
+
+  Expect **fewer findings on most sites and one more on a few**. Where the pair
+  collapsing drops a type below the aggregation threshold, an aggregate titled
+  *"3 fields Google recommends for Product are absent"* becomes two findings that
+  each name a real decision. That is more useful, not less.
+
+- **`data/google-rich-results.json` is at `schema_version` 2**, adding
+  `tradeoffs` and `recommended_one_of`. If you ship a modified copy, it needs
+  both keys' shapes; the loader will tell you exactly which type and key is at
+  fault, including if you leave a property in both `recommended` and
+  `recommended_one_of`, which would report it twice.
+
+### Notes for anyone diffing across this release
+
+`--since` compares observed rows by value and page count, so **the first diff
+across this release will report every `google` finding as changed** when nothing
+about the site has moved. That is this fix landing, not a regression. Subsequent
+runs compare normally.
+
+Findings are matched by id, and an id names the question asked. Merging
+`aggregateRating` and `review` into one question therefore asks a new one, so
+that first diff also shows **two resolved and one appeared** where the pair used
+to be. Nothing has been fixed and nothing has broken.
+
 ## 1.11.1 — 2026-08-09
 
 Documentation accuracy pass. No behaviour change; `docs/` ships in the package,

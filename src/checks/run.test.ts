@@ -763,3 +763,57 @@ test('an aggregate does not inherit advice written for one subject', () => {
   // The explanation is kept, but framed as an example rather than the whole job.
   assert.match(empty?.summary ?? '', /Taking the first as an example/);
 });
+
+test('an aggregate keeps every trade-off, not the first one it saw', () => {
+  // `...first` spreads the leading constituent's fields, which was harmless
+  // while one check shared one trade-off and became wrong once trade-offs were
+  // attached to properties. An Offer aggregate led by a property with none
+  // would drop the warning that a stale priceValidUntil invalidates the offer —
+  // advice vanishing because of the order a Map iterated in.
+  const product = node({
+    id: 'https://example.com/#p',
+    page: 'a',
+    types: [S('Product')],
+    props: {
+      [S('name')]: value('X'),
+      [S('image')]: ref('https://example.com/i.jpg'),
+      [S('offers')]: ref('https://example.com/#o'),
+      [S('review')]: ref('https://example.com/#r'),
+    },
+  });
+  // An Offer missing all three recommended fields: availability and
+  // priceCurrency carry no trade-off, priceValidUntil carries one.
+  const offer = node({
+    id: 'https://example.com/#o',
+    page: 'a',
+    types: [S('Offer')],
+    props: { [S('price')]: value('1') },
+  });
+  const review = node({
+    id: 'https://example.com/#r',
+    page: 'a',
+    types: [S('Review')],
+    props: {
+      [S('author')]: ref('https://example.com/#person'),
+      [S('reviewRating')]: ref('https://example.com/#rating'),
+      [S('datePublished')]: value('2026-01-01'),
+    },
+  });
+
+  // The helper disables `google` by default; this is the one test that wants it.
+  const { findings } = run(
+    [product, offer, review],
+    [page('a'), page('b')],
+    ['coverage.missing-expected-entity'],
+  );
+  const aggregate = findings.find(
+    (finding) => finding.check === 'google.missing-recommended' && finding.instance_count === 3,
+  );
+
+  assert.notEqual(aggregate, undefined, 'three Offer recommendations should collapse');
+  assert.match(
+    aggregate?.tradeoff ?? '',
+    /worse than no date/,
+    'the one constituent with a trade-off must not lose it to the two without',
+  );
+});

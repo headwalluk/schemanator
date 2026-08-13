@@ -133,10 +133,24 @@ function completeProduct(overrides: Record<string, unknown[]> = {}): ExtractedNo
 
 test('the shipped rules file loads and validates', () => {
   const rules = loadGoogleRules();
-  assert.equal(rules.schemaVersion, 1);
+  assert.equal(rules.schemaVersion, 2);
   assert.equal(rules.types.has('Product'), true);
   assert.equal(rules.types.has('LocalBusiness'), true);
   assert.equal(rules.types.has('Event'), true);
+});
+
+test('trade-offs are attached to properties, not to a check', () => {
+  // Hung on the check, the note about invented ratings printed under
+  // `priceValidUntil` and `openingHoursSpecification` — three of four findings
+  // on one real site, two of them nonsense. `dev-notes/10`.
+  const rules = loadGoogleRules();
+  assert.match(rules.tradeoffs.get('aggregateRating') ?? '', /guidelines/);
+  assert.match(rules.tradeoffs.get('review') ?? '', /guidelines/);
+  assert.equal(
+    rules.tradeoffs.has('openingHoursSpecification'),
+    false,
+    'a property with no trade-off must carry none, rather than inheriting one',
+  );
 });
 
 test('every rule cites the Google page it came from', () => {
@@ -170,6 +184,40 @@ test('the parser rejects a rules file it cannot trust', () => {
         '{"schema_version":1,"types":{"Product":{"entry":true,"source":"https://x","one_of":[["name"]]}}}',
       ),
     /at least two/,
+  );
+  // The same rule for the recommended set, which shares the shape.
+  assert.throws(
+    () =>
+      parseGoogleRules(
+        '{"schema_version":2,"types":{"Product":{"entry":true,"source":"https://x","recommended_one_of":[["review"]]}}}',
+      ),
+    /recommended_one_of\[0\] needs at least two/,
+  );
+  // The mistake this file invites: moving a property into a set and leaving the
+  // original behind. It reports twice, and nothing else would notice.
+  assert.throws(
+    () =>
+      parseGoogleRules(
+        '{"schema_version":2,"types":{"Product":{"entry":true,"source":"https://x",' +
+          '"recommended":["review","image"],"recommended_one_of":[["review","aggregateRating"]]}}}',
+      ),
+    /reported twice/,
+  );
+  // Trade-off prose is the one thing here a person reads verbatim, so an empty
+  // string is a silent deletion rather than a visible fault.
+  assert.throws(
+    () =>
+      parseGoogleRules(
+        '{"schema_version":2,"tradeoffs":{"review":""},"types":{"Product":{"entry":true,"source":"https://x"}}}',
+      ),
+    /tradeoffs\.review/,
+  );
+  assert.throws(
+    () =>
+      parseGoogleRules(
+        '{"schema_version":2,"tradeoffs":["review"],"types":{"Product":{"entry":true,"source":"https://x"}}}',
+      ),
+    /keyed by property name/,
   );
 });
 
@@ -398,9 +446,119 @@ test('the recommended check states the trade-off it cannot resolve', () => {
     }),
   ]);
 
-  const rating = findings.find((finding) => finding.subject.property === 'aggregateRating');
+  const rating = findings.find((finding) => finding.subject.property === 'aggregateRating, review');
   assert.equal(rating?.check, 'google.missing-recommended');
   assert.match(rating?.tradeoff ?? '', /guidelines/);
+
+  // Both members of the set share one trade-off, and it prints once. Two copies
+  // of the same paragraph reads as a bug in the report.
+  assert.equal(rating?.tradeoff?.split('guidelines').length, 2);
+});
+
+test('a recommended set is one finding, and the fabrication note travels with it', () => {
+  // `aggregateRating` and `review` were two findings over the same nodes, the
+  // same pages, and one question: does this site hold review data at all. Rule
+  // 5 — one root cause is one finding.
+  const findings = google([
+    node({
+      id: 'https://example.com/#p',
+      types: [S('Product')],
+      props: {
+        [S('name')]: value('X'),
+        [S('offers')]: ref('https://example.com/#o'),
+        [S('image')]: ref('https://example.com/i.jpg'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#o',
+      types: [S('Offer')],
+      props: {
+        [S('price')]: value('1'),
+        [S('priceCurrency')]: value('GBP'),
+        [S('availability')]: value('InStock'),
+        [S('priceValidUntil')]: value('2027-01-01'),
+      },
+    }),
+  ]);
+
+  const recommended = findings.filter((finding) => finding.check === 'google.missing-recommended');
+  assert.equal(recommended.length, 1, 'one decision, one finding');
+  assert.equal(recommended[0]?.title, 'Product has neither aggregateRating nor review');
+  assert.equal(recommended[0]?.severity, 'opportunity');
+  // Not the required set's wording: "has none of" at opportunity severity reads
+  // as an obligation, and this is not one.
+  assert.equal(recommended[0]?.title.includes('none of'), false);
+});
+
+test('a trade-off belongs to its property and appears nowhere else', () => {
+  // The specific complaint from the field report: "ratings nobody gave and
+  // reviews nobody wrote" printed verbatim under `Offer omits priceValidUntil`,
+  // which has nothing to do with review fabrication, and under
+  // `LocalBusiness omits openingHoursSpecification`, which has less.
+  const findings = google([
+    node({
+      id: 'https://example.com/#p',
+      types: [S('Product')],
+      props: {
+        [S('name')]: value('X'),
+        [S('offers')]: ref('https://example.com/#o'),
+        [S('image')]: ref('https://example.com/i.jpg'),
+        [S('review')]: ref('https://example.com/#r'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#o',
+      types: [S('Offer')],
+      props: {
+        [S('price')]: value('1'),
+        [S('priceCurrency')]: value('GBP'),
+        [S('availability')]: value('InStock'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#r',
+      types: [S('Review')],
+      props: {
+        [S('author')]: ref('https://example.com/#person'),
+        [S('reviewRating')]: ref('https://example.com/#rating'),
+        [S('datePublished')]: value('2026-01-01'),
+      },
+    }),
+  ]);
+
+  const price = findings.find((finding) => finding.subject.property === 'priceValidUntil');
+  assert.notEqual(price, undefined);
+  assert.equal(
+    /ratings nobody gave/.test(price?.tradeoff ?? ''),
+    false,
+    'the fabrication note does not belong to priceValidUntil',
+  );
+  // It has one of its own, and it is the more useful warning here.
+  assert.match(price?.tradeoff ?? '', /worse than no date/);
+});
+
+test('a recommended field with no trade-off carries none', () => {
+  const findings = google([
+    node({
+      id: 'https://example.com/#biz',
+      types: [S('LocalBusiness')],
+      props: {
+        [S('name')]: value('Acme'),
+        [S('address')]: ref('https://example.com/#addr'),
+        [S('telephone')]: value('1'),
+        [S('priceRange')]: value('££'),
+        [S('geo')]: ref('https://example.com/#geo'),
+        [S('url')]: ref('https://example.com/'),
+        [S('image')]: ref('https://example.com/i.jpg'),
+      },
+    }),
+  ]);
+
+  const hours = findings.find(
+    (finding) => finding.subject.property === 'openingHoursSpecification',
+  );
+  assert.notEqual(hours, undefined);
+  assert.equal(hours?.tradeoff, null, 'no trade-off is better than a borrowed one');
 });
 
 test('a Product with none of offers, review or aggregateRating fails the set', () => {
@@ -467,6 +625,8 @@ test('bestRating and worstRating are never reported', () => {
 test('one generator omission across many pages is one finding', () => {
   // Rule 5, and the reason this group survives contact with a real site: 252
   // corpus products omit review, and that is one setting and one fix.
+  // Carries `image` and satisfies the required set through `offers`, so the one
+  // thing missing is the recommended aggregateRating/review pair.
   const nodes = ['a', 'b', 'c', 'd'].map((pageId) =>
     node({
       id: `https://example.com/${pageId}#p`,
@@ -476,7 +636,6 @@ test('one generator omission across many pages is one finding', () => {
         [S('name')]: value('X'),
         [S('offers')]: ref(`https://example.com/${pageId}#o`),
         [S('image')]: ref('https://example.com/i.jpg'),
-        [S('aggregateRating')]: ref(`https://example.com/${pageId}#ar`),
       },
     }),
   );
@@ -493,19 +652,10 @@ test('one generator omission across many pages is one finding', () => {
       },
     }),
   );
-  const ratings = ['a', 'b', 'c', 'd'].map((pageId) =>
-    node({
-      id: `https://example.com/${pageId}#ar`,
-      page: pageId,
-      types: [S('AggregateRating')],
-      props: { [S('ratingValue')]: value('4'), [S('reviewCount')]: value('9') },
-    }),
-  );
-
-  const findings = google([...nodes, ...offers, ...ratings], ['a', 'b', 'c', 'd'].map(page));
+  const findings = google([...nodes, ...offers], ['a', 'b', 'c', 'd'].map(page));
 
   assert.equal(findings.length, 1);
-  assert.equal(findings[0]?.subject.property, 'review');
+  assert.equal(findings[0]?.subject.property, 'aggregateRating, review');
   assert.equal(findings[0]?.pages_affected, 4);
 });
 
@@ -591,6 +741,103 @@ test('findings carry provenance back to the block and pointer', () => {
   assert.equal(provenance?.syntax, 'json-ld');
   assert.equal(provenance?.url, 'https://example.com/a');
   assert.equal(typeof provenance?.pointer, 'string');
+});
+
+test('a sitewide @id reports the pages it spans, not one', () => {
+  // The bug a real reader was misled by. One `@id` published on every page
+  // collapses to a single observed row, and that row said `page_count: 1` while
+  // the finding above it said "Pages affected: 4". Two nodes on one page can
+  // only be a definition plus a reference, so the row read as evidence that
+  // references were being counted — they are not, and the finding was right.
+  // Only its evidence lied. See `dev-notes/10`.
+  // Exactly one recommended field is missing, on purpose: omitting several
+  // would trip `AGGREGATE_THRESHOLD` and this would be testing the aggregate
+  // path instead of the one it means to.
+  const pages = ['a', 'b', 'c', 'd'];
+  const findings = google(
+    pages.map((pageId) =>
+      node({
+        id: 'https://example.com/#biz',
+        page: pageId,
+        types: [S('LocalBusiness')],
+        props: {
+          [S('name')]: value('Acme'),
+          [S('address')]: ref('https://example.com/#addr'),
+          [S('telephone')]: value('1'),
+          [S('priceRange')]: value('££'),
+          [S('geo')]: ref('https://example.com/#geo'),
+          [S('url')]: ref('https://example.com/'),
+          [S('image')]: ref('https://example.com/i.jpg'),
+        },
+      }),
+    ),
+    pages.map(page),
+  );
+
+  const finding = findings.find(
+    (candidate) => candidate.subject.property === 'openingHoursSpecification',
+  );
+  assert.notEqual(finding, undefined, 'the fixture omits exactly this one recommended field');
+  assert.equal(finding?.pages_affected, 4);
+
+  const row = finding?.observed[0];
+  assert.equal(row?.value, 'https://example.com/#biz — 4 nodes');
+  assert.equal(row?.observation_count, 4);
+  assert.equal(row?.page_count, 4, 'the row aggregates four pages and must say so');
+
+  // Provenance capped at 3 by `05`, and it must spend those three on distinct
+  // pages rather than citing one page for a sitewide problem.
+  assert.equal(row?.provenance.length, 3);
+  assert.equal(new Set(row?.provenance.map((entry) => entry.page_id)).size, 3);
+});
+
+test('several blank nodes on one page stay one page', () => {
+  // The other half of the same rule: collapsing is by label, and two anonymous
+  // Offers in one block genuinely are one page. Fixing the count upward must
+  // not push this one up with it.
+  const findings = google([
+    node({
+      id: 'https://example.com/#product',
+      types: [S('Product')],
+      props: {
+        [S('name')]: value('X'),
+        [S('offers')]: [{ '@id': '_:offer-1' }, { '@id': '_:offer-2' }],
+        [S('image')]: ref('https://example.com/i.jpg'),
+        [S('review')]: ref('https://example.com/#r'),
+        [S('aggregateRating')]: ref('https://example.com/#ar'),
+      },
+    }),
+    ...['_:offer-1', '_:offer-2'].map((id) =>
+      node({
+        id,
+        types: [S('Offer')],
+        props: {
+          [S('price')]: value('1'),
+          [S('priceCurrency')]: value('GBP'),
+          [S('availability')]: value('InStock'),
+        },
+      }),
+    ),
+    node({
+      id: 'https://example.com/#r',
+      types: [S('Review')],
+      props: {
+        [S('author')]: ref('https://example.com/#p'),
+        [S('reviewRating')]: ref('https://example.com/#ar'),
+        [S('datePublished')]: value('2026-01-01'),
+      },
+    }),
+    node({
+      id: 'https://example.com/#ar',
+      types: [S('AggregateRating')],
+      props: { [S('ratingValue')]: value('4'), [S('reviewCount')]: value('2') },
+    }),
+  ]);
+
+  const row = findings.find((candidate) => candidate.subject.property === 'priceValidUntil')
+    ?.observed[0];
+  assert.equal(row?.observation_count, 2, 'both blank Offers are behind this row');
+  assert.equal(row?.page_count, 1, 'and both are on the same page');
 });
 
 test('the whole group can be disabled by name', () => {

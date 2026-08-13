@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "retrieved": "2026-08-08",
 
   "_what_this_is": [
@@ -58,13 +58,47 @@
     "coverage.missing-expected-entity already covers logo and sameAs."
   ],
 
+  "_recommended_one_of": [
+    "A set of recommended fields where any one satisfies the rest, reported as a",
+    "single opportunity rather than one per member.",
+    "",
+    "This is OUR judgement, not Google's. Google lists aggregateRating and",
+    "review as two separate recommendations for Product, and a literal reading",
+    "produces two findings — same nodes, same pages, same underlying question,",
+    "which is whether the site holds any review data at all. That is one",
+    "decision and one fix, so rule 5 applies: one root cause is one finding.",
+    "",
+    "Distinct from `one_of`, which is Google's own spelling for a REQUIRED set",
+    "and reports as an error. This reports as an opportunity."
+  ],
+
+  "_tradeoffs": [
+    "Attached to the property, not to the check.",
+    "",
+    "The note about invented ratings is well judged where it applies and was",
+    "hung on google.missing-recommended as a whole, so it printed verbatim under",
+    "`Offer omits priceValidUntil` and under `LocalBusiness omits",
+    "openingHoursSpecification` — three of four findings on one real site, two",
+    "of them nonsense. Boilerplate in the place where the warning matters is",
+    "what stops it being read.",
+    "",
+    "Keyed by property name, and applied wherever that property is reported."
+  ],
+
+  "tradeoffs": {
+    "aggregateRating": "Only add this where the underlying fact exists. Ratings nobody gave and reviews nobody wrote are a guidelines violation and risk a manual action, and a business reviewing itself is ineligible for the star treatment however the markup is written. This check reports an absence; it cannot tell whether you have anything true to put there.",
+    "review": "Only add this where the underlying fact exists. Ratings nobody gave and reviews nobody wrote are a guidelines violation and risk a manual action, and a business reviewing itself is ineligible for the star treatment however the markup is written. This check reports an absence; it cannot tell whether you have anything true to put there.",
+    "priceValidUntil": "A wrong date here is worse than no date at all. Once it is in the past the offer can be treated as expired, and the rich result you were trying to earn is the thing you lose. Emit it only where the price genuinely has an end date, and make sure whatever generates it moves the date forward."
+  },
+
   "types": {
     "Product": {
       "source": "https://developers.google.com/search/docs/appearance/structured-data/product-snippet",
       "entry": true,
       "required": ["name"],
       "one_of": [["offers", "review", "aggregateRating"]],
-      "recommended": ["image", "aggregateRating", "review"],
+      "recommended": ["image"],
+      "recommended_one_of": [["aggregateRating", "review"]],
       "follow": ["offers", "review", "aggregateRating"]
     },
 

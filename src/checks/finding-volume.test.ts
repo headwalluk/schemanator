@@ -190,6 +190,61 @@ test('the fixture actually exercises a broad range of checks', () => {
   );
 });
 
+test('no observed row claims a page count its finding cannot support', () => {
+  // `google.missing-recommended` hardcoded `page_count: 1` on rows that
+  // aggregate a sitewide `@id`, so a finding headed "Pages affected: 53"
+  // carried a row reading "53 nodes — on 1 page(s)". A user read the row,
+  // reasoned correctly from it, and published a wrong diagnosis (`dev-notes/10`).
+  //
+  // Neither of the two passes that were meant to catch this could. A shakedown
+  // asks whether a finding is *right*, and it was; reading as a stranger asks
+  // whether it is *believable*, and it was — that is precisely why it was
+  // believed. The unasked question was whether the numbers agree with each
+  // other, and that one a test can hold.
+  const { nodes, pages } = bigSite();
+  const { findings } = runChecks({ nodes, pages, partialCoverage: false });
+
+  const wrong: string[] = [];
+  for (const finding of findings) {
+    for (const observed of finding.observed) {
+      if (observed.page_count > finding.pages_affected) {
+        wrong.push(
+          `${finding.check}: a row claims ${observed.page_count} page(s) inside a finding ` +
+            `affecting ${finding.pages_affected}`,
+        );
+      }
+      // Asserted only off an aggregate. On an aggregate row `observation_count`
+      // is hardcoded to 1 and means "one constituent finding" rather than one
+      // observation, so a row legitimately reads 1 observation across 1,000
+      // pages. That is a second meaning for one field and it is not defensible
+      // — but the constituent's true total is not recorded anywhere to put
+      // there, because `observed` is capped without saying so. It is fixable
+      // once truncation is counted, and it is tracked as part of that job.
+      if (
+        finding.instance_count === undefined &&
+        observed.page_count > observed.observation_count
+      ) {
+        wrong.push(
+          `${finding.check}: a row spans ${observed.page_count} page(s) on only ` +
+            `${observed.observation_count} observation(s)`,
+        );
+      }
+      // The one that actually shipped: many observations, all silently
+      // attributed to a single page.
+      if (observed.observation_count > 1 && observed.page_count === 1) {
+        const spread = new Set(observed.provenance.map((entry) => entry.page_id));
+        if (spread.size > 1) {
+          wrong.push(
+            `${finding.check}: a row says 1 page but its own provenance names ${spread.size}`,
+          );
+        }
+      }
+    }
+  }
+
+  assert.deepEqual(wrong, [], 'observed counts must agree with the finding they sit inside');
+});
+
 test('every check is registered under a group the sort knows about', () => {
   // Ordering is severity, then group. An unlisted group sorts last, which is a
   // deliberate default rather than a bug — but it should be a decision, so this
