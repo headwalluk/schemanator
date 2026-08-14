@@ -93,6 +93,29 @@ why the count is: a report that grew a row per affected page would scale with th
 site rather than with the problem. Where you need every page, the finding's
 provenance and `pages.jsonl` have them.
 
+### Why the pointer looks like that
+
+```
+/5/http:~1~1schema.org~1offers/0
+```
+
+**The pointer addresses the expanded document, not the one you wrote.** Before
+anything is compared, every block is run through the JSON-LD expansion algorithm
+— the reference implementation, not our own — which resolves `@context`, replaces
+every term with its full IRI, and flattens `@graph` into a top-level array. That
+is what makes two pages comparable when one writes `offers` against schema.org
+and the other writes `schema:offers` against a custom context.
+
+So the pointer is exact and traceable, and it will **not** match a search of your
+own JSON-LD. The compact form you wrote is `/5/offers/0`, and shipping that
+instead would be worse than shipping nothing: expansion also inserts an array
+index at every property — `author` becomes `author/0` — and flattening moves
+nodes out of `@graph`, so a half-compacted pointer would have the wrong indices
+as well as the wrong keys, while looking exactly like something you could paste.
+
+To follow one, read it against the expanded block. `<work-dir>/<site>/pages/<page-id>/raw/`
+holds the verbatim source, and `nodes.jsonl` holds what expansion made of it.
+
 ## The JSON contract
 
 ```jsonc
