@@ -251,3 +251,100 @@ test('a non-200 is never duplicate content', () => {
     [],
   );
 });
+
+// --- indexing.sitemap-duplicate-url / indexing.sitemap-overlap ---------------
+
+const PRODUCTS = 'https://example.com/product-sitemap.xml';
+const PAGES = 'https://example.com/page-sitemap.xml';
+
+const duplicate = (url: string, fromSitemap: string, firstSitemap: string) => ({
+  url,
+  rawUrl: url,
+  fromSitemap,
+  firstSitemap,
+});
+
+const withDuplicates = (duplicates: ReturnType<typeof duplicate>[] | null) =>
+  runChecks({
+    nodes: [],
+    pages: [page({ id: 'a' })],
+    partialCoverage: false,
+    sitemapDuplicates: duplicates,
+  }).findings;
+
+test('a URL listed twice in one sitemap is reported once, against that file', () => {
+  const findings = withDuplicates([
+    duplicate('https://example.com/hosting/', PRODUCTS, PRODUCTS),
+    duplicate('https://example.com/hosting/', PRODUCTS, PRODUCTS),
+  ]).filter((finding) => finding.check === 'indexing.sitemap-duplicate-url');
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.subject.id, PRODUCTS);
+  assert.equal(findings[0]?.observed[0]?.value, 'https://example.com/hosting/');
+  // Two repeats plus the original listing.
+  assert.equal(findings[0]?.observed[0]?.detail, 'listed 3 times');
+});
+
+test('a repeat within a file is not also reported as an overlap between files', () => {
+  // The two checks read one record and must not both fire on one situation —
+  // which is the fault the milestone that produced them was written about.
+  const findings = withDuplicates([
+    duplicate('https://example.com/hosting/', PRODUCTS, PRODUCTS),
+  ]).filter((finding) => finding.check === 'indexing.sitemap-overlap');
+
+  assert.deepEqual(findings, []);
+});
+
+test('a URL in two sitemaps is reported against the pair', () => {
+  const findings = withDuplicates([
+    duplicate('https://example.com/hosting/', PRODUCTS, PAGES),
+    duplicate('https://example.com/email/', PRODUCTS, PAGES),
+  ]).filter((finding) => finding.check === 'indexing.sitemap-overlap');
+
+  assert.equal(findings.length, 1, 'one finding per pair of files, not per URL');
+  assert.equal(findings[0]?.observed.length, 2);
+  assert.match(findings[0]?.title ?? '', /2 URL\(s\) appear in two sitemaps/);
+});
+
+test('which file the crawl read first is not a fact about the site', () => {
+  // The pair is unordered. Keying on (first, second) would report one situation
+  // as two findings whenever discovery happened to interleave the two files.
+  const findings = withDuplicates([
+    duplicate('https://example.com/a/', PRODUCTS, PAGES),
+    duplicate('https://example.com/b/', PAGES, PRODUCTS),
+  ]).filter((finding) => finding.check === 'indexing.sitemap-overlap');
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.observed.length, 2);
+});
+
+test('neither check claims pages are affected by a repetition', () => {
+  // The URL is crawled once however many times it is listed. Billing pages to
+  // it would inflate every count downstream for a fact about a file.
+  const findings = withDuplicates([
+    duplicate('https://example.com/hosting/', PRODUCTS, PRODUCTS),
+    duplicate('https://example.com/email/', PRODUCTS, PAGES),
+  ]).filter((finding) => finding.check.startsWith('indexing.sitemap-'));
+
+  assert.equal(findings.length, 2);
+  for (const finding of findings) assert.equal(finding.pages_affected, 0);
+});
+
+test('a crawl that never measured duplicates reports none, and says nothing', () => {
+  // The trap this nullable exists for: `null` is "not measured", and every
+  // crawl before 1.12.0 is one. Reading it as "none found" would produce a
+  // confident clean result from a measurement nobody took — and unlike the
+  // microdata case, re-running `analyse` cannot fill it in, because
+  // deduplication happens during discovery.
+  assert.deepEqual(
+    withDuplicates(null).filter((finding) => finding.check.startsWith('indexing.sitemap-')),
+    [],
+  );
+});
+
+test('a measured site with no repeats is silent, not empty-handed', () => {
+  assert.deepEqual(
+    withDuplicates([]).filter((finding) => finding.check.startsWith('indexing.sitemap-')),
+    [],
+  );
+});

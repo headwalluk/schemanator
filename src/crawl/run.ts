@@ -57,6 +57,15 @@ export interface CrawlSummary {
   sitemaps: SitemapDiscovery['sitemaps'];
   sitemap_errors: string[];
   dropped_entries: SitemapDiscovery['dropped'];
+  /**
+   * URLs listed more than once across this site's sitemaps.
+   *
+   * **Absent on a crawl older than 1.12.0, and that is not the same as empty.**
+   * The two checks reading it must treat the missing key as *unknown* rather
+   * than as *none* — and unlike `microdata_types`, re-running `analyse` cannot
+   * fill it in, because deduplication happens at discovery. It takes a re-crawl.
+   */
+  duplicate_entries?: SitemapDiscovery['duplicates'];
   host_divergence: SitemapDiscovery['hostDivergence'];
   /** URLs found before robots filtering and the page cap. */
   urls_discovered: number;
@@ -363,6 +372,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     sitemaps: discovery.sitemaps,
     sitemap_errors: discovery.errors,
     dropped_entries: discovery.dropped,
+    duplicate_entries: discovery.duplicates,
     host_divergence: discovery.hostDivergence,
     urls_discovered: discovered,
     urls_disallowed: disallowed,

@@ -36,9 +36,18 @@ import {
   type Finding,
   type Observed,
   type Severity,
+  type SitemapDuplicate,
 } from './framework.ts';
 
-export type { Check, CheckContext, Finding, Observed, Provenance, Severity } from './framework.ts';
+export type {
+  Check,
+  CheckContext,
+  Finding,
+  Observed,
+  Provenance,
+  Severity,
+  SitemapDuplicate,
+} from './framework.ts';
 
 // --- entity.contradiction ----------------------------------------------------
 
@@ -1125,6 +1134,7 @@ export function runChecks(options: {
   robots?: RobotsFile | null;
   /** Sitemaps the crawl found, however it found them. */
   sitemapsFound?: readonly string[];
+  sitemapDuplicates?: readonly SitemapDuplicate[] | null;
 }): RunChecksResult {
   const disabled = new Set(options.disabled ?? []);
   const silenced: Record<string, number> = {};
@@ -1151,6 +1161,10 @@ export function runChecks(options: {
     robots: options.robots ?? null,
     aiCrawlers: loadAiCrawlers(),
     sitemapsFound: options.sitemapsFound ?? [],
+    // Undefined and null both mean "not measured". A caller that has the
+    // measurement passes it; a caller that does not must not be able to
+    // accidentally assert a clean site by omission.
+    sitemapDuplicates: options.sitemapDuplicates ?? null,
     siteHost,
     partialCoverage: options.partialCoverage,
     silenced,

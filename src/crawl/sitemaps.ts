@@ -74,6 +74,32 @@ export interface DroppedEntry {
 }
 
 /**
+ * A URL listed more than once across the sitemaps of one site.
+ *
+ * **Not a `DroppedEntry`.** A dropped entry is a URL that will not be audited at
+ * all — unparseable, or somebody else's host. A repeat is audited exactly once,
+ * which is correct behaviour and must stay correct: the crawler's job is to
+ * fetch a page once however many times the site asks for it.
+ *
+ * It is recorded because the *repetition* is a fact about the site that only the
+ * crawler is in a position to see, and until 1.12.0 nothing did. One real site's
+ * `product-sitemap.xml` held five entries: three identical, one redirecting
+ * away, and one page also listed in `page-sitemap.xml` — so every entry in that
+ * file was either a duplicate or a redirect, and the file was doing nothing.
+ * Discovery deduplicated it into silence (`dev-notes/10`, finding 7).
+ */
+export interface DuplicateEntry {
+  /** Canonicalised, so it names the same page the report will. */
+  url: string;
+  /** Exactly as written where the repeat appeared. */
+  rawUrl: string;
+  /** The sitemap the repeat is in. */
+  fromSitemap: string;
+  /** The sitemap the URL was first seen in. Equal to `fromSitemap` for a repeat within one file. */
+  firstSitemap: string;
+}
+
+/**
  * Kept, but on a different spelling of the host than we were given — the site's
  * own sitemap disagrees with the operator about where it lives. A finding in its
  * own right, per the URL-hygiene checks.
@@ -110,6 +136,8 @@ export interface SitemapDiscovery {
   /** Deduplicated page URLs, in sitemap document order. */
   urls: SitemapEntry[];
   dropped: DroppedEntry[];
+  /** Repeats of a URL already listed. Every one is still crawled exactly once. */
+  duplicates: DuplicateEntry[];
   /** Kept, but on a `www.`/bare variant of the host we were given. */
   hostDivergence: HostDivergence[];
   errors: string[];
@@ -322,6 +350,7 @@ export async function discoverSitemaps(
   const siteHost = new URL(siteOrigin).host;
   const sitemaps: FetchedSitemap[] = [];
   const dropped: DroppedEntry[] = [];
+  const duplicates: DuplicateEntry[] = [];
   const hostDivergence: HostDivergence[] = [];
   const errors: string[] = [];
   /** Insertion-ordered, so the URL list stays in sitemap document order. */
@@ -443,12 +472,24 @@ export async function discoverSitemaps(
               entryHost,
             });
           }
-          if (!urls.has(canonical.url)) {
+          const already = urls.get(canonical.url);
+          if (already === undefined) {
             urls.set(canonical.url, {
               url: canonical.url,
               rawUrl: found.raw,
               lastmod: found.lastmod,
               fromSitemap: item.url,
+            });
+          } else {
+            // Still crawled once — the first listing already queued it. The
+            // repeat is recorded rather than discarded, because two checks are
+            // waiting for it and neither can see anything the crawl did not
+            // write down.
+            duplicates.push({
+              url: canonical.url,
+              rawUrl: found.raw,
+              fromSitemap: item.url,
+              firstSitemap: already.fromSitemap,
             });
           }
         }
@@ -470,5 +511,5 @@ export async function discoverSitemaps(
     sitemaps.push(entry);
   }
 
-  return { sitemaps, urls: [...urls.values()], dropped, hostDivergence, errors };
+  return { sitemaps, urls: [...urls.values()], dropped, duplicates, hostDivergence, errors };
 }

@@ -14,6 +14,7 @@
 
 import { createHash } from 'node:crypto';
 
+import type { DuplicateEntry as SitemapDuplicate } from '../crawl/sitemaps.ts';
 import type { ExtractedNode } from '../extract/types.ts';
 import type { PageRecord } from '../store/workdir.ts';
 import type { CardinalityRules } from './cardinality.ts';
@@ -22,6 +23,8 @@ import type { GoogleRules } from './google.ts';
 import type { AiCrawlers, RobotsFile } from './robots.ts';
 import type { Hierarchy } from './hierarchy.ts';
 import type { ValueHeuristics } from './values.ts';
+
+export type { SitemapDuplicate };
 
 export type Severity = 'error' | 'warning' | 'opportunity';
 
@@ -197,6 +200,18 @@ export interface CheckContext {
   aiCrawlers: AiCrawlers;
   /** Sitemaps the crawl actually found, however it found them. */
   sitemapsFound: readonly string[];
+  /**
+   * URLs listed more than once across the site's sitemaps.
+   *
+   * **Null means the crawl did not record it**, which is every crawl before
+   * 1.12.0 — not "there were none". The distinction is the whole reason this is
+   * nullable: a check that reads a missing measurement as a clean result
+   * produces a confident, empty finding, and `01` is emphatic that this is the
+   * worst outcome available to a tool people act on. Re-running `analyse` does
+   * not help either; deduplication happens during discovery, so it takes a
+   * re-crawl.
+   */
+  sitemapDuplicates: readonly SitemapDuplicate[] | null;
   /** The host being audited. Needed to tell own-domain media from foreign. */
   siteHost: string;
   /** True when the crawl did not cover the whole site. Gates absence claims (rule 3). */

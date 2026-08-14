@@ -11,6 +11,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import { runAnalysis } from '../src/analyse.ts';
 import { runCrawl } from '../src/crawl/run.ts';
 import { MIN_DELAY_MS } from '../src/net/fetcher.ts';
 import { pageIdFor, type PageRecord } from '../src/store/workdir.ts';
@@ -214,6 +215,63 @@ test('deduplicates a URL advertised twice under different spellings', async () =
 
     // /about appears plainly in one sitemap and with ?utm_source in another.
     assert.equal(site.hits.get('/about'), 1, '/about must be fetched exactly once');
+  } finally {
+    await site.close();
+    await fs.rm(workRoot, { recursive: true, force: true });
+  }
+});
+
+test('a repeated sitemap entry is crawled once and recorded twice', async () => {
+  // Both halves matter, and they pull in opposite directions. The crawler must
+  // keep deduplicating — a URL listed three times is one page, and fetching it
+  // three times would be rude as well as wrong — while no longer deduplicating
+  // into silence, which is why no check could see a real site whose product
+  // sitemap was three copies of one URL (`dev-notes/10`, finding 7).
+  const site = await startFixtureSite();
+  const workRoot = await tempWorkRoot();
+  try {
+    const summary = await runCrawl({ startUrl: site.origin, workRoot, ...quiet });
+
+    assert.equal(site.hits.get('/contact'), 1, 'listed twice, and must still be fetched once');
+
+    const duplicates = summary.duplicate_entries ?? [];
+    const within = duplicates.filter((entry) => entry.fromSitemap === entry.firstSitemap);
+    const across = duplicates.filter((entry) => entry.fromSitemap !== entry.firstSitemap);
+
+    assert.deepEqual(
+      within.map((entry) => entry.url),
+      [site.url('/contact')],
+    );
+    // `/about` plainly in sitemap-pages.xml, and again with a tracking
+    // parameter in the gzipped one — the same page by canonical identity.
+    assert.deepEqual(
+      across.map((entry) => entry.url),
+      [site.url('/about')],
+    );
+  } finally {
+    await site.close();
+    await fs.rm(workRoot, { recursive: true, force: true });
+  }
+});
+
+test('and both repetitions reach the report as findings', async () => {
+  // The plumbing between them: crawl-summary.json is written by the crawl and
+  // read by `analyse`, and a check that never receives the measurement is a
+  // check that quietly reports nothing. This is the only path that proves the
+  // two new checks fire on something that actually happened.
+  const site = await startFixtureSite();
+  const workRoot = await tempWorkRoot();
+  try {
+    const summary = await runCrawl({ startUrl: site.origin, workRoot, ...quiet });
+    const { report } = await runAnalysis({ workRoot, siteSlug: summary.site_slug });
+
+    const checks = report.findings.map((finding) => finding.check);
+    assert.equal(checks.includes('indexing.sitemap-duplicate-url'), true);
+    assert.equal(checks.includes('indexing.sitemap-overlap'), true);
+
+    const overlap = report.findings.find((finding) => finding.check === 'indexing.sitemap-overlap');
+    assert.equal(overlap?.observed[0]?.value, site.url('/about'));
+    assert.equal(overlap?.pages_affected, 0, 'a page listed twice is still one page');
   } finally {
     await site.close();
     await fs.rm(workRoot, { recursive: true, force: true });

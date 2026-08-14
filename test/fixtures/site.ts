@@ -10,6 +10,7 @@
  *   - a 429 with `Retry-After` that succeeds on retry
  *   - a sitemap entry that 404s
  *   - a cross-host sitemap entry
+ *   - one URL listed twice inside a sitemap, and another listed in two of them
  *   - a non-HTML entry (PDF) that must be skipped by Content-Type
  *   - a robots.txt `Disallow` covering one sitemap entry
  *
@@ -122,6 +123,10 @@ export async function startFixtureSite(): Promise<TestServer> {
         urlset([
           `${origin(request)}/`,
           `${origin(request)}/about`,
+          `${origin(request)}/contact`,
+          // Listed twice in one file. Crawled once — and since 1.12.0 the
+          // repetition is recorded rather than silently deduplicated, because
+          // it is a fact about the site's generator that nothing else can see.
           `${origin(request)}/contact`,
           // Advertised but excluded by robots.txt.
           `${origin(request)}${FIXTURE_EXCLUDED_PATHS.disallowed}`,

@@ -80,6 +80,29 @@ reader trusted the number and reasoned to a wrong conclusion from it.
   cannot say how much it saw by adding up the ones it kept. It can now, and the
   catalogue-wide invariant holds with no exemptions.
 
+### Added
+
+- **Two checks for sitemaps that repeat themselves.**
+  `indexing.sitemap-duplicate-url` reports one URL listed twice inside a single
+  sitemap; `indexing.sitemap-overlap` reports one URL listed in two sitemaps of
+  an index. Both are opportunities: nothing is broken, and every consumer
+  deduplicates as this crawler does.
+
+  The second is the one that makes a situation legible. A real site's
+  `product-sitemap.xml` held five entries — three copies of one URL, one that
+  redirected away, and one page already listed in `page-sitemap.xml` — so the
+  whole file was doing nothing, and no report could say so.
+
+  **They need a crawl from 1.12.0 onwards.** Deduplication happens while sitemaps
+  are being read, so the repetition was gone before any page record existed;
+  `crawl-summary.json` now carries `duplicate_entries`. On an older crawl both
+  checks stay silent and mean *"not measured"* rather than *"none found"* — and
+  unlike everything else in this tool, re-running `analyse` cannot fill it in. It
+  takes a re-crawl.
+
+  Crawling behaviour has not changed. A URL listed three times is still fetched
+  once, which is the half of this that had to stay exactly as it was.
+
 ### Changed
 
 - **One sample size for the whole catalogue: ten observed rows.** The caps were

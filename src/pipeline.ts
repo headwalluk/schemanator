@@ -61,6 +61,10 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
     partialCoverage: crawl.truncated !== null,
     robots: await readStoredRobots(workDir.crawlDir),
     sitemapsFound: crawl.sitemaps.map((entry) => (typeof entry === 'string' ? entry : entry.url)),
+    // `?? null` rather than `?? []`: a crawl older than 1.12.0 has no
+    // `duplicate_entries` key at all, and reading that absence as "none found"
+    // would let two checks report a clean sitemap they never looked at.
+    sitemapDuplicates: crawl.duplicate_entries ?? null,
     ...(options.disabledChecks === undefined ? {} : { disabled: options.disabledChecks }),
   });
 

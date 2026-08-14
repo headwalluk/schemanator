@@ -99,7 +99,7 @@ src/
   crawl/            Seeding, politeness, frontier, sitemaps, robots
   net/              The fetcher, and nothing else that touches the network
   extract/          HTML -> nodes.jsonl. JSON-LD expansion and flattening
-  checks/           The 52 checks, the framework they share, the entity graph
+  checks/           The 54 checks, the framework they share, the entity graph
   report/           report.json, the markdown renderer, cross-run diffing
   store/            The work directory and its manifest
   url/              Canonicalisation. Load-bearing; see below

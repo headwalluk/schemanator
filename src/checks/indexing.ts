@@ -509,6 +509,156 @@ const thinSitemapEntry: Check = {
   },
 };
 
+// --- indexing.sitemap-duplicate-url ------------------------------------------
+
+/**
+ * How many repeats before a file is worth naming in the title.
+ *
+ * One is the finding. A sitemap does not repeat a URL by accident twice — a
+ * generator either deduplicates or it does not — so there is no threshold to
+ * tune here, and any number above zero is the same generator fault.
+ */
+const DUPLICATE_MINIMUM = 1;
+
+/**
+ * The same URL listed more than once inside one sitemap.
+ *
+ * Nothing breaks: every consumer deduplicates, as this crawler does. It is
+ * reported because it is a **generator fault with a visible cause** — a query
+ * that joins and does not distinct, a term appearing under two taxonomies, a
+ * cache written twice — and because a sitemap is a claim about the shape of the
+ * site. One real site listed the same landing page three times in five entries
+ * (`dev-notes/10`, finding 7).
+ *
+ * `crawl-summary.json` is the only place this is visible, and only since 1.12.0:
+ * discovery deduplicates, so by the time any page record exists the repetition
+ * has already been thrown away.
+ */
+const sitemapDuplicateUrl: Check = {
+  id: 'indexing.sitemap-duplicate-url',
+  group: 'indexing',
+  run({ sitemapDuplicates }) {
+    // Null is "not measured", not "none found" — every crawl before 1.12.0.
+    if (sitemapDuplicates === null) return [];
+
+    const within = sitemapDuplicates.filter((entry) => entry.fromSitemap === entry.firstSitemap);
+    if (within.length < DUPLICATE_MINIMUM) return [];
+
+    const byFile = new Map<string, typeof within>();
+    for (const entry of within) {
+      byFile.set(entry.fromSitemap, [...(byFile.get(entry.fromSitemap) ?? []), entry]);
+    }
+
+    return [...byFile.entries()].map(([sitemap, entries]) => {
+      const distinct = new Set(entries.map((entry) => entry.url));
+      return {
+        finding_id: findingId('indexing.sitemap-duplicate-url', sitemap),
+        check: 'indexing.sitemap-duplicate-url',
+        severity: 'opportunity' as const,
+        origin: 'check' as const,
+        title: `${distinct.size} URL(s) are listed more than once in one sitemap`,
+        subject: { kind: 'site' as const, id: sitemap },
+        summary:
+          `${sitemap} lists ${distinct.size} URL(s) more than once` +
+          // Only where it says something. With one URL repeated once the two
+          // numbers are the same, and "1 URL more than once — 1 repeat entry in
+          // total" is padding that reads as a tool with nothing to say.
+          (entries.length > distinct.size ? `, ${entries.length} repeat entries in total` : '') +
+          `. Every consumer deduplicates, so nothing is broken and no page is ` +
+          `crawled twice because of it. It is worth seeing because a sitemap is generated, and a ` +
+          `generator that emits the same URL twice is usually joining across something it should ` +
+          `be collapsing — a page in two categories, or a query missing a DISTINCT.`,
+        expected: 'Each URL listed once per sitemap.',
+        ...sampleObserved(
+          [...distinct].map((url) => ({
+            value: url,
+            detail: `listed ${entries.filter((entry) => entry.url === url).length + 1} times`,
+            observation_count: entries.filter((entry) => entry.url === url).length + 1,
+            page_count: 0,
+            provenance: [],
+          })),
+        ),
+        // The URL is crawled once, so no page is "affected" by the repetition —
+        // claiming otherwise would double-bill pages this crawl audited once.
+        pages_affected: 0,
+        coverage_qualified: false,
+        remediation:
+          'Deduplicate the sitemap where it is generated. If a plugin produces it, this is usually ' +
+          'a post appearing under two taxonomies that both feed the same file.',
+        tradeoff: null,
+      };
+    });
+  },
+};
+
+// --- indexing.sitemap-overlap ------------------------------------------------
+
+/**
+ * The same URL listed in more than one sitemap of an index.
+ *
+ * The one that made a real site legible. `product-sitemap.xml` held five
+ * entries: three copies of one URL, one URL that redirected away, and one page
+ * that `page-sitemap.xml` already listed — so **every entry in the file was
+ * either a duplicate or a redirect**, and the file was contributing nothing
+ * (`dev-notes/10`, finding 7).
+ *
+ * Reported per pair of files rather than per URL, because the fix is at the file
+ * level: one of the two generators has the wrong query. A per-URL report of the
+ * same situation would have been 200 findings saying one thing.
+ */
+const sitemapOverlap: Check = {
+  id: 'indexing.sitemap-overlap',
+  group: 'indexing',
+  run({ sitemapDuplicates }) {
+    if (sitemapDuplicates === null) return [];
+
+    const across = sitemapDuplicates.filter((entry) => entry.fromSitemap !== entry.firstSitemap);
+    if (across.length === 0) return [];
+
+    // Keyed on the unordered pair: "A also in B" and "B also in A" are one
+    // situation, and which file discovery happened to read first is an accident
+    // of crawl order rather than a fact about the site.
+    const byPair = new Map<string, { files: [string, string]; urls: Set<string> }>();
+    for (const entry of across) {
+      const pair = [entry.firstSitemap, entry.fromSitemap].sort() as [string, string];
+      const key = pair.join('|');
+      const record = byPair.get(key) ?? { files: pair, urls: new Set<string>() };
+      record.urls.add(entry.url);
+      byPair.set(key, record);
+    }
+
+    return [...byPair.values()].map(({ files, urls }) => ({
+      finding_id: findingId('indexing.sitemap-overlap', files.join('|')),
+      check: 'indexing.sitemap-overlap',
+      severity: 'opportunity' as const,
+      origin: 'check' as const,
+      title: `${urls.size} URL(s) appear in two sitemaps`,
+      subject: { kind: 'site' as const, id: files.join(' + ') },
+      summary:
+        `${urls.size} URL(s) are listed in both ${files[0]} and ${files[1]}. An index exists to ` +
+        `divide a site between files, so the same URL in two of them means one generator's idea ` +
+        `of what belongs where is wrong. Worth checking whether the smaller file is contributing ` +
+        `anything at all: one real site had a sitemap whose every entry was either a duplicate of ` +
+        `another file's or a URL that redirected away.`,
+      expected: 'Each URL in exactly one sitemap of an index.',
+      ...sampleObserved(
+        [...urls].map((url) => ({
+          value: url,
+          observation_count: 2,
+          page_count: 0,
+          provenance: [],
+        })),
+      ),
+      pages_affected: 0,
+      coverage_qualified: false,
+      remediation:
+        'Decide which file each URL belongs in and narrow the other generator. Nothing is broken ' +
+        'if you leave it, but an index that overlaps hides how much of it is doing real work.',
+      tradeoff: null,
+    }));
+  },
+};
+
 export const INDEXING_CHECKS: Check[] = [
   thinSitemapEntry,
   sitemapDeadUrl,
@@ -517,4 +667,6 @@ export const INDEXING_CHECKS: Check[] = [
   canonicalToRedirect,
   canonicalChain,
   duplicateContent,
+  sitemapDuplicateUrl,
+  sitemapOverlap,
 ];

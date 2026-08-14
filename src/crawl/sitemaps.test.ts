@@ -351,6 +351,60 @@ test('deduplicates URLs across sitemaps, keeping document order', async () => {
   }
 });
 
+test('records what deduplication swallowed, within a file and across an index', async () => {
+  // Discovery has always deduplicated correctly and silently, so no check could
+  // see a sitemap that repeats itself — one real site listed a landing page
+  // three times in a five-entry file and nothing reported it (`dev-notes/10`).
+  //
+  // Crawling behaviour is unchanged: each URL is still queued exactly once.
+  const server = await startTestServer({
+    '/index.xml': (request) =>
+      xml(
+        sitemapindex([
+          `http://${request.headers.host}/one.xml`,
+          `http://${request.headers.host}/two.xml`,
+        ]),
+      ) as never,
+    '/one.xml': (request) =>
+      xml(
+        urlset([
+          `http://${request.headers.host}/a`,
+          `http://${request.headers.host}/a`,
+          `http://${request.headers.host}/b`,
+        ]),
+      ) as never,
+    '/two.xml': (request) => xml(urlset([`http://${request.headers.host}/b`])) as never,
+  });
+  try {
+    const discovery = await discoverSitemaps(fetcher(), server.origin, {
+      robotsSitemaps: [server.url('/index.xml')],
+    });
+
+    assert.deepEqual(
+      discovery.urls.map((entry) => entry.url),
+      [server.url('/a'), server.url('/b')],
+      'a repeat must still be crawled once — this is a record, not a change of behaviour',
+    );
+
+    assert.deepEqual(
+      discovery.duplicates.map((entry) => ({
+        url: entry.url,
+        within: entry.fromSitemap === entry.firstSitemap,
+      })),
+      [
+        { url: server.url('/a'), within: true },
+        { url: server.url('/b'), within: false },
+      ],
+    );
+
+    // A repeat is not a dropped entry. `dropped` means "will not be audited",
+    // and the crawler's warning line counts it as a loss.
+    assert.deepEqual(discovery.dropped, []);
+  } finally {
+    await server.close();
+  }
+});
+
 test('drops cross-host entries and records why', async () => {
   const server = await startTestServer({
     '/sitemap.xml': (request) =>

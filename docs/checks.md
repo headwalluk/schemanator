@@ -567,6 +567,34 @@ URLs that *redirect* to one page are not duplicates and are not reported here �
 `indexing.sitemap-redirects` covers those, and billing one defect twice helps
 nobody.
 
+### `indexing.sitemap-duplicate-url` — Opportunity
+
+The same URL listed more than once inside one sitemap. Nothing is broken —
+every consumer deduplicates, as this crawler does, and no page is fetched twice
+because of it.
+
+It is worth seeing because a sitemap is generated, and a generator emitting one
+URL twice is usually joining across something it should be collapsing: a post
+that appears under two taxonomies feeding the same file, or a query missing a
+`DISTINCT`.
+
+### `indexing.sitemap-overlap` — Opportunity
+
+The same URL listed in more than one sitemap of an index. An index exists to
+divide a site between files, so a URL in two of them means one generator's idea
+of what belongs where is wrong.
+
+Reported per pair of files rather than per URL, because the fix is at the file
+level. Worth checking whether the smaller file is contributing anything at all:
+one site audited during development had a product sitemap whose every entry was
+either a duplicate of another file's or a URL that redirected away.
+
+> **Both need a crawl from 1.12.0 or later.** Deduplication happens while
+> sitemaps are being read, so a repeat is invisible by the time any page record
+> exists. Older crawls report nothing here — and *nothing* means "not measured",
+> not "none found". Unlike most of this tool, re-running `analyse` cannot fill it
+> in; it takes a re-crawl.
+
 ---
 
 ## `content` — the page was fetched, but can a machine find the content?
