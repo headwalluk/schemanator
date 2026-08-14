@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import type { ExtractedNode } from '../extract/types.ts';
 import type { PageRecord } from '../store/workdir.ts';
-import { runChecks } from './run.ts';
+import { AGGREGATE_SAMPLE, runChecks } from './run.ts';
 
 const S = (name: string): string => `http://schema.org/${name}`;
 
@@ -762,6 +762,33 @@ test('an aggregate does not inherit advice written for one subject', () => {
   assert.match(empty?.remediation ?? '', /Apply this to each of the 3 subjects/);
   // The explanation is kept, but framed as an example rather than the whole job.
   assert.match(empty?.summary ?? '', /Taking the first as an example/);
+});
+
+test('an aggregate that lists ten of its subjects does not claim to list them all', () => {
+  // Two sentences overstated their evidence in the same finding: the summary
+  // said "the individual subjects are listed below" and the remediation said
+  // "each of the 154 subjects listed above", where ten were listed. Both read
+  // perfectly on the five-subject aggregates they were written against.
+  //
+  // Assertable, unlike most prose-scope faults, because the claim is about a
+  // number the code already knows.
+  // One subject per empty property, as the three-property case above does —
+  // `value.empty` collapses by property, so fourteen properties is fourteen
+  // constituents.
+  const props: Record<string, unknown[]> = {};
+  for (let index = 0; index < AGGREGATE_SAMPLE + 4; index += 1) {
+    props[S(`property${index}`)] = value('');
+  }
+  const { findings } = run([
+    node({ id: 'https://example.com/#addr', page: 'a', types: [S('PostalAddress')], props }),
+  ]);
+
+  const empty = findings.find((finding) => finding.check === 'value.empty');
+  assert.equal(empty?.instance_count, AGGREGATE_SAMPLE + 4);
+  assert.equal(empty?.observed.length, AGGREGATE_SAMPLE);
+  assert.equal(empty?.omitted_count, 4, 'the four it dropped must be counted');
+  assert.match(empty?.summary ?? '', new RegExp(`${AGGREGATE_SAMPLE} of them are listed below`));
+  assert.doesNotMatch(empty?.remediation ?? '', /listed above/);
 });
 
 test('an aggregate keeps every trade-off, not the first one it saw', () => {

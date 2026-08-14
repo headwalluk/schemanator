@@ -44,6 +44,7 @@ import {
   findingId,
   indexPagesById,
   provenanceOf,
+  sampleObserved,
   type Check,
   type CheckContext,
   type Finding,
@@ -439,9 +440,6 @@ function gapsFor(context: CheckContext): Gap[] {
 
 // --- turning gaps into findings ----------------------------------------------
 
-/** Instances named in `observed` before the reader has the idea. */
-const OBSERVED_SAMPLE = 5;
-
 interface Wording {
   title: (typeName: string, field: string) => string;
   summary: (typeName: string, field: string, nodes: number, pages: number) => string;
@@ -513,7 +511,7 @@ function buildFindings(
          * provenance beneath already carries the page. So blank nodes show the
          * page they were found on instead.
          */
-        observed: (() => {
+        ...(() => {
           // Several blank nodes on one page collapse to one URL, so the same
           // line would otherwise repeat. One row per distinct subject; the
           // count says how many nodes are behind it.
@@ -542,15 +540,17 @@ function buildFindings(
             row.nodes.push(node);
             row.pages.add(node.page_id);
           }
-          return [...rows.entries()].slice(0, OBSERVED_SAMPLE).map(([label, row]) => ({
-            value: row.nodes.length > 1 ? `${label} — ${row.nodes.length} nodes` : label,
-            observation_count: row.nodes.length,
-            page_count: row.pages.size,
-            // The whole row, so `provenanceOf`'s cap of 3 has something to cap.
-            // Passing one node made a 53-page finding cite a single page, which
-            // is the same failure in a second field.
-            provenance: provenanceOf(row.nodes, pageIndex),
-          }));
+          return sampleObserved(
+            [...rows.entries()].map(([label, row]) => ({
+              value: row.nodes.length > 1 ? `${label} — ${row.nodes.length} nodes` : label,
+              observation_count: row.nodes.length,
+              page_count: row.pages.size,
+              // The whole row, so `provenanceOf`'s cap has something to cap.
+              // Passing one node made a 53-page finding cite a single page,
+              // which is the same failure in a second field.
+              provenance: provenanceOf(row.nodes, pageIndex),
+            })),
+          );
         })(),
         pages_affected: pageIds.size,
         coverage_qualified: false,

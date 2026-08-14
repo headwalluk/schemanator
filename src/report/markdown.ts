@@ -95,6 +95,14 @@ function renderFinding(finding: Finding, index: number): string {
         );
       }
     }
+    // A sample that does not say it is one reads as the whole set. A reader who
+    // took a capped list for a complete one disbelieved a correct summary and
+    // published a wrong diagnosis from it (`dev-notes/10`) — the cap was never
+    // the problem, the silence was.
+    const omitted = finding.omitted_count ?? 0;
+    if (omitted > 0) {
+      lines.push(`- *…and ${omitted} more, not listed here or in report.json.*`);
+    }
   }
 
   if (finding.coverage_qualified) {

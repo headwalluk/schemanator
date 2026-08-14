@@ -40,6 +40,61 @@ export interface Observed {
   provenance: Provenance[];
 }
 
+/**
+ * How many `observed` rows a finding lists before it stops.
+ *
+ * **One number, everywhere, on purpose.** Until 1.12.0 the catalogue capped
+ * `observed` at 3, 5, 8, 10 and 15 across some two dozen call sites, every one a
+ * bare literal. Asked why any of them was what it was, no answer survived: the
+ * files written first say 5, the files written later say 10, and `indexing`'s 15
+ * is the one place somebody wanted a working list rather than a sample. That is
+ * drift, not judgement, and a decision nobody can review is exactly what the
+ * *named constants carry their evidence* standard exists to stop.
+ *
+ * 10 because `AGGREGATE_SAMPLE` already lists 10 constituents for the same
+ * reason at a different level, and two numbers doing one job is how the drift
+ * started.
+ *
+ * **What makes the exact figure defensible is `omitted_count`, not the figure.**
+ * A capped list that says nothing reads as a complete one — a reader who
+ * disbelieved a correct summary because the evidence under it had been silently
+ * truncated is what opened this whole milestone (`dev-notes/10`, finding 4). A
+ * cap that declares itself is a sample; a cap that hides is a lie about the size
+ * of the problem.
+ */
+export const OBSERVED_SAMPLE = 10;
+
+/** `05`: three examples per row — a finding spanning 8,000 pages must stay readable. */
+export const PROVENANCE_SAMPLE = 3;
+
+/**
+ * The `observed` half of a finding: the rows it lists, and the truth about the
+ * ones it does not.
+ *
+ * Spread into the finding — `...sampleObserved(rows)` — so a check cannot take
+ * the sample without recording what it dropped. That is the whole point of the
+ * helper: slicing by hand is what produced a catalogue full of lists that looked
+ * complete, and `sample-caps.test.ts` now refuses it.
+ */
+export interface ObservedSample {
+  observed: Observed[];
+  /** Rows beyond the ones listed. 0 when `observed` is the whole set. */
+  omitted_count: number;
+  /** Observations across *every* row, listed or not. Internal — see `Finding`. */
+  observation_total: number;
+}
+
+export function sampleObserved(rows: readonly Observed[]): ObservedSample {
+  return {
+    observed: rows.slice(0, OBSERVED_SAMPLE),
+    omitted_count: Math.max(0, rows.length - OBSERVED_SAMPLE),
+    // Summed over all rows rather than the surviving ones: an aggregate asks its
+    // constituents how much they saw, and a truncated constituent that answers
+    // with its sample undercounts by however much it dropped.
+    observation_total: rows.reduce((total, row) => total + row.observation_count, 0),
+  };
+}
+
 export interface Finding {
   finding_id: string;
   check: string;
@@ -50,6 +105,23 @@ export interface Finding {
   summary: string;
   expected: string | null;
   observed: Observed[];
+  /**
+   * `observed` rows this finding has, and did not list.
+   *
+   * Optional here and never optional in the report: `buildReport` fills the
+   * absent case with 0, so a consumer always has the number and a check with a
+   * complete list does not have to say so in every constructor.
+   */
+  omitted_count?: number;
+  /**
+   * Observations behind this finding, including any in rows it did not list.
+   *
+   * Internal only — stripped before the report, like `page_ids`, and for the
+   * same reason: it exists so aggregation can be honest about a constituent it
+   * is summarising, not because a consumer asked for it. `pages_affected`
+   * already carries the scale.
+   */
+  observation_total?: number;
   pages_affected: number;
   coverage_qualified: boolean;
   remediation: string | null;
@@ -117,17 +189,26 @@ export interface Check {
   run(context: CheckContext): Finding[];
 }
 
+/**
+ * Long enough that a collision across one report is not a practical concern,
+ * short enough to type into a `--since` diff or read aloud off a screen.
+ */
+const FINDING_ID_LENGTH = 12;
+
 /** `05`: the id names the *question asked*, never the answer, so a diff is a set operation. */
 export function findingId(check: string, subjectKey: string): string {
-  return createHash('sha256').update(`${check}|${subjectKey}`).digest('hex').slice(0, 12);
+  return createHash('sha256')
+    .update(`${check}|${subjectKey}`)
+    .digest('hex')
+    .slice(0, FINDING_ID_LENGTH);
 }
 
-/** Cap at 3 per distinct value — a finding spanning 8,000 pages must stay readable (`05`). */
+/** Cap per distinct value — a finding spanning 8,000 pages must stay readable (`05`). */
 export function provenanceOf(
   nodes: readonly ExtractedNode[],
   pages: Map<string, PageRecord>,
 ): Provenance[] {
-  return nodes.slice(0, 3).map((node) => ({
+  return nodes.slice(0, PROVENANCE_SAMPLE).map((node) => ({
     page_id: node.page_id,
     url: pages.get(node.page_id)?.canonical_url ?? node.page_id,
     syntax: node.source.syntax,

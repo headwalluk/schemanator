@@ -213,17 +213,13 @@ test('no observed row claims a page count its finding cannot support', () => {
             `affecting ${finding.pages_affected}`,
         );
       }
-      // Asserted only off an aggregate. On an aggregate row `observation_count`
-      // is hardcoded to 1 and means "one constituent finding" rather than one
-      // observation, so a row legitimately reads 1 observation across 1,000
-      // pages. That is a second meaning for one field and it is not defensible
-      // — but the constituent's true total is not recorded anywhere to put
-      // there, because `observed` is capped without saying so. It is fixable
-      // once truncation is counted, and it is tracked as part of that job.
-      if (
-        finding.instance_count === undefined &&
-        observed.page_count > observed.observation_count
-      ) {
+      // Held on aggregates too since 1.12.0. It was exempted while an
+      // aggregate row hardcoded `observation_count: 1` — a second meaning for
+      // one field, "one constituent finding" — which could not be fixed until
+      // truncation was counted, because a capped constituent cannot say how
+      // much it saw. `observation_total` says it, so the exemption is gone and
+      // one field means one thing across the catalogue.
+      if (observed.page_count > observed.observation_count) {
         wrong.push(
           `${finding.check}: a row spans ${observed.page_count} page(s) on only ` +
             `${observed.observation_count} observation(s)`,

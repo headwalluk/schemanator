@@ -29,7 +29,7 @@
 
 import type { PageRecord } from '../store/workdir.ts';
 import { dedupeByUrl } from './indexing.ts';
-import { findingId, type Check, type Finding } from './framework.ts';
+import { findingId, sampleObserved, type Check, type Finding } from './framework.ts';
 
 /**
  * Fetched, extracted, and **one record per destination URL**.
@@ -71,12 +71,14 @@ function siteFinding(options: {
     expected: options.expected,
     // One row per URL. Several requests can land on one page, and listing the
     // same URL twice reads as a bug in the tool rather than a fact about the site.
-    observed: options.pages.slice(0, 10).map((page) => ({
-      value: options.describe === undefined ? page.canonical_url : options.describe(page),
-      observation_count: 1,
-      page_count: 1,
-      provenance: [],
-    })),
+    ...sampleObserved(
+      options.pages.map((page) => ({
+        value: options.describe === undefined ? page.canonical_url : options.describe(page),
+        observation_count: 1,
+        page_count: 1,
+        provenance: [],
+      })),
+    ),
     pages_affected: options.pages.length,
     coverage_qualified: false,
     remediation: options.remediation,
@@ -233,6 +235,16 @@ const imageAltMissing: Check = {
   },
 };
 
+/**
+ * Alt values quoted in the finding, and in its opening sentence.
+ *
+ * The whole set is not listed: one corpus site carries 40 variations of
+ * `IMG_1234.jpg`, and the fortieth teaches a reader nothing the third did not.
+ * The sentence takes fewer still, because it is a sentence.
+ */
+const ALT_VALUES_LISTED = 8;
+const ALT_VALUES_IN_SENTENCE = 3;
+
 const imageAltUseless: Check = {
   id: 'page.image-alt-useless',
   group: 'page',
@@ -244,7 +256,7 @@ const imageAltUseless: Check = {
 
     const samples = [
       ...new Set(affected.flatMap((page) => page.page_facts?.images.suspect_alt ?? [])),
-    ].slice(0, 8);
+    ].slice(0, ALT_VALUES_LISTED);
 
     return [
       siteFinding({
@@ -253,7 +265,7 @@ const imageAltUseless: Check = {
         title: `${affected.length} page(s) carry alt text that describes nothing`,
         summary:
           `Alt text like ${samples
-            .slice(0, 3)
+            .slice(0, ALT_VALUES_IN_SENTENCE)
             .map((s) => `"${s}"`)
             .join(', ')} is a filename or a ` +
           `camera reference, not a description. It passes every automated check that only asks ` +
@@ -349,12 +361,14 @@ const titleDuplicate: Check = {
         // which reads as a rendering fault and makes a reader distrust a finding
         // that had just surfaced a real typo. The count leads instead, and the
         // renderers already delimit the value.
-        observed: shared.slice(0, 10).map(([title, group]) => ({
-          value: `${group.length} pages: ${title}`,
-          observation_count: group.length,
-          page_count: group.length,
-          provenance: [],
-        })),
+        ...sampleObserved(
+          shared.map(([title, group]) => ({
+            value: `${group.length} pages: ${title}`,
+            observation_count: group.length,
+            page_count: group.length,
+            provenance: [],
+          })),
+        ),
       },
     ];
   },

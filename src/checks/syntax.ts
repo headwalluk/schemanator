@@ -25,7 +25,13 @@
  */
 
 import type { PageRecord } from '../store/workdir.ts';
-import { findingId, type Check, type Finding } from './framework.ts';
+import {
+  findingId,
+  PROVENANCE_SAMPLE,
+  sampleObserved,
+  type Check,
+  type Finding,
+} from './framework.ts';
 
 /** Extraction's prefix for a per-block fault. See `src/extract/run.ts`. */
 const BLOCK_ERROR = /^ld-block-(\d+): (.*)$/s;
@@ -106,7 +112,7 @@ const unresolvableContext: Check = {
             value: contextUrl,
             observation_count: faults.length,
             page_count: pageIds.size,
-            provenance: faults.slice(0, 3).map((fault) => ({
+            provenance: faults.slice(0, PROVENANCE_SAMPLE).map((fault) => ({
               page_id: fault.page.page_id,
               url: fault.page.canonical_url,
               syntax: 'json-ld',
@@ -188,21 +194,23 @@ const malformedJson: Check = {
           kind === 'parse'
             ? 'Every ld+json block parsing as valid JSON.'
             : 'Every ld+json block expanding under the JSON-LD algorithm.',
-        observed: messages.slice(0, 5).map((message) => {
-          const matching = faults.filter((fault) => fault.message === message);
-          return {
-            value: message,
-            observation_count: matching.length,
-            page_count: new Set(matching.map((fault) => fault.page.page_id)).size,
-            provenance: matching.slice(0, 3).map((fault) => ({
-              page_id: fault.page.page_id,
-              url: fault.page.canonical_url,
-              syntax: 'json-ld',
-              block: fault.block,
-              pointer: '',
-            })),
-          };
-        }),
+        ...sampleObserved(
+          messages.map((message) => {
+            const matching = faults.filter((fault) => fault.message === message);
+            return {
+              value: message,
+              observation_count: matching.length,
+              page_count: new Set(matching.map((fault) => fault.page.page_id)).size,
+              provenance: matching.slice(0, PROVENANCE_SAMPLE).map((fault) => ({
+                page_id: fault.page.page_id,
+                url: fault.page.canonical_url,
+                syntax: 'json-ld',
+                block: fault.block,
+                pointer: '',
+              })),
+            };
+          }),
+        ),
         pages_affected: pageIds.size,
         coverage_qualified: false,
         remediation:

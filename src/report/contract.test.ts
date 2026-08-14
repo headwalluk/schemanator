@@ -197,6 +197,11 @@ test('a finding carries every guaranteed key', () => {
     'summary',
     'expected',
     'observed',
+    // Added in 1.12.0, and additive: a consumer that ignores it is unaffected,
+    // which is why `report_schema` did not move. It is guaranteed present even
+    // when a check does not set it — `buildReport` fills 0 — so that an absent
+    // key never has to be read as either "nothing omitted" or "nobody counted".
+    'omitted_count',
     'pages_affected',
     'coverage_qualified',
     'remediation',

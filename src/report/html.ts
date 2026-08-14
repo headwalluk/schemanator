@@ -211,6 +211,12 @@ function renderFinding(finding: Finding, index: number): string {
       }
       parts.push('</li>');
     }
+    // Same reason as the markdown renderer: a sample that does not declare
+    // itself is read as the whole set.
+    const omitted = finding.omitted_count ?? 0;
+    if (omitted > 0) {
+      parts.push(`<li class="count">…and ${omitted} more, not listed here or in report.json.</li>`);
+    }
     parts.push('</ul>');
   }
 

@@ -19,7 +19,7 @@
 
 import type { PageRecord } from '../store/workdir.ts';
 import { tryCanonicaliseUrl } from '../url/canonical.ts';
-import { findingId, type Check } from './framework.ts';
+import { findingId, sampleObserved, type Check } from './framework.ts';
 
 /** Did this URL come from a sitemap, and which one? Null when it did not. */
 function sitemapOf(page: PageRecord): string | null {
@@ -110,12 +110,14 @@ const sitemapDeadUrl: Check = {
         `claim that these pages exist and are worth indexing, and the server disagrees. Every ` +
         `crawler following the sitemap spends a request finding that out.`,
       expected: 'Every URL in a sitemap resolving to 200.',
-      observed: affected.slice(0, 10).map((page) => ({
-        value: page.canonical_url,
-        observation_count: 1,
-        page_count: 1,
-        provenance: [],
-      })),
+      ...sampleObserved(
+        affected.map((page) => ({
+          value: page.canonical_url,
+          observation_count: 1,
+          page_count: 1,
+          provenance: [],
+        })),
+      ),
       pages_affected: affected.length,
       coverage_qualified: false,
       remediation:
@@ -160,12 +162,14 @@ const sitemapRedirects: Check = {
           `itself disclaims — so every crawler pays an extra request, and the sitemap disagrees ` +
           `with the redirect about which URL is the real one.`,
         expected: 'Sitemaps naming the destination URL directly.',
-        observed: redirected.slice(0, 10).map((page) => ({
-          value: `${page.url} → ${page.canonical_url}`,
-          observation_count: 1,
-          page_count: 1,
-          provenance: [],
-        })),
+        ...sampleObserved(
+          redirected.map((page) => ({
+            value: `${page.url} → ${page.canonical_url}`,
+            observation_count: 1,
+            page_count: 1,
+            provenance: [],
+          })),
+        ),
         pages_affected: redirected.length,
         coverage_qualified: false,
         remediation: 'Update the sitemap to list the destination URLs. Keep the redirects.',
@@ -199,12 +203,14 @@ const redirectChain: Check = {
           `request, and chains are usually accidental — two migrations layered on each other, ` +
           `where the first rule was never repointed at the final destination.`,
         expected: 'One redirect, straight to the final URL.',
-        observed: chained.slice(0, 10).map((page) => ({
-          value: `${page.url} → ${page.redirect_chain.map((hop) => hop.location).join(' → ')}`,
-          observation_count: page.redirect_chain.length,
-          page_count: 1,
-          provenance: [],
-        })),
+        ...sampleObserved(
+          chained.map((page) => ({
+            value: `${page.url} → ${page.redirect_chain.map((hop) => hop.location).join(' → ')}`,
+            observation_count: page.redirect_chain.length,
+            page_count: 1,
+            provenance: [],
+          })),
+        ),
         pages_affected: chained.length,
         coverage_qualified: false,
         remediation: 'Repoint the first redirect at the final destination.',
@@ -258,12 +264,14 @@ const canonicalToRedirect: Check = {
           `The canonical claims that URL is authoritative; the redirect says it is not. A consumer ` +
           `has to pick, and which one wins is not something you control.`,
         expected: 'A canonical pointing at a URL that serves a 200 directly.',
-        observed: findings.slice(0, 10).map((hit) => ({
-          value: `${hit.page.canonical_url} → canonical ${hit.page.declared_canonical ?? ''} → redirects`,
-          observation_count: 1,
-          page_count: 1,
-          provenance: [],
-        })),
+        ...sampleObserved(
+          findings.map((hit) => ({
+            value: `${hit.page.canonical_url} → canonical ${hit.page.declared_canonical ?? ''} → redirects`,
+            observation_count: 1,
+            page_count: 1,
+            provenance: [],
+          })),
+        ),
         pages_affected: findings.length,
         coverage_qualified: false,
         remediation: 'Point the canonical at the redirect destination.',
@@ -312,12 +320,14 @@ const canonicalChain: Check = {
           `canonical. Consumers generally follow one hop, so the end of the chain may never be ` +
           `reached and which URL is treated as authoritative becomes unpredictable.`,
         expected: 'Every canonical pointing directly at the final authoritative URL.',
-        observed: chains.slice(0, 10).map((chain) => ({
-          value: `${chain.from.canonical_url} → ${chain.via.canonical_url} → ${chain.to}`,
-          observation_count: 1,
-          page_count: 1,
-          provenance: [],
-        })),
+        ...sampleObserved(
+          chains.map((chain) => ({
+            value: `${chain.from.canonical_url} → ${chain.via.canonical_url} → ${chain.to}`,
+            observation_count: 1,
+            page_count: 1,
+            provenance: [],
+          })),
+        ),
         pages_affected: chains.length,
         coverage_qualified: false,
         remediation: 'Point the first canonical at the end of the chain.',
@@ -387,14 +397,16 @@ const duplicateContent: Check = {
           `differing by a single highlighted menu item are not reported here. Near-duplicate ` +
           `detection needs text extraction and is not built yet.`,
         expected: 'One URL per page, with the others redirecting or carrying a canonical.',
-        observed: duplicated.slice(0, 10).map(([hash, group]) => ({
-          value: group.map((page) => page.canonical_url).join('  =  '),
-          observation_count: group.length,
-          page_count: group.length,
-          provenance: [],
-          // The hash is not shown: it identifies nothing an operator can act on.
-          ...(hash === '' ? {} : {}),
-        })),
+        ...sampleObserved(
+          // The hash keys the group and is not shown: it identifies nothing an
+          // operator can act on.
+          duplicated.map(([, group]) => ({
+            value: group.map((page) => page.canonical_url).join('  =  '),
+            observation_count: group.length,
+            page_count: group.length,
+            provenance: [],
+          })),
+        ),
         pages_affected: affected,
         coverage_qualified: false,
         remediation:
@@ -476,14 +488,14 @@ const thinSitemapEntry: Check = {
           `Transactional and account pages generally do not, and are usually better set to ` +
           `\`noindex\`.`,
         expected: null,
-        observed: dedupeByUrl(thin)
-          .slice(0, 15)
-          .map((page) => ({
+        ...sampleObserved(
+          dedupeByUrl(thin).map((page) => ({
             value: `${page.canonical_url} — ${page.page_facts?.text.extractable_words ?? 0} words`,
             observation_count: 1,
             page_count: 1,
             provenance: [],
           })),
+        ),
         pages_affected: dedupeByUrl(thin).length,
         coverage_qualified: false,
         remediation:

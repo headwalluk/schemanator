@@ -58,8 +58,21 @@ cross-run diffs, so renaming one breaks a user's history. Choose carefully once.
 ### What the framework gives you
 
 `src/checks/framework.ts` — `Finding`, `findingId()`, `provenanceOf()`,
-`indexPagesById()`. Import from there, not from `run.ts`, which imports every
-check module and would be circular.
+`indexPagesById()`, `sampleObserved()`. Import from there, not from `run.ts`,
+which imports every check module and would be circular.
+
+**Build `observed` with `sampleObserved()`, and spread it:**
+
+```ts
+...sampleObserved(affected.map((page) => ({ … }))),
+```
+
+It caps the list at `OBSERVED_SAMPLE`, and — the point of it — sets
+`omitted_count` so the finding says what it left out. `sample-caps.test.ts`
+fails a module that slices a list by a bare number instead. Before 1.12.0 every
+check capped by hand, at five different numbers, and none of them admitted it: a
+reader took a truncated list for a complete one and concluded, reasonably, that
+a correct finding was broken.
 
 ### Two traps in `EntityGraph`
 
@@ -155,6 +168,7 @@ None was findable by a test, because none was wrong. Ask of each finding:
 
 - Would I be comfortable sending this to the site's owner?
 - Do the numbers in it agree with each other?
+- Where the evidence is a sample, does it say so?
 - Does the remediation cover everything the title claims?
 - Could a reader act on every value shown, without opening the source?
 

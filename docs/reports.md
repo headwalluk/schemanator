@@ -58,7 +58,9 @@ Grouped by severity, errors first. Each one carries:
 - **Finding id** — stable across runs; this is what makes `--since` work
 - **Summary** — what is wrong and why it matters
 - **Expected** — what a correct value would look like, not just what is wrong
-- **Observed** — each distinct value, how many pages carry it, and where
+- **Observed** — each distinct value, how many pages carry it, and where. Long
+  lists are cut to ten, and a finding that was cut says so: *"…and 140 more"*,
+  carried in the JSON as `omitted_count`
 - **Suggested fix**
 - **Trade-off**, where the tool genuinely cannot decide for you
 
@@ -79,6 +81,13 @@ disk at `<work-dir>/<site>/pages/<page-id>/raw/ld-00.json`.
 otherwise be unreadable, and impossible to paste anywhere. The page count is
 recorded alongside so the cap is visibly a sample. The full list is in
 `pages.jsonl`.
+
+The `observed` list itself is capped the same way, at ten rows, and
+`omitted_count` says how many rows are not there — in the markdown, the HTML and
+the JSON alike. **The rows beyond the cap are not recorded anywhere**, which is
+why the count is: a report that grew a row per affected page would scale with the
+site rather than with the problem. Where you need every page, the finding's
+provenance and `pages.jsonl` have them.
 
 ## The JSON contract
 
@@ -124,6 +133,7 @@ change.
       "provenance": [ { "page_id": "…", "url": "…", "syntax": "json-ld",
                         "block": 0, "pointer": "/5" } ] }
   ],
+  "omitted_count": 0,
   "pages_affected": 150,
   "coverage_qualified": false,
   "remediation": "…",

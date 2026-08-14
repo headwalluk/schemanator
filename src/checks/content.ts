@@ -23,7 +23,7 @@
 
 import type { PageRecord } from '../store/workdir.ts';
 import { dedupeByUrl } from './indexing.ts';
-import { findingId, type Check } from './framework.ts';
+import { findingId, sampleObserved, type Check } from './framework.ts';
 
 /** Pages we can say anything about: fetched, extracted, and carrying facts. */
 /** Fetched, extracted, and one record per destination URL. See `page.ts`. */
@@ -88,9 +88,8 @@ const notExtractable: Check = {
           `document's structure just does not point at them. The usual cause is a body wrapped in a ` +
           `plain \`<div>\` while \`<article>\` is used for something else, such as related-post cards.`,
         expected: 'The page body inside <main> or <article>.',
-        observed: dedupeByUrl(affected)
-          .slice(0, 10)
-          .map((page) => {
+        ...sampleObserved(
+          dedupeByUrl(affected).map((page) => {
             const text = page.page_facts?.text;
             return {
               value:
@@ -101,6 +100,7 @@ const notExtractable: Check = {
               provenance: [],
             };
           }),
+        ),
         pages_affected: affected.length,
         coverage_qualified: false,
         remediation:
@@ -153,14 +153,14 @@ const noLandmark: Check = {
           `Nothing is broken, and a person reading the site sees no difference. This is about what ` +
           `a machine can be *sure* of.`,
         expected: 'A <main> element wrapping the page body.',
-        observed: dedupeByUrl(bare)
-          .slice(0, 5)
-          .map((page) => ({
+        ...sampleObserved(
+          dedupeByUrl(bare).map((page) => ({
             value: page.canonical_url,
             observation_count: 1,
             page_count: 1,
             provenance: [],
           })),
+        ),
         pages_affected: bare.length,
         coverage_qualified: false,
         remediation:
@@ -211,9 +211,8 @@ const mainInAside: Check = {
           `secondary and commonly drop it, so if that is where the page's substance lives, the ` +
           `substance is what gets dropped.`,
         expected: 'The page body in <main>, with <aside> for genuinely secondary material.',
-        observed: dedupeByUrl(affected)
-          .slice(0, 10)
-          .map((page) => {
+        ...sampleObserved(
+          dedupeByUrl(affected).map((page) => {
             const text = page.page_facts?.text;
             return {
               value: `${page.canonical_url} — aside ${text?.aside_words ?? 0} words, main ${text?.main_words ?? 0}`,
@@ -222,6 +221,7 @@ const mainInAside: Check = {
               provenance: [],
             };
           }),
+        ),
         pages_affected: affected.length,
         coverage_qualified: false,
         remediation: 'Move the body into <main>, and keep <aside> for sidebars and related links.',
@@ -276,14 +276,14 @@ const javascriptOnly: Check = {
           `agents are and what Google's first indexing pass is. Anything only assembled in a browser ` +
           `is invisible to them, and to this report.`,
         expected: 'The page content present in the HTML as served.',
-        observed: dedupeByUrl(affected)
-          .slice(0, 10)
-          .map((page) => ({
+        ...sampleObserved(
+          dedupeByUrl(affected).map((page) => ({
             value: `${page.canonical_url} — ${Math.round(page.bytes / 1024)} KB, ${page.page_facts?.text.dom_words ?? 0} words`,
             observation_count: 1,
             page_count: 1,
             provenance: [],
           })),
+        ),
         pages_affected: affected.length,
         coverage_qualified: false,
         remediation:
@@ -339,9 +339,8 @@ const hiddenText: Check = {
           `whose substance is concealed from anything that honours those attributes, which includes ` +
           `screen readers and most text extractors.`,
         expected: 'The page substance visible without interaction.',
-        observed: dedupeByUrl(affected)
-          .slice(0, 10)
-          .map((page) => {
+        ...sampleObserved(
+          dedupeByUrl(affected).map((page) => {
             const text = page.page_facts?.text;
             return {
               value: `${page.canonical_url} — ${text?.hidden_words ?? 0} hidden, ${text?.extractable_words ?? 0} visible`,
@@ -350,6 +349,7 @@ const hiddenText: Check = {
               provenance: [],
             };
           }),
+        ),
         pages_affected: affected.length,
         coverage_qualified: false,
         remediation:

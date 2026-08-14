@@ -51,7 +51,50 @@ reader trusted the number and reasoned to a wrong conclusion from it.
   one's, which was invisible while a whole check shared a single trade-off and
   became wrong the moment they varied by property.
 
+- **Every capped list now says it was capped.** `observed` was cut short in
+  around two dozen places and none of them admitted it, so a truncated list was
+  indistinguishable from a complete one. Findings carry `omitted_count`, and both
+  renderers print *"…and 140 more, not listed here or in report.json"*.
+
+  This is the fault behind the retracted observation in the field report. The
+  summary said three pages, the evidence beneath it showed two, and the reader
+  concluded — reasonably — that the summary was broken. It was not; the third
+  page had been silently dropped from the list. **Truncation does not merely hide
+  detail, it makes correct output look wrong.**
+
+- **The prose that overstated it, in the same breath.** An aggregate summary said
+  *"the individual subjects are listed below"* and its advice said *"apply this
+  to each of the 154 subjects listed above"*, where ten were listed. Both
+  sentences were written against five-subject aggregates and read perfectly
+  there. The summary now says how many of them are listed; the advice names the
+  count and drops the claim about the list.
+
+  A third sentence promised *"see report.json"* for the subjects an aggregate had
+  dropped. The JSON carries the same ten rows. It has gone: a cap that
+  misdirects is worse than one that admits itself.
+
+- **The exemption from 1.11.1 is closed.** Aggregate rows set
+  `observation_count` to 1, meaning "one constituent finding" rather than one
+  observation — a second meaning for a field consumers read. It could not be
+  fixed until truncation was counted, because a constituent that has dropped rows
+  cannot say how much it saw by adding up the ones it kept. It can now, and the
+  catalogue-wide invariant holds with no exemptions.
+
 ### Changed
+
+- **One sample size for the whole catalogue: ten observed rows.** The caps were
+  3, 5, 8, 10 and 15, every one a bare number, and no reason survived being asked
+  for — the early files say 5 and the later ones say 10. Lists that were cut at
+  three or five now show ten; `indexing.thin-sitemap-entry`, which showed 15,
+  shows ten and a count of the rest.
+
+  `sample-caps.test.ts` fails any check module that truncates a list with a
+  literal, which is the rule in `CLAUDE.md` finally enforced rather than
+  remembered. It would have caught all two dozen.
+
+- **`coverage.no-structured-data` lists one page per row.** It reported a single
+  row whose value was five URLs glued together with newlines, carrying the whole
+  site's count — a capped list wearing the costume of a complete one.
 
 - **`aggregateRating` and `review` are reported as one opportunity.** They were
   two findings over the same nodes, the same pages, asking one question: does
@@ -75,7 +118,9 @@ reader trusted the number and reasoned to a wrong conclusion from it.
 
 `--since` compares observed rows by value and page count, so **the first diff
 across this release will report every `google` finding as changed** when nothing
-about the site has moved. That is this fix landing, not a regression. Subsequent
+about the site has moved. Findings whose `observed` list was capped at three or
+five will also come back changed, because ten rows are listed where fewer were
+before. That is this fix landing, not a regression. Subsequent
 runs compare normally.
 
 Findings are matched by id, and an id names the question asked. Merging

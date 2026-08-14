@@ -30,6 +30,7 @@ import {
   findingId,
   indexPagesById,
   provenanceOf,
+  sampleObserved,
   type Check,
   type CheckContext,
   type Finding,
@@ -115,7 +116,7 @@ const contradiction: Check = {
               `not a disagreement between a few variants; the property is page-scoped, so the entity has ` +
               `no stable ${short} at all and nothing downstream can rely on it.`,
             expected: `One ${short} for this entity, identical on every page.`,
-            observed: observed.slice(0, 3),
+            ...sampleObserved(observed),
             pages_affected: group.pages.size,
             coverage_qualified: false,
             remediation:
@@ -137,7 +138,7 @@ const contradiction: Check = {
             `${group.observations.length} observations on ${group.pages.size} pages. Nothing reconciles ` +
             `these, so a consumer's view of the entity depends on which page it saw.`,
           expected: `One ${short} value across all observations of this @id.`,
-          observed,
+          ...sampleObserved(observed),
           pages_affected: group.pages.size,
           coverage_qualified: false,
           remediation: `Emit a single ${short} for this entity, on every page that describes it.`,
@@ -686,12 +687,14 @@ const foreignMediaHost: Check = {
         `on a third party. Left over from a migration this is a common cause of silently broken images — ` +
         `**schemanator does not fetch off-site media, so it cannot tell you whether these resolve.**`,
       expected: 'Media hosted on this site, a subdomain of it, or a recognised CDN.',
-      observed: [...record.urls].slice(0, 5).map((url) => ({
-        value: url,
-        observation_count: 1,
-        page_count: 1,
-        provenance: [],
-      })),
+      ...sampleObserved(
+        [...record.urls].map((url) => ({
+          value: url,
+          observation_count: 1,
+          page_count: 1,
+          provenance: [],
+        })),
+      ),
       pages_affected: new Set(record.nodes.map((node) => node.page_id)).size,
       coverage_qualified: false,
       remediation:
@@ -702,6 +705,16 @@ const foreignMediaHost: Check = {
 };
 
 // --- coverage.competing-syntax -----------------------------------------------
+
+/**
+ * Microdata types named in the summary sentence, before it says "and others".
+ *
+ * A sentence, not a list: the `observed` rows below carry the full sample. Six
+ * ranked types is where the prose stops scanning as a sentence — one corpus site
+ * declares 14, and naming all of them buries the count that matters.
+ */
+const TYPES_IN_SENTENCE = 6;
+const ABSENT_TYPES_IN_SENTENCE = 4;
 
 /**
  * Microdata sitting alongside a purpose-built JSON-LD graph.
@@ -760,17 +773,17 @@ const competingSyntax: Check = {
     const describe = measured
       ? `The microdata declares ${ranked.length} type(s): ` +
         `${ranked
-          .slice(0, 6)
+          .slice(0, TYPES_IN_SENTENCE)
           .map(([type, count]) => `${type} (${count} page${count === 1 ? '' : 's'})`)
-          .join(', ')}${ranked.length > 6 ? ', and others' : ''}. ` +
+          .join(', ')}${ranked.length > TYPES_IN_SENTENCE ? ', and others' : ''}. ` +
         (absent.length === 0
           ? `Every one of them also appears in the JSON-LD, so the two syntaxes are describing the ` +
             `same things twice.`
           : `${absent.length} of them appear nowhere in the JSON-LD — ` +
             `${absent
-              .slice(0, 4)
+              .slice(0, ABSENT_TYPES_IN_SENTENCE)
               .map(([type]) => type)
-              .join(', ')}${absent.length > 4 ? ', and others' : ''} — ` +
+              .join(', ')}${absent.length > ABSENT_TYPES_IN_SENTENCE ? ', and others' : ''} — ` +
             `which is the signature of theme boilerplate rather than a competing description of your ` +
             `business.`)
       : `This crawl predates per-page microdata type recording, so the types are not known. ` +
@@ -789,21 +802,23 @@ const competingSyntax: Check = {
           `${describe} The entity-level comparison — whether the two syntaxes ever *disagree* about ` +
           `one entity — has not been performed.`,
         expected: null,
-        observed: measured
-          ? ranked.slice(0, 10).map(([type, count]) => ({
-              value: `${type} — ${jsonLdTypes.has(type) ? 'also in the JSON-LD' : 'not in the JSON-LD'}`,
-              observation_count: count,
-              page_count: count,
-              provenance: [],
-            }))
-          : [
-              {
-                value: `microdata on ${microdataPages.length} page(s), types not recorded`,
-                observation_count: microdataPages.length,
-                page_count: microdataPages.length,
+        ...sampleObserved(
+          measured
+            ? ranked.map(([type, count]) => ({
+                value: `${type} — ${jsonLdTypes.has(type) ? 'also in the JSON-LD' : 'not in the JSON-LD'}`,
+                observation_count: count,
+                page_count: count,
                 provenance: [],
-              },
-            ],
+              }))
+            : [
+                {
+                  value: `microdata on ${microdataPages.length} page(s), types not recorded`,
+                  observation_count: microdataPages.length,
+                  page_count: microdataPages.length,
+                  provenance: [],
+                },
+              ],
+        ),
         pages_affected: microdataPages.length,
         coverage_qualified: true,
         remediation:
@@ -837,17 +852,18 @@ const noStructuredData: Check = {
         subject: { kind: 'site', id: 'site' },
         summary: `${bare.length} of ${pages.length} fetched pages emit no structured data.`,
         expected: null,
-        observed: [
-          {
-            value: bare
-              .slice(0, 5)
-              .map((page) => page.canonical_url)
-              .join('\n'),
-            observation_count: bare.length,
-            page_count: bare.length,
+        // One row per page. This was a single row whose value was five URLs
+        // glued together with newlines and an `observation_count` of the whole
+        // set — a capped list wearing the costume of a complete one, which is
+        // the fault this milestone is about.
+        ...sampleObserved(
+          bare.map((page) => ({
+            value: page.canonical_url,
+            observation_count: 1,
+            page_count: 1,
             provenance: [],
-          },
-        ],
+          })),
+        ),
         pages_affected: bare.length,
         coverage_qualified: partialCoverage,
         remediation: null,
@@ -936,7 +952,7 @@ function groupRank(check: string): number {
 const AGGREGATE_THRESHOLD = 3;
 
 /** Instances listed inside an aggregate before it says "and N more". */
-const AGGREGATE_SAMPLE = 10;
+export const AGGREGATE_SAMPLE = 10;
 
 /**
  * Collapse findings that are the same problem at different subjects.
@@ -951,6 +967,20 @@ const AGGREGATE_SAMPLE = 10;
  * excludes the subject: what the findings have in common, never where they were
  * found.
  */
+/**
+ * How much a finding saw, including what its `observed` list left out.
+ *
+ * `observation_total` is set by `sampleObserved`, so it is present wherever a
+ * list was capped. Where it is absent the list is the whole set and summing it
+ * is exact — which is why the fallback is a sum rather than a guess.
+ */
+function observationsBehind(finding: Finding): number {
+  return (
+    finding.observation_total ??
+    finding.observed.reduce((total, row) => total + row.observation_count, 0)
+  );
+}
+
 function aggregate(findings: readonly Finding[]): Finding[] {
   const groups = new Map<string, Finding[]>();
   const passthrough: Finding[] = [];
@@ -989,10 +1019,18 @@ function aggregate(findings: readonly Finding[]): Finding[] {
       // `aggregate_title` must therefore name what is being counted — subjects,
       // properties, entities — and never "pages".
       subject: { kind: 'site', id: 'site' },
+      // "The individual subjects are listed below" was true of a five-subject
+      // aggregate and false of a 154-subject one, where ten are listed. The
+      // sentence has to know which it is: prose that overstates its own
+      // evidence is the fault this milestone exists to remove, and an aggregate
+      // is where the overstatement is largest.
       summary:
         `${group.length} subjects share this problem — ${first.pattern}. Reported once rather than ` +
-        `${group.length} times: one generator behaviour, one fix. The individual subjects are listed ` +
-        `below.\n\n**Taking the first as an example:** ${first.summary}`,
+        `${group.length} times: one generator behaviour, one fix. ` +
+        (group.length > AGGREGATE_SAMPLE
+          ? `${AGGREGATE_SAMPLE} of them are listed below.`
+          : `The individual subjects are listed below.`) +
+        `\n\n**Taking the first as an example:** ${first.summary}`,
       observed: group.slice(0, AGGREGATE_SAMPLE).map((finding) => ({
         // Name what actually varies between constituents. For a per-property
         // check that is the property; for a per-entity one, the entity.
@@ -1000,10 +1038,25 @@ function aggregate(findings: readonly Finding[]): Finding[] {
           finding.subject.property === undefined
             ? finding.subject.id
             : shortIri(finding.subject.property),
-        observation_count: 1,
+        // What the constituent saw, not how many constituents this row is.
+        //
+        // It was hardcoded to 1, which gave the field a second meaning —
+        // "one constituent finding" — and produced rows reading one
+        // observation across 1,000 pages. `finding-volume.test.ts` caught it
+        // and had to carry it as a written exemption, because the true total
+        // was nowhere: `observed` was capped without saying so, and summing
+        // the surviving rows undercounts by exactly what was dropped.
+        // `observation_total` is that missing number, which is why this task
+        // owned the exemption rather than neighbouring it.
+        observation_count: observationsBehind(finding),
         page_count: finding.pages_affected,
         provenance: finding.observed[0]?.provenance ?? [],
       })),
+      // Constituents past the sample. The summary used to say "see
+      // report.json" for these, which was untrue — the JSON carries the same
+      // ten rows. A cap that misdirects is worse than one that admits itself.
+      omitted_count: Math.max(0, group.length - AGGREGATE_SAMPLE),
+      observation_total: group.reduce((total, finding) => total + observationsBehind(finding), 0),
       pages_affected:
         new Set(group.flatMap((finding) => finding.page_ids ?? [])).size ||
         group[0]?.pages_affected ||
@@ -1021,7 +1074,10 @@ function aggregate(findings: readonly Finding[]): Finding[] {
       remediation:
         first.remediation === null
           ? null
-          : `${first.remediation} Apply this to each of the ${group.length} subjects listed above.`,
+          : // "listed above" was the same overstatement: 154 subjects, ten of
+            // them listed. The job is all 154 either way, so naming the count
+            // and dropping the claim about the list is both shorter and true.
+            `${first.remediation} Apply this to each of the ${group.length} subjects.`,
       /**
        * Every constituent's trade-off, not the first one's.
        *
@@ -1042,12 +1098,6 @@ function aggregate(findings: readonly Finding[]): Finding[] {
       ...(first.pattern === undefined ? {} : { pattern: first.pattern }),
     });
 
-    if (group.length > AGGREGATE_SAMPLE) {
-      const tail = result[result.length - 1];
-      if (tail !== undefined) {
-        tail.summary += `\n\n(${group.length - AGGREGATE_SAMPLE} further subjects not listed; see report.json.)`;
-      }
-    }
     void key;
   }
 
@@ -1124,7 +1174,10 @@ export function runChecks(options: {
       left.check.localeCompare(right.check),
   );
 
-  for (const finding of aggregated) delete finding.page_ids;
+  for (const finding of aggregated) {
+    delete finding.page_ids;
+    delete finding.observation_total;
+  }
 
   return { findings: aggregated, silenced, checksRun: run, checksDisabled: [...disabled] };
 }

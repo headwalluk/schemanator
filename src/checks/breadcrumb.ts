@@ -41,6 +41,7 @@ import {
   findingId,
   indexPagesById,
   provenanceOf,
+  sampleObserved,
   type Check,
   type CheckContext,
   type Finding,
@@ -762,12 +763,14 @@ const missing: Check = {
           `publish no BreadcrumbList of their own. Their parents do. A consumer landing on one of ` +
           `these pages directly cannot tell where it sits.`,
         expected: 'A breadcrumb trail on every page that has a place in the hierarchy.',
-        observed: silent.slice(0, 10).map((page) => ({
-          value: pathOf(page.canonical_url),
-          observation_count: 1,
-          page_count: 1,
-          provenance: [],
-        })),
+        ...sampleObserved(
+          silent.map((page) => ({
+            value: pathOf(page.canonical_url),
+            observation_count: 1,
+            page_count: 1,
+            provenance: [],
+          })),
+        ),
         pages_affected: silent.length,
         coverage_qualified: true,
         remediation:

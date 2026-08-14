@@ -21,7 +21,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 
 import { packageRoot } from '../runtime.ts';
-import { findingId, type Check, type Finding } from './framework.ts';
+import { findingId, sampleObserved, type Check, type Finding } from './framework.ts';
 
 // --- the crawler list --------------------------------------------------------
 
@@ -392,12 +392,14 @@ const sitemapMissing: Check = {
           `probe the same paths — but a crawler that does not guess has no way to find them, and ` +
           `the directive is one line.`,
         expected: 'A Sitemap: line in robots.txt for each sitemap or sitemap index.',
-        observed: sitemapsFound.slice(0, 5).map((url) => ({
-          value: url,
-          observation_count: 1,
-          page_count: 0,
-          provenance: [],
-        })),
+        ...sampleObserved(
+          sitemapsFound.map((url) => ({
+            value: url,
+            observation_count: 1,
+            page_count: 0,
+            provenance: [],
+          })),
+        ),
         pages_affected: 0,
         coverage_qualified: false,
         remediation: `Add "Sitemap: ${sitemapsFound[0] ?? '<url>'}" to robots.txt.`,

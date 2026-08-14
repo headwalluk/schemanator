@@ -17,9 +17,9 @@ import {
   findingId,
   indexPagesById,
   provenanceOf,
+  sampleObserved,
   type Check,
   type Finding,
-  type Observed,
 } from './framework.ts';
 import { denote, shortIri } from './graph.ts';
 import { bareTypeName, closure } from './hierarchy.ts';
@@ -70,12 +70,14 @@ const multiValue: Check = {
             `schema.org permits any property to repeat, so a per-page validator passes this — but ` +
             `${short} identifies the entity, and two answers on one page leave a consumer to pick.`,
           expected: `One ${short} per entity.`,
-          observed: [...distinct].slice(0, 5).map((value) => ({
-            value,
-            observation_count: 1,
-            page_count: 1,
-            provenance: provenanceOf([node], pageIndex),
-          })),
+          ...sampleObserved(
+            [...distinct].map((value) => ({
+              value,
+              observation_count: 1,
+              page_count: 1,
+              provenance: provenanceOf([node], pageIndex),
+            })),
+          ),
           pages_affected: 1,
           coverage_qualified: false,
           remediation: `Emit a single ${short}, or use a property that is genuinely multi-valued.`,
@@ -136,15 +138,17 @@ const relativeId: Check = {
           `${resolved.size} distinct entities rather than one, and nothing downstream can merge them. ` +
           `Every page looks correct on its own, which is why this survives per-page validation.`,
         expected: `An absolute @id — one IRI naming this entity, identical on every page.`,
-        observed: [...resolved].slice(0, 5).map((id) => ({
-          value: id,
-          observation_count: 1,
-          page_count: 1,
-          provenance: provenanceOf(
-            nodes.filter((node) => node.node_id === id),
-            pageIndex,
-          ),
-        })),
+        ...sampleObserved(
+          [...resolved].map((id) => ({
+            value: id,
+            observation_count: 1,
+            page_count: 1,
+            provenance: provenanceOf(
+              nodes.filter((node) => node.node_id === id),
+              pageIndex,
+            ),
+          })),
+        ),
         pages_affected: pageIds.size,
         coverage_qualified: false,
         remediation: `Publish an absolute @id, for example https://<your site>/${raw}.`,
@@ -237,12 +241,14 @@ const orphanNode: Check = {
           `unlike an Article or a Product, it cannot be what a page is about — so nothing consumes ` +
           `these and they add weight without adding meaning.`,
         expected: `Every ${types} referenced by the entity it belongs to.`,
-        observed: nodes.slice(0, 5).map((node) => ({
-          value: node.node_id,
-          observation_count: 1,
-          page_count: 1,
-          provenance: provenanceOf([node], pageIndex),
-        })),
+        ...sampleObserved(
+          nodes.map((node) => ({
+            value: node.node_id,
+            observation_count: 1,
+            page_count: 1,
+            provenance: provenanceOf([node], pageIndex),
+          })),
+        ),
         pages_affected: pageIds.size,
         coverage_qualified: partialCoverage,
         remediation: `Reference it from the entity it describes, or stop emitting it.`,
@@ -318,12 +324,14 @@ const blankNodeEntity: Check = {
         // These are distinct *names*, not pages. Claiming "on 1 page(s)" beside
         // a finding that says 28 invites the reader to distrust the count; zero
         // renders as no claim at all, which is the honest reading.
-        observed: [...names].slice(0, 5).map((name) => ({
-          value: name,
-          observation_count: 1,
-          page_count: 0,
-          provenance: [],
-        })),
+        ...sampleObserved(
+          [...names].map((name) => ({
+            value: name,
+            observation_count: 1,
+            page_count: 0,
+            provenance: [],
+          })),
+        ),
         pages_affected: pageIds.size,
         coverage_qualified: false,
         remediation:
@@ -388,12 +396,14 @@ const trailingSlashDrift: Check = {
     const drifted = [...seen.entries()].filter(([, variants]) => variants.size > 1);
     if (drifted.length === 0) return [];
 
-    const observed: Observed[] = drifted.slice(0, 10).map(([, variants]) => ({
-      value: [...variants].join('  vs  '),
-      observation_count: variants.size,
-      page_count: 0,
-      provenance: [],
-    }));
+    const observed = sampleObserved(
+      drifted.map(([, variants]) => ({
+        value: [...variants].join('  vs  '),
+        observation_count: variants.size,
+        page_count: 0,
+        provenance: [],
+      })),
+    );
 
     return [
       {
@@ -409,7 +419,7 @@ const trailingSlashDrift: Check = {
           `two resources where you meant one. Nothing is broken and no page is wrong; the identity is ` +
           `just split between two spellings.`,
         expected: 'One spelling per resource, matching whichever form the site serves.',
-        observed,
+        ...observed,
         pages_affected: 0,
         coverage_qualified: false,
         remediation:
@@ -557,12 +567,14 @@ const typeGap: Check = {
             `usually an oversight rather than a decision — but this tool cannot read the page, so it ` +
             `may simply be that these pages are genuinely something else.`,
           expected: `A ${type} on every /${segment}/ page, if that is what they are.`,
-          observed: gap.slice(0, 10).map((page) => ({
-            value: page.canonical_url,
-            observation_count: 1,
-            page_count: 1,
-            provenance: [],
-          })),
+          ...sampleObserved(
+            gap.map((page) => ({
+              value: page.canonical_url,
+              observation_count: 1,
+              page_count: 1,
+              provenance: [],
+            })),
+          ),
           pages_affected: gap.length,
           coverage_qualified: true,
           remediation: `Check why these pages differ from the other ${carrying.length} in the section.`,
