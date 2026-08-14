@@ -257,6 +257,17 @@ is what a consumer sees.* Chrome is removed both by declaration — anything in
 `<nav>`, `<header>` or `<footer>` — and by measurement, since a block of text
 appearing on 80% or more of your pages is site furniture.
 
+**One page, one row — even when several URLs reach it.** A sitemap that lists
+both `/shop/` and `/pricing/`, where the first redirects to the second,
+describes one page: the crawl stores it once, under the URL it resolved to, and
+records `/shop/` as an *alias* on that row with the status and hops its request
+produced. The redirect is still reported by `indexing.sitemap-redirects` — it is
+worth fixing — but the page's markup is counted once instead of twice.
+
+Before 1.12.0 the second copy was stored as a page of its own, which inflated
+node counts and billed every finding on that page to two URLs. Crawls made
+before then keep whatever they stored; re-crawling reconciles them.
+
 `page_facts` on each manifest row carries the per-page measurements the `page`
 and `content` checks read: title, heading levels, robots directives, `hreflang`,
 image and alt counts, word counts, and a content fingerprint. Older crawls have

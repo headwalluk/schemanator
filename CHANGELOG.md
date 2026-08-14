@@ -105,6 +105,28 @@ reader trusted the number and reasoned to a wrong conclusion from it.
 
 ### Changed
 
+- **A page is stored once, however many URLs reach it.** A sitemap that lists
+  both `/shop/` and `/pricing/`, where the first 301s to the second, describes
+  one page — and the crawl stored two, writing the destination's HTML under each
+  requested URL. Its markup was then extracted twice, every `@id` on it appeared
+  under two `page_id`s, and every finding about it was billed to two pages. On a
+  real site that turned 5 products into 9.
+
+  A page record is now keyed by the URL the fetch **resolved to**, so two
+  requests landing on one page produce one record whichever order they arrive
+  in. The redirecting request survives on that record as an *alias*, carrying
+  the URL asked for, the sitemap that asked, and the hops the server returned —
+  so `indexing.sitemap-redirects` still reports it, which is the half of this
+  that must not be traded away to fix the arithmetic.
+
+  Crawling is unchanged: the same URLs are requested, and `fetched` still counts
+  requests. What changes is that requests and pages are now different numbers,
+  as they always were in fact.
+
+  **Only new crawls reconcile.** An existing crawl keeps the records it has —
+  including a resumed one, since a URL already fetched is not fetched again — so
+  re-crawl to correct a site whose sitemap lists a redirect and its destination.
+
 - **One sample size for the whole catalogue: ten observed rows.** The caps were
   3, 5, 8, 10 and 15, every one a bare number, and no reason survived being asked
   for — the early files say 5 and the later ones say 10. Lists that were cut at

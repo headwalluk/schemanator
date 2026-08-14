@@ -252,6 +252,79 @@ test('a non-200 is never duplicate content', () => {
   );
 });
 
+// --- requests folded into a page they redirected to --------------------------
+
+const withAlias = (options: { url: string; redirects: string[]; source?: string }): PageRecord => ({
+  ...page({ id: 'target' }),
+  url: 'https://example.com/target',
+  canonical_url: 'https://example.com/target',
+  aliases: [
+    {
+      url: options.url,
+      source: options.source ?? 'sitemap:https://example.com/s.xml',
+      http_status: 200,
+      redirect_chain: options.redirects.map((location) => ({
+        url: options.url,
+        status: 301,
+        location,
+      })),
+      fetched_at: '2026-08-14T00:00:00Z',
+    },
+  ],
+});
+
+test('a redirect folded into its destination is still reported', () => {
+  // The regression this pair exists to stop. Once a redirecting URL stopped
+  // being its own page record, a check reading `redirect_chain` off page
+  // records alone saw nothing — and reported nothing, on a site where the
+  // sitemap really does advertise a URL that redirects.
+  const findings = only(
+    [withAlias({ url: 'https://example.com/old', redirects: ['https://example.com/target'] })],
+    'indexing.sitemap-redirects',
+  );
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.observed[0]?.value, 'https://example.com/old');
+  assert.match(
+    findings[0]?.observed[0]?.detail ?? '',
+    /redirects to https:\/\/example\.com\/target/,
+  );
+  // One page, however many URLs point at it — the page is stored once now.
+  assert.equal(findings[0]?.pages_affected, 1);
+});
+
+test('a folded request keeps the hops it made', () => {
+  const findings = only(
+    [
+      withAlias({
+        url: 'https://example.com/old',
+        redirects: ['https://example.com/mid', 'https://example.com/target'],
+      }),
+    ],
+    'indexing.redirect-chain',
+  );
+
+  assert.equal(findings.length, 1);
+  assert.match(findings[0]?.observed[0]?.detail ?? '', /mid.*target/s);
+});
+
+test('a canonical pointing at a folded URL still counts as pointing at a redirect', () => {
+  // `indexing.canonical-to-redirect` asks whether requesting the canonical
+  // target redirects. That is a question about a request, and the request now
+  // lives on the alias rather than on a record of its own.
+  const target = withAlias({
+    url: 'https://example.com/old',
+    redirects: ['https://example.com/target'],
+  });
+  const findings = only(
+    [target, page({ id: 'other', declared: 'https://example.com/old' })],
+    'indexing.canonical-to-redirect',
+  );
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.pages_affected, 1);
+});
+
 // --- indexing.sitemap-duplicate-url / indexing.sitemap-overlap ---------------
 
 const PRODUCTS = 'https://example.com/product-sitemap.xml';

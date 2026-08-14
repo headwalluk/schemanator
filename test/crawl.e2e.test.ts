@@ -16,6 +16,7 @@ import { runCrawl } from '../src/crawl/run.ts';
 import { MIN_DELAY_MS } from '../src/net/fetcher.ts';
 import { pageIdFor, type PageRecord } from '../src/store/workdir.ts';
 import {
+  FIXTURE_ALIAS_PATHS,
   FIXTURE_EXCLUDED_PATHS,
   FIXTURE_FETCHABLE_PATHS,
   startFixtureSite,
@@ -51,7 +52,10 @@ test('dry run seeds the URL list and fetches no pages', async () => {
     // Everything robots.txt allows, which is more than what will turn out to be
     // fetchable: /gone is a 404 and /brochure.pdf is a PDF, and neither is
     // knowable until we ask. The disallowed and cross-host entries are gone.
-    assert.equal(summary.urls_queued, FIXTURE_FETCHABLE_PATHS.length + 2);
+    assert.equal(
+      summary.urls_queued,
+      FIXTURE_FETCHABLE_PATHS.length + FIXTURE_ALIAS_PATHS.length + 2,
+    );
 
     // robots.txt and the sitemaps were fetched — there is no other way to
     // produce the list — but not one page was.
@@ -126,9 +130,10 @@ test('a full crawl stores every fetchable page and records the rest', async () =
       if (record === undefined) continue;
 
       assert.equal(record.http_status, 200);
-      // page_id is derived from the *requested* URL: the frontier has to name
-      // the directory before it knows where a redirect will land.
-      assert.equal(record.page_id, pageIdFor(record.url));
+      // page_id is derived from the URL the fetch RESOLVED to. Deriving it from
+      // the requested URL stored one page twice whenever a sitemap listed both
+      // a redirecting URL and its destination.
+      assert.equal(record.page_id, pageIdFor(record.canonical_url));
       assert.match(record.content_type ?? '', /text\/html/);
       assert.notEqual(record.content_sha256, null);
       assert.deepEqual(record.errors, []);
@@ -146,7 +151,17 @@ test('a full crawl stores every fetchable page and records the rest', async () =
       assert.notEqual(meta['headers'], undefined);
     }
 
-    assert.equal(summary.fetched, FIXTURE_FETCHABLE_PATHS.length);
+    // Requests that succeeded — which is more than the pages stored, because
+    // two of them landed on a page another request had already claimed.
+    assert.equal(summary.fetched, FIXTURE_FETCHABLE_PATHS.length + FIXTURE_ALIAS_PATHS.length);
+
+    for (const aliasPath of FIXTURE_ALIAS_PATHS) {
+      assert.equal(
+        byUrl.has(site.url(aliasPath)),
+        false,
+        `${aliasPath} redirects to a page the sitemap also lists — it must not be a second record`,
+      );
+    }
 
     // --- the pages that must not have a body ---------------------------
     const notFound = byUrl.get(site.url(FIXTURE_EXCLUDED_PATHS.notFound));
@@ -163,13 +178,31 @@ test('a full crawl stores every fetchable page and records the rest', async () =
     assert.equal(summary.failed, 0);
 
     // --- redirect chain ------------------------------------------------
-    const redirected = manifest.find((record) => record.redirect_chain.length > 0);
-    assert.notEqual(redirected, undefined, 'the redirect chain should be recorded');
-    assert.equal(redirected?.redirect_chain.length, 2);
-    // Requested vs served: the sitemap advertises a URL that is not the one
-    // delivered, and both halves survive into the manifest.
-    assert.equal(redirected?.url, site.url('/moved'));
-    assert.equal(redirected?.canonical_url, site.url('/moved-target'));
+    //
+    // /moved 301s twice and lands on /moved-target, which the same sitemap
+    // lists directly. One page, one record — and the request that redirected is
+    // kept rather than discarded, because which URL was asked for and what the
+    // server said about it is what `indexing.sitemap-redirects` reports.
+    const target = byCanonical.get(site.url('/moved-target'));
+    assert.notEqual(target, undefined);
+    assert.equal(target?.url, site.url('/moved-target'), 'the direct request holds the record');
+    assert.deepEqual(target?.redirect_chain, []);
+
+    const alias = target?.aliases?.find((entry) => entry.url === site.url('/moved'));
+    assert.notEqual(alias, undefined, 'the redirecting request must survive as an alias');
+    assert.equal(alias?.redirect_chain.length, 2, 'both hops, on the request that made them');
+    assert.equal(alias?.http_status, 200);
+    assert.match(alias?.source ?? '', /^sitemap:/);
+
+    // The opposite order: /old-post is fetched AFTER the page it lands on. The
+    // result must be identical, or the manifest would depend on which entry a
+    // sitemap happened to list first.
+    const post = byCanonical.get(site.url('/blog/post-one'));
+    assert.equal(post?.url, site.url('/blog/post-one'));
+    assert.equal(
+      post?.aliases?.some((entry) => entry.url === site.url('/old-post')),
+      true,
+    );
 
     // --- crawl artefacts ------------------------------------------------
     const robots = await fs.readFile(path.join(workDir, 'crawl', 'robots.txt'), 'utf8');
@@ -194,13 +227,19 @@ test('a full crawl stores every fetchable page and records the rest', async () =
       true,
     );
 
+    // One line per *request*, which is no longer one line per manifest record:
+    // two requests landed on pages another request had already claimed, and the
+    // log is the record of what was asked for rather than of what was stored.
     const log = await fs.readFile(path.join(workDir, 'crawl', 'crawl.log'), 'utf8');
-    assert.equal(log.trim().split('\n').length, manifest.length);
+    assert.equal(log.trim().split('\n').length, manifest.length + FIXTURE_ALIAS_PATHS.length);
 
     const runSummary = JSON.parse(
       await fs.readFile(path.join(workDir, 'crawl-summary.json'), 'utf8'),
     ) as Record<string, unknown>;
-    assert.equal(runSummary['fetched'], FIXTURE_FETCHABLE_PATHS.length);
+    assert.equal(
+      runSummary['fetched'],
+      FIXTURE_FETCHABLE_PATHS.length + FIXTURE_ALIAS_PATHS.length,
+    );
   } finally {
     await site.close();
     await fs.rm(workRoot, { recursive: true, force: true });
@@ -285,7 +324,7 @@ test('--max-pages truncates in sitemap document order and records the cap', asyn
     const summary = await runCrawl({ startUrl: site.origin, workRoot, maxPages: 2, ...quiet });
 
     assert.equal(summary.urls_queued, 2);
-    assert.deepEqual(summary.truncated, { limit: 2, dropped: 5 });
+    assert.deepEqual(summary.truncated, { limit: 2, dropped: 7 });
 
     // Document order: the first two allowed entries of sitemap-pages.xml.
     const manifest = await readManifest(summary.work_dir ?? '');
@@ -336,7 +375,7 @@ test('--resume skips what was already fetched', async () => {
 
     // The two already-done pages are not re-requested.
     assert.equal(site.hits.get('/about'), 1, 'resume must not re-fetch a completed page');
-    assert.equal(second.fetched, FIXTURE_FETCHABLE_PATHS.length);
+    assert.equal(second.fetched, FIXTURE_FETCHABLE_PATHS.length + FIXTURE_ALIAS_PATHS.length);
   } finally {
     await site.close();
     await fs.rm(workRoot, { recursive: true, force: true });

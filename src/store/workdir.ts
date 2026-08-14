@@ -59,7 +59,37 @@ export function sha256(body: Buffer): string {
 }
 
 /** One line of `pages.jsonl` — the index. Shape per `dev-notes/01`. */
+/**
+ * Another URL whose fetch resolved to this page.
+ *
+ * A sitemap that lists both `/shop/` and `/website-hosting-and-email/`, where
+ * the first 301s to the second, describes **one page**. Before 1.12.0 the crawl
+ * stored two: the destination's HTML was written twice, once under each
+ * requested URL, so its markup was extracted twice, every `@id` on it appeared
+ * under two `page_id`s, and every finding about it was billed to two pages. On a
+ * real site that turned 5 products into 9 (`dev-notes/10`, finding 9).
+ *
+ * The request is kept rather than discarded, because it is not noise: which URL
+ * was asked for, which sitemap asked for it, and what the server said are
+ * exactly what `indexing.sitemap-redirects` reports. Losing them to fix the
+ * arithmetic would have traded one wrong number for one missing finding.
+ */
+export interface PageAlias {
+  /** The URL that was requested. */
+  url: string;
+  /** Why it was crawled — `sitemap:<url>`, as on a page record. */
+  source: string;
+  http_status: number | null;
+  redirect_chain: { url: string; status: number; location: string }[];
+  fetched_at: string;
+}
+
 export interface PageRecord {
+  /**
+   * Derived from `canonical_url` — **the URL the fetch resolved to**, not the
+   * one that was requested. Two requests landing on one page therefore produce
+   * one record, whichever order they arrive in, with the losers in `aliases`.
+   */
   page_id: string;
   url: string;
   canonical_url: string;
@@ -73,6 +103,11 @@ export interface PageRecord {
   content_sha256: string | null;
   bytes: number;
   html_purged: boolean;
+  /**
+   * Other URLs whose fetch landed here. Absent when nothing redirected to it,
+   * which is the overwhelming majority of pages.
+   */
+  aliases?: PageAlias[];
   /** Null until extraction has run (`dev-notes/03`). */
   extraction: null | Record<string, number>;
   /**

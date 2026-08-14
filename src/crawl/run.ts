@@ -15,7 +15,14 @@ import {
   type RobotsPolicy,
 } from './robots.ts';
 import { discoverSitemaps, type SitemapDiscovery } from './sitemaps.ts';
-import { pageIdFor, sha256, siteSlugFor, WorkDir, type PageRecord } from '../store/workdir.ts';
+import {
+  pageIdFor,
+  sha256,
+  siteSlugFor,
+  WorkDir,
+  type PageAlias,
+  type PageRecord,
+} from '../store/workdir.ts';
 import { SILENT_LOGGER, type Logger } from '../log.ts';
 
 /**
@@ -402,6 +409,25 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
   const frontier = new Frontier(workDir.frontierPath);
   if (resume) await frontier.load();
 
+  /**
+   * Every page record this site has, keyed by resolved id.
+   *
+   * Seeded from disk on a resumed crawl so a redirect fetched today can be
+   * folded into a destination fetched last week. Rewritten over the manifest
+   * when the fetch loop ends — appending alone cannot express a record that was
+   * merged after it was written.
+   */
+  const records = new Map<string, PageRecord>();
+  if (resume) {
+    try {
+      for (const existing of await workDir.readPageRecords())
+        records.set(existing.page_id, existing);
+    } catch {
+      // No manifest yet. A resumed crawl of a site with no stored pages is
+      // unusual but not wrong, and an empty map is the correct starting point.
+    }
+  }
+
   for (const candidate of queued) {
     await frontier.add(candidate.url, pageIdFor(candidate.url), candidate.source);
   }
@@ -440,6 +466,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     await storeResult(
       workDir,
       frontier,
+      records,
       item.url,
       item.page_id,
       item.source,
@@ -460,6 +487,24 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     onProgress?.({ fetched: index, total });
   }
 
+  /**
+   * One line per page, with merged pairs collapsed.
+   *
+   * The manifest is appended to during the loop so a crawl that dies still
+   * describes what it fetched, which means a record merged *after* it was
+   * appended is on disk twice. `01` says the manifest is truth, so the truth
+   * gets written once the loop can no longer change it.
+   */
+  const reconciled = [...records.values()];
+  const folded = reconciled.reduce((total, record) => total + (record.aliases?.length ?? 0), 0);
+  if (folded > 0) {
+    logger.info(
+      `  ${folded} redirecting URL(s) resolved to a page already crawled — recorded as aliases ` +
+        `rather than stored twice`,
+    );
+  }
+  if (reconciled.length > 0) await workDir.rewritePageRecords(reconciled);
+
   const counts = frontier.counts();
   summary.fetched = counts.done;
   summary.failed = counts.failed;
@@ -470,9 +515,39 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
   return summary;
 }
 
+/**
+ * Fold a second request that landed on an already-recorded page into that page.
+ *
+ * The **direct** request wins the record — the one whose requested URL is the
+ * URL it resolved to — and the redirected one becomes an alias, whichever order
+ * the two were fetched in. Order-independence is the whole point: a sitemap
+ * lists `/shop/` before `/pricing/` on one site and after it on another, and the
+ * manifest must not depend on which.
+ */
+function mergePageRecord(existing: PageRecord, incoming: PageRecord): PageRecord {
+  const asAlias = (record: PageRecord): PageAlias => ({
+    url: record.url,
+    source: record.source,
+    http_status: record.http_status,
+    redirect_chain: record.redirect_chain,
+    fetched_at: record.fetched_at,
+  });
+
+  const incomingIsDirect = incoming.url === incoming.canonical_url;
+  const [primary, demoted] = incomingIsDirect ? [incoming, existing] : [existing, incoming];
+
+  const aliases = [...(existing.aliases ?? []), ...(incoming.aliases ?? [])];
+  // Two requests for one URL cannot both reach here — they would be one
+  // frontier item — so the demoted record is always a distinct URL.
+  if (!aliases.some((alias) => alias.url === demoted.url)) aliases.push(asAlias(demoted));
+
+  return { ...primary, aliases };
+}
+
 async function storeResult(
   workDir: WorkDir,
   frontier: Frontier,
+  records: Map<string, PageRecord>,
   url: string,
   pageId: string,
   source: string,
@@ -494,11 +569,22 @@ async function storeResult(
   // two differ, the sitemap is advertising a URL that is not the one served,
   // which is a finding in its own right.
   const canonical = tryCanonicaliseUrl(record.finalUrl, { sortQuery });
+  const canonicalUrl = canonical.ok ? canonical.url : record.finalUrl;
+
+  /**
+   * Identity is the URL we ended at, not the one we asked for.
+   *
+   * `pageId` is what the frontier derived from the requested URL, which is
+   * right for bookkeeping — the frontier's job is to remember what was asked —
+   * and wrong for storage. Writing the destination's HTML under the requesting
+   * URL's id is what stored one page twice.
+   */
+  const resolvedId = pageIdFor(canonicalUrl);
 
   const pageRecord: PageRecord = {
-    page_id: pageId,
+    page_id: resolvedId,
     url,
-    canonical_url: canonical.ok ? canonical.url : record.finalUrl,
+    canonical_url: canonicalUrl,
     // Filled by extraction (`dev-notes/03`), which is the layer that parses HTML.
     declared_canonical: null,
     source,
@@ -515,8 +601,12 @@ async function storeResult(
     errors,
   };
 
+  const existing = records.get(resolvedId);
+  const merged = existing === undefined ? pageRecord : mergePageRecord(existing, pageRecord);
+  records.set(resolvedId, merged);
+
   const meta = {
-    ...pageRecord,
+    ...merged,
     requested_url: record.requestedUrl,
     headers: record.headers,
     attempts: record.attempts,
@@ -524,10 +614,12 @@ async function storeResult(
   };
 
   if (record.body !== null) {
-    await workDir.savePage(pageId, record.body, meta);
+    // Written under the resolved id, so the second request overwrites the same
+    // directory with the same bytes rather than creating a second copy.
+    await workDir.savePage(resolvedId, record.body, meta);
     await frontier.markDone(url);
   } else {
-    await workDir.saveFailedPage(pageId, meta);
+    await workDir.saveFailedPage(resolvedId, meta);
     // A non-2xx or wrong content-type is a *skip* — expected, recorded, not a
     // malfunction. A timeout or network failure is a genuine failure.
     if (record.error === null || record.error.kind === 'content-type-rejected') {
@@ -537,7 +629,10 @@ async function storeResult(
     }
   }
 
-  await workDir.appendPageRecord(pageRecord);
+  // Appended as the crawl goes, so a run that dies still leaves a manifest
+  // describing what it fetched. `runCrawl` rewrites it from `records` at the
+  // end, which is what collapses a merged pair into its single line.
+  await workDir.appendPageRecord(merged);
   summary.fetched = frontier.counts().done;
 }
 

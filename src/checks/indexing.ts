@@ -26,6 +26,56 @@ function sitemapOf(page: PageRecord): string | null {
   return page.source.startsWith('sitemap:') ? page.source.slice('sitemap:'.length) : null;
 }
 
+/**
+ * One request the crawl made, and the page it landed on.
+ *
+ * **A page record is no longer one request.** Since 1.12.0 a URL that redirects
+ * to a page the crawl already has is folded into that page as an alias, so the
+ * destination is stored once instead of twice — which is what stopped one page's
+ * markup being counted under two `page_id`s (`dev-notes/10`, finding 9).
+ *
+ * Three checks here ask questions about *requests* rather than about pages —
+ * does this URL redirect, how many hops, does that canonical target redirect —
+ * and reading them off page records alone silently loses every folded request.
+ * That regression is real and was caught by the fixture: `indexing.sitemap-
+ * redirects` stopped reporting a URL it had always reported, because the
+ * redirect had correctly moved onto the alias.
+ */
+interface CrawlRequest {
+  url: string;
+  source: string;
+  http_status: number | null;
+  redirect_chain: { url: string; status: number; location: string }[];
+  /** The page this request resolved to. Several requests can share one. */
+  page: PageRecord;
+}
+
+function requestsOf(pages: readonly PageRecord[]): CrawlRequest[] {
+  return pages.flatMap((page) => [
+    {
+      url: page.url,
+      source: page.source,
+      http_status: page.http_status,
+      redirect_chain: page.redirect_chain,
+      page,
+    },
+    ...(page.aliases ?? []).map((alias) => ({
+      url: alias.url,
+      source: alias.source,
+      http_status: alias.http_status,
+      redirect_chain: alias.redirect_chain,
+      page,
+    })),
+  ]);
+}
+
+/** Distinct pages behind a set of requests — several can land on one. */
+function pagesBehind(requests: readonly CrawlRequest[]): PageRecord[] {
+  const seen = new Map<string, PageRecord>();
+  for (const request of requests) seen.set(request.page.page_id, request.page);
+  return [...seen.values()];
+}
+
 /** Compare URLs the way the rest of the tool does, so spelling is not a finding. */
 function sameUrl(left: string, right: string): boolean {
   const a = tryCanonicaliseUrl(left);
@@ -62,11 +112,13 @@ export function dedupeByUrl(pages: readonly PageRecord[]): PageRecord[] {
   return [...seen.values()];
 }
 
-function pageByRequestedUrl(pages: readonly PageRecord[]): Map<string, PageRecord> {
-  const index = new Map<string, PageRecord>();
-  for (const page of pages) {
-    const requested = tryCanonicaliseUrl(page.url);
-    if (requested.ok) index.set(requested.url, page);
+function requestByUrl(pages: readonly PageRecord[]): Map<string, CrawlRequest> {
+  const index = new Map<string, CrawlRequest>();
+  // Aliases included: "does this URL redirect?" is a question about a request,
+  // and a folded request is still the only evidence that its URL redirects.
+  for (const request of requestsOf(pages)) {
+    const requested = tryCanonicaliseUrl(request.url);
+    if (requested.ok) index.set(requested.url, request);
   }
   return index;
 }
@@ -143,10 +195,15 @@ const sitemapRedirects: Check = {
   id: 'indexing.sitemap-redirects',
   group: 'indexing',
   run({ pages }) {
-    const redirected = pages.filter(
-      (page) => sitemapOf(page) !== null && page.redirect_chain.length > 0,
+    const redirected = requestsOf(pages).filter(
+      (request) => request.source.startsWith('sitemap:') && request.redirect_chain.length > 0,
     );
     if (redirected.length === 0) return [];
+
+    // Several sitemap URLs can redirect to one page, so the count of entries
+    // and the count of pages are different numbers and only one of them is
+    // `pages_affected`.
+    const landing = pagesBehind(redirected);
 
     return [
       {
@@ -163,18 +220,19 @@ const sitemapRedirects: Check = {
           `with the redirect about which URL is the real one.`,
         expected: 'Sitemaps naming the destination URL directly.',
         ...sampleObserved(
-          redirected.map((page) => ({
-            value: `${page.url} → ${page.canonical_url}`,
+          redirected.map((request) => ({
+            value: request.url,
+            detail: `redirects to ${request.page.canonical_url}`,
             observation_count: 1,
             page_count: 1,
             provenance: [],
           })),
         ),
-        pages_affected: redirected.length,
+        pages_affected: landing.length,
         coverage_qualified: false,
         remediation: 'Update the sitemap to list the destination URLs. Keep the redirects.',
         tradeoff: null,
-        page_ids: redirected.map((page) => page.page_id),
+        page_ids: landing.map((page) => page.page_id),
       },
     ];
   },
@@ -187,8 +245,10 @@ const redirectChain: Check = {
   id: 'indexing.redirect-chain',
   group: 'indexing',
   run({ pages }) {
-    const chained = pages.filter((page) => page.redirect_chain.length >= 2);
+    const chained = requestsOf(pages).filter((request) => request.redirect_chain.length >= 2);
     if (chained.length === 0) return [];
+
+    const landing = pagesBehind(chained);
 
     return [
       {
@@ -204,18 +264,19 @@ const redirectChain: Check = {
           `where the first rule was never repointed at the final destination.`,
         expected: 'One redirect, straight to the final URL.',
         ...sampleObserved(
-          chained.map((page) => ({
-            value: `${page.url} → ${page.redirect_chain.map((hop) => hop.location).join(' → ')}`,
-            observation_count: page.redirect_chain.length,
+          chained.map((request) => ({
+            value: request.url,
+            detail: `→ ${request.redirect_chain.map((hop) => hop.location).join(' → ')}`,
+            observation_count: request.redirect_chain.length,
             page_count: 1,
             provenance: [],
           })),
         ),
-        pages_affected: chained.length,
+        pages_affected: landing.length,
         coverage_qualified: false,
         remediation: 'Repoint the first redirect at the final destination.',
         tradeoff: null,
-        page_ids: chained.map((page) => page.page_id),
+        page_ids: landing.map((page) => page.page_id),
       },
     ];
   },
@@ -233,8 +294,8 @@ const canonicalToRedirect: Check = {
   id: 'indexing.canonical-to-redirect',
   group: 'indexing',
   run({ pages }) {
-    const index = pageByRequestedUrl(pages);
-    const findings: { page: PageRecord; target: PageRecord }[] = [];
+    const index = requestByUrl(pages);
+    const findings: { page: PageRecord; target: CrawlRequest }[] = [];
 
     for (const page of pages) {
       if (page.declared_canonical === null) continue;
@@ -243,7 +304,7 @@ const canonicalToRedirect: Check = {
 
       // Only a request made *to* that URL can tell us whether it redirects.
       const target = index.get(declared.url);
-      if (target === undefined || target.page_id === page.page_id) continue;
+      if (target === undefined || target.page.page_id === page.page_id) continue;
       if (target.redirect_chain.length === 0) continue;
 
       findings.push({ page, target });
@@ -289,7 +350,7 @@ const canonicalChain: Check = {
   id: 'indexing.canonical-chain',
   group: 'indexing',
   run({ pages }) {
-    const index = pageByRequestedUrl(pages);
+    const index = requestByUrl(pages);
     const chains: { from: PageRecord; via: PageRecord; to: string }[] = [];
 
     for (const page of pages) {
@@ -297,7 +358,9 @@ const canonicalChain: Check = {
       const declared = tryCanonicaliseUrl(page.declared_canonical);
       if (!declared.ok || sameUrl(page.canonical_url, page.declared_canonical)) continue;
 
-      const via = index.get(declared.url);
+      // The *page* here, not the request: a canonical chain is a claim one
+      // page makes about another, and the second claim is on the page.
+      const via = index.get(declared.url)?.page;
       if (via === undefined || via.declared_canonical === null) continue;
       // B must point somewhere other than itself for this to be a chain.
       if (sameUrl(via.canonical_url, via.declared_canonical)) continue;
@@ -362,6 +425,22 @@ const duplicateContent: Check = {
       // A page reached through a redirect is not a second URL serving the
       // content — it is a redirect, and `indexing.sitemap-redirects` reports it.
       // Counting it here billed the same defect twice.
+      //
+      // **Kept after redirect reconciliation, 2026-08-14, and the reason
+      // changed.** This exclusion was the reason the check never fired on the
+      // one true positive in the corpus: `vulnz.net` stores `/shop/` and
+      // `/pricing/` with identical hashes because the first 301s to the second,
+      // and the exclusion covered the class rather than the case (`dev-notes/10`,
+      // finding 9). Reconciliation removes that case at its source — one page,
+      // one record — so on any crawl from 1.12.0 the exclusion can no longer
+      // hide a genuine duplicate pair of that shape, because the pair no longer
+      // exists.
+      //
+      // What it still hides is two *different* redirecting URLs landing on two
+      // *different* pages that happen to serve identical bytes. Nothing in the
+      // 22-site corpus does that, and narrowing the rule for a case nobody has
+      // seen would be the same guesswork that made this check wrong the first
+      // time. Revisit when one turns up.
       if (page.redirect_chain.length > 0) continue;
       byHash.set(page.content_sha256, [...(byHash.get(page.content_sha256) ?? []), page]);
     }

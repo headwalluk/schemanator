@@ -11,6 +11,10 @@
  *   - a sitemap entry that 404s
  *   - a cross-host sitemap entry
  *   - one URL listed twice inside a sitemap, and another listed in two of them
+ *   - two sitemap URLs that redirect to pages the sitemap **also lists
+ *     directly**, one in each order: `/moved` before its destination and
+ *     `/old-post` after its own. Both must collapse to a single stored page,
+ *     and neither may depend on which was fetched first
  *   - a non-HTML entry (PDF) that must be skipped by Content-Type
  *   - a robots.txt `Disallow` covering one sitemap entry
  *
@@ -86,6 +90,15 @@ export const FIXTURE_FETCHABLE_PATHS = [
   '/moved-target',
 ];
 
+/**
+ * Advertised and fetched, but **not stored as pages of their own**.
+ *
+ * Each redirects to a URL the sitemap also lists directly, so the crawl folds it
+ * into that page as an alias. One is listed before its destination and one
+ * after, because the order is exactly what a naive implementation gets wrong.
+ */
+export const FIXTURE_ALIAS_PATHS = ['/moved', '/old-post'];
+
 /** Advertised but must NOT be fetched, each for a different reason. */
 export const FIXTURE_EXCLUDED_PATHS = {
   disallowed: '/private/secret',
@@ -146,10 +159,17 @@ export async function startFixtureSite(): Promise<TestServer> {
         Buffer.from(
           urlset([
             `${origin(request)}/blog/post-one`,
+            // Redirects to /blog/post-one, listed directly just above it — so
+            // the destination is already stored when this is fetched.
+            `${origin(request)}/old-post`,
             // Duplicate of a page already listed, with a tracking parameter.
             `${origin(request)}/about?utm_source=newsletter`,
             // Redirects twice before landing.
             `${origin(request)}/moved`,
+            // The destination of /moved, listed directly and *after* it — so
+            // the redirect is fetched first and the page it lands on has not
+            // been seen yet. The order that would have stored it twice.
+            `${origin(request)}/moved-target`,
           ]),
         ),
       ),
@@ -169,6 +189,7 @@ export async function startFixtureSite(): Promise<TestServer> {
 
     '/blog/post-one': htmlRoute(html('Post One', [ORGANIZATION, webPage('Post One')])),
 
+    '/old-post': { status: 301, headers: { location: '/blog/post-one' } },
     '/moved': { status: 301, headers: { location: '/moved-again' } },
     '/moved-again': { status: 302, headers: { location: '/moved-target' } },
     '/moved-target': htmlRoute(html('Moved Target', [ORGANIZATION, webPage('Moved Target')])),
