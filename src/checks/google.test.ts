@@ -781,7 +781,8 @@ test('a sitewide @id reports the pages it spans, not one', () => {
   assert.equal(finding?.pages_affected, 4);
 
   const row = finding?.observed[0];
-  assert.equal(row?.value, 'https://example.com/#biz — 4 nodes');
+  assert.equal(row?.value, 'https://example.com/#biz', 'the value is the @id, and only the @id');
+  assert.equal(row?.detail, '4 nodes');
   assert.equal(row?.observation_count, 4);
   assert.equal(row?.page_count, 4, 'the row aggregates four pages and must say so');
 

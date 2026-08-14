@@ -213,7 +213,11 @@ test('a finding carries every guaranteed key', () => {
   assert.deepEqual(Object.keys(finding?.subject ?? {}).sort(), ['id', 'kind', 'property']);
   assert.deepEqual(
     Object.keys(finding?.observed[0] ?? {}).sort(),
-    ['observation_count', 'page_count', 'provenance', 'value'],
+    // `detail` added in 1.12.0. Additive, so no bump: `value` keeps its type and
+    // its meaning — it is *more* strictly an identifier than before, because the
+    // annotation that used to be glued onto it now lives here. A consumer
+    // ignoring `detail` reads cleaner values than it did.
+    ['detail', 'observation_count', 'page_count', 'provenance', 'value'],
     BUMP,
   );
   assert.deepEqual(

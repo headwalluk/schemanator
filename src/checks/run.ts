@@ -805,7 +805,8 @@ const competingSyntax: Check = {
         ...sampleObserved(
           measured
             ? ranked.map(([type, count]) => ({
-                value: `${type} — ${jsonLdTypes.has(type) ? 'also in the JSON-LD' : 'not in the JSON-LD'}`,
+                value: type,
+                detail: jsonLdTypes.has(type) ? 'also in the JSON-LD' : 'not in the JSON-LD',
                 observation_count: count,
                 page_count: count,
                 provenance: [],

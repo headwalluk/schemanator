@@ -542,7 +542,10 @@ function buildFindings(
           }
           return sampleObserved(
             [...rows.entries()].map(([label, row]) => ({
-              value: row.nodes.length > 1 ? `${label} — ${row.nodes.length} nodes` : label,
+              value: label,
+              // Only where it says something: "1 node" on a row that is one
+              // node is noise on every row that is not the interesting one.
+              ...(row.nodes.length > 1 ? { detail: `${row.nodes.length} nodes` } : {}),
               observation_count: row.nodes.length,
               page_count: row.pages.size,
               // The whole row, so `provenanceOf`'s cap has something to cap.

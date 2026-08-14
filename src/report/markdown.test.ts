@@ -136,6 +136,54 @@ test('an @id-typed value is unwrapped for display', () => {
   assert.equal(output.includes('\\"@id\\"'), false);
 });
 
+test('the identifier is delimited and the annotation is not', () => {
+  // A reader copying a row out of a report should get something they can paste
+  // into a search box. When the annotation was inside the backticks they got
+  // `https://example.com/a — 23 KB, 400 words`, which is not a URL.
+  const output = renderMarkdown(
+    report({
+      findings: [
+        finding({
+          observed: [
+            {
+              value: 'https://example.com/a',
+              detail: '23 KB, 400 words',
+              observation_count: 1,
+              page_count: 1,
+              provenance: [],
+            },
+          ],
+        }),
+      ],
+    }),
+  );
+  assert.match(output, /`https:\/\/example\.com\/a` — 23 KB, 400 words — on 1 page\(s\)/);
+});
+
+test('a value that is not page-scoped makes no claim about pages', () => {
+  // A crawler token or a type name has a page count of zero, and "on 0 page(s)"
+  // reads as a broken tool rather than as a fact.
+  const output = renderMarkdown(
+    report({
+      findings: [
+        finding({
+          observed: [
+            {
+              value: 'GPTBot',
+              detail: 'OpenAI, training',
+              observation_count: 1,
+              page_count: 0,
+              provenance: [],
+            },
+          ],
+        }),
+      ],
+    }),
+  );
+  assert.match(output, /`GPTBot` — OpenAI, training\n/);
+  assert.equal(output.includes('0 page'), false);
+});
+
 test('silenced counts are shown, so silence reads as a decision', () => {
   const output = renderMarkdown(
     report({ summary: { ...report().summary, silenced: { 'entity.partiality': 1847 } } }),

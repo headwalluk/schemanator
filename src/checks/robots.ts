@@ -259,7 +259,8 @@ const aiCrawlerBlocked: Check = {
             `actively looking for it, which is usually not what was intended.`),
       expected: null,
       observed: blocked.map((crawler) => ({
-        value: `${crawler.token} — ${crawler.operator}, ${crawler.purpose}${crawler.note === undefined ? '' : ` (${crawler.note})`}`,
+        value: crawler.token,
+        detail: `${crawler.operator}, ${crawler.purpose}${crawler.note === undefined ? '' : ` (${crawler.note})`}`,
         observation_count: 1,
         page_count: 0,
         provenance: [],
@@ -344,7 +345,8 @@ const resourceBlocked: Check = {
           `something no visitor ever sees.`,
         expected: 'CSS, JavaScript and theme assets reachable by crawlers.',
         observed: hits.map((hit) => ({
-          value: `Disallow: ${hit.rule} — ${hit.what}`,
+          value: `Disallow: ${hit.rule}`,
+          detail: hit.what,
           observation_count: 1,
           page_count: 0,
           provenance: [],

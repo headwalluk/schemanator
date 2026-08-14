@@ -540,9 +540,10 @@ test('a type present in both syntaxes is distinguished from one that is not', ()
     ],
   );
 
-  const observed = findings[0]?.observed.map((entry) => entry.value) ?? [];
-  assert.equal(observed.includes('WebPage — also in the JSON-LD'), true);
-  assert.equal(observed.includes('WPFooter — not in the JSON-LD'), true);
+  // The type is the row; whether the JSON-LD also carries it is the annotation.
+  const observed = findings[0]?.observed.map((entry) => `${entry.value}|${entry.detail}`) ?? [];
+  assert.equal(observed.includes('WebPage|also in the JSON-LD'), true);
+  assert.equal(observed.includes('WPFooter|not in the JSON-LD'), true);
 });
 
 test('a crawl predating type recording says so rather than guessing', () => {

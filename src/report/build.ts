@@ -106,13 +106,14 @@ export function buildReport(input: {
       checks_run: input.checksRun,
       checks_disabled: input.checksDisabled,
     },
-    // `omitted_count` is guaranteed to a consumer and optional to a check: a
-    // finding whose `observed` list is complete should not have to say so in
-    // its constructor, and a consumer should not have to wonder whether an
-    // absent key means "nothing omitted" or "nobody counted".
+    // `omitted_count` and `detail` are guaranteed to a consumer and optional to
+    // a check: a finding whose `observed` list is complete should not have to
+    // say so in its constructor, and a consumer should not have to wonder
+    // whether an absent key means "nothing omitted" or "nobody counted".
     findings: input.findings.map((finding) => ({
       ...finding,
       omitted_count: finding.omitted_count ?? 0,
+      observed: finding.observed.map((row) => ({ ...row, detail: row.detail ?? null })),
     })),
   };
 }

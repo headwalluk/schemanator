@@ -92,6 +92,29 @@ reader trusted the number and reasoned to a wrong conclusion from it.
   literal, which is the rule in `CLAUDE.md` finally enforced rather than
   remembered. It would have caught all two dozen.
 
+- **`observed[].value` is an identifier again, and the annotation moved to
+  `detail`.** Nine checks appended one — `— 2 nodes`, `— 23 KB, 400 words`,
+  `— OpenAI, training` — so a value could not be grepped, compared between runs
+  or pasted anywhere useful. Both renderers join the two, so the report reads as
+  it did; `report.json` gains a key and loses none.
+
+  `page.title-duplicate` was the worst of them: it read `2 pages: Shop` beside a
+  `page_count` of 2, saying the same number twice and making the title
+  unsearchable in the process. The row is the title now.
+
+- **A changed annotation is no longer a changed finding.** `--since` fingerprints
+  the evidence, and with the annotation inside `value` it was fingerprinting
+  presentation: a page gaining a paragraph reported `content.javascript-only` as
+  *changed* on a run where nothing about the problem had moved. `detail` is
+  excluded from the comparison, which is half the reason it exists.
+
+- **The HTML renderer stops printing `0 pages affected` and `— on 0 pages`.** A
+  page count of zero means the value is not page-scoped — a crawler token, a
+  type name, a URL pair — and the markdown renderer has omitted both since
+  1.10.0. Two renderers describing one finding differently is the thing
+  `html.ts` says in its own header must not happen. Found one line apart, which
+  is what a class of fault looks like when only the instance gets fixed.
+
 - **`coverage.no-structured-data` lists one page per row.** It reported a single
   row whose value was five URLs glued together with newlines, carrying the whole
   site's count — a capped list wearing the costume of a complete one.
@@ -120,7 +143,11 @@ reader trusted the number and reasoned to a wrong conclusion from it.
 across this release will report every `google` finding as changed** when nothing
 about the site has moved. Findings whose `observed` list was capped at three or
 five will also come back changed, because ten rows are listed where fewer were
-before. That is this fix landing, not a regression. Subsequent
+before, and so will the nine checks whose values shed an annotation.
+
+All three are this release landing. **Subsequent runs compare more quietly than
+they did**, because the annotation the fingerprint used to read is now somewhere
+it cannot see. That is this fix landing, not a regression. Subsequent
 runs compare normally.
 
 Findings are matched by id, and an id names the question asked. Merging

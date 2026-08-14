@@ -174,8 +174,10 @@ test('duplicate titles report the titles, not a list of URLs', () => {
   assert.equal(findings.length, 1);
   assert.equal(findings[0]?.pages_affected, 2, 'only the colliding pages');
   // The shared title is what an operator acts on. A list of URLs says which
-  // pages collide without saying what they collide on.
-  assert.match(findings[0]?.observed[0]?.value ?? '', /2 pages: Shop/);
+  // pages collide without saying what they collide on. The count is not
+  // repeated into the value — `page_count` beside it already carries it.
+  assert.equal(findings[0]?.observed[0]?.value, 'Shop');
+  assert.equal(findings[0]?.observed[0]?.page_count, 2);
 });
 
 test('distinct titles are silent', () => {
@@ -239,5 +241,5 @@ test('a title containing a quote does not render as if the tool broke', () => {
 
   const value = findings[0]?.observed[0]?.value ?? '';
   assert.equal(value.includes('""'), false, 'the title must not be double-quoted');
-  assert.match(value, /2 pages: "Virtual H&S Classroom/);
+  assert.match(value, /^"Virtual H&S Classroom/);
 });

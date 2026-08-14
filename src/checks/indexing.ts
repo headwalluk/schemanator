@@ -490,7 +490,8 @@ const thinSitemapEntry: Check = {
         expected: null,
         ...sampleObserved(
           dedupeByUrl(thin).map((page) => ({
-            value: `${page.canonical_url} — ${page.page_facts?.text.extractable_words ?? 0} words`,
+            value: page.canonical_url,
+            detail: `${page.page_facts?.text.extractable_words ?? 0} words`,
             observation_count: 1,
             page_count: 1,
             provenance: [],

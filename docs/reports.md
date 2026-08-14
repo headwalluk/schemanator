@@ -61,6 +61,10 @@ Grouped by severity, errors first. Each one carries:
 - **Observed** — each distinct value, how many pages carry it, and where. Long
   lists are cut to ten, and a finding that was cut says so: *"…and 140 more"*,
   carried in the JSON as `omitted_count`
+- Each observed row is an **identifier** plus an optional **annotation**: the
+  URL, `@id` or title is `value`, and *"23 KB, 400 words"* or *"4 nodes"* is
+  `detail`. The renderers join them; a script reading `value` gets something it
+  can compare, fetch or grep for
 - **Suggested fix**
 - **Trade-off**, where the tool genuinely cannot decide for you
 
@@ -129,7 +133,7 @@ change.
   "summary": "…",
   "expected": "One url value across all observations of this @id.",
   "observed": [
-    { "value": "…", "observation_count": 120, "page_count": 120,
+    { "value": "…", "detail": null, "observation_count": 120, "page_count": 120,
       "provenance": [ { "page_id": "…", "url": "…", "syntax": "json-ld",
                         "block": 0, "pointer": "/5" } ] }
   ],
@@ -147,6 +151,11 @@ anyone's — could add findings without breaking the schema.
 Aggregated findings carry `instance_count`: several subjects with one root cause
 are reported once, because one generator behaviour deserves one fix rather than
 twenty-eight edits.
+
+`detail` is `null` on most rows. Where it is set it is prose for a human — how
+big, how many, which kind — and it is **not** part of what `--since` compares.
+That is deliberate: a page gaining a paragraph should not report a finding as
+changed when nothing about the problem has moved.
 
 ### Useful queries
 

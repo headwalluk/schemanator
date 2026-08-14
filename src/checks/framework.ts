@@ -34,7 +34,28 @@ export interface Provenance {
 }
 
 export interface Observed {
+  /**
+   * What this row is about, and nothing else: a URL, an `@id`, a crawler token,
+   * a robots rule, a title. **An identifier** — greppable, clickable,
+   * comparable between runs.
+   *
+   * Until 1.12.0 nine checks appended an annotation to it — `— 2 nodes`,
+   * `— 23 KB, 400 words`, `— OpenAI, training` — which cost all three of those
+   * properties at once, and in one case duplicated a number the row already
+   * carried in `page_count`. The annotation belongs in `detail`.
+   */
   value: string;
+  /**
+   * The annotation: how big, how many, which kind. Optional, and never load-
+   * bearing — a reader who ignores it still knows what the row names.
+   *
+   * `report/diff.ts` deliberately does not fingerprint it, which is half the
+   * point of splitting it out. A `content.javascript-only` row read
+   * `https://…/ — 23 KB, 400 words`, so a page gaining a paragraph reported the
+   * finding as *changed* on every run. The problem had not changed; the page
+   * had. Volatile annotation goes here, where the diff cannot see it.
+   */
+  detail?: string | null;
   observation_count: number;
   page_count: number;
   provenance: Provenance[];

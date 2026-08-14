@@ -168,10 +168,18 @@ function renderFinding(finding: Finding, index: number): string {
   parts.push(`<article class="finding ${finding.severity}">`);
   parts.push(`<h3>${index}. ${escapeHtml(finding.title)}</h3>`);
 
+  // A site-level finding computed from the graph rather than from pages has no
+  // page count, and "0 pages affected" reads as a broken tool rather than as a
+  // fact about the site. The markdown renderer learned this in 1.10.0 and this
+  // one did not — the same divergence as the row-level page count below, one
+  // line apart, which is what a class of fault looks like when only the
+  // instance gets fixed.
   const meta = [
     `<code>${escapeHtml(finding.check)}</code>`,
     `<span class="sev">${SEVERITY_LABEL[finding.severity]}</span>`,
-    `${finding.pages_affected} page${finding.pages_affected === 1 ? '' : 's'} affected`,
+    ...(finding.pages_affected > 0
+      ? [`${finding.pages_affected} page${finding.pages_affected === 1 ? '' : 's'} affected`]
+      : []),
     `<code>${escapeHtml(finding.finding_id)}</code>`,
   ];
   parts.push(`<p class="meta">${meta.join(' &middot; ')}</p>`);
@@ -195,9 +203,20 @@ function renderFinding(finding: Finding, index: number): string {
     for (const observed of finding.observed) {
       parts.push('<li>');
       parts.push(`<span class="mono">${escapeHtml(decodeValue(observed.value))}</span>`);
-      parts.push(
-        ` <span class="count">— on ${observed.page_count} page${observed.page_count === 1 ? '' : 's'}</span>`,
-      );
+      // Same two annotations, in the same order, as the markdown — including
+      // dropping the page count when it is zero. This renderer printed
+      // "— on 0 pages" where the markdown deliberately printed nothing, so two
+      // renderers described one finding differently, which the header of this
+      // file says must not happen. Zero means the value is not page-scoped.
+      const annotations = [
+        observed.detail ?? '',
+        observed.page_count > 0
+          ? `on ${observed.page_count} page${observed.page_count === 1 ? '' : 's'}`
+          : '',
+      ].filter((part) => part !== '');
+      for (const annotation of annotations) {
+        parts.push(` <span class="count">— ${escapeHtml(annotation)}</span>`);
+      }
       if (observed.provenance.length > 0) {
         parts.push('<ul class="prov">');
         for (const provenance of observed.provenance) {

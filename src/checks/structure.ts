@@ -664,7 +664,8 @@ const missingExpectedEntity: Check = {
           `only reports what is not there, and cannot read the page to know whether it should be.`,
         expected: null,
         observed: absences.map((absence) => ({
-          value: `${absence.what} — ${absence.why}`,
+          value: absence.what,
+          detail: absence.why,
           observation_count: 1,
           page_count: 0,
           provenance: [],

@@ -92,8 +92,9 @@ const notExtractable: Check = {
           dedupeByUrl(affected).map((page) => {
             const text = page.page_facts?.text;
             return {
-              value:
-                `${page.canonical_url} — landmarks hold ${text?.main_words ?? 0} of ` +
+              value: page.canonical_url,
+              detail:
+                `landmarks hold ${text?.main_words ?? 0} of ` +
                 `${text?.extractable_words ?? 0} words`,
               observation_count: 1,
               page_count: 1,
@@ -215,7 +216,8 @@ const mainInAside: Check = {
           dedupeByUrl(affected).map((page) => {
             const text = page.page_facts?.text;
             return {
-              value: `${page.canonical_url} — aside ${text?.aside_words ?? 0} words, main ${text?.main_words ?? 0}`,
+              value: page.canonical_url,
+              detail: `aside ${text?.aside_words ?? 0} words, main ${text?.main_words ?? 0}`,
               observation_count: 1,
               page_count: 1,
               provenance: [],
@@ -278,7 +280,8 @@ const javascriptOnly: Check = {
         expected: 'The page content present in the HTML as served.',
         ...sampleObserved(
           dedupeByUrl(affected).map((page) => ({
-            value: `${page.canonical_url} — ${Math.round(page.bytes / 1024)} KB, ${page.page_facts?.text.dom_words ?? 0} words`,
+            value: page.canonical_url,
+            detail: `${Math.round(page.bytes / 1024)} KB, ${page.page_facts?.text.dom_words ?? 0} words`,
             observation_count: 1,
             page_count: 1,
             provenance: [],
@@ -343,7 +346,8 @@ const hiddenText: Check = {
           dedupeByUrl(affected).map((page) => {
             const text = page.page_facts?.text;
             return {
-              value: `${page.canonical_url} — ${text?.hidden_words ?? 0} hidden, ${text?.extractable_words ?? 0} visible`,
+              value: page.canonical_url,
+              detail: `${text?.hidden_words ?? 0} hidden, ${text?.extractable_words ?? 0} visible`,
               observation_count: 1,
               page_count: 1,
               provenance: [],

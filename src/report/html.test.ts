@@ -174,6 +174,38 @@ test('markup in an observed value or provenance URL is escaped', () => {
   assert.equal(html.includes('"><script'), false, 'an attribute break would let markup out');
 });
 
+test('an annotation is escaped like everything else, and dropped when empty', () => {
+  // `detail` is copied out of somebody else's markup on some checks — image alt
+  // text, page titles — so it is attacker-adjacent like every other field here.
+  // And a page count of zero means the value is not page-scoped, which the
+  // markdown renderer has always known and this one did not: it printed
+  // "— on 0 pages", so the two renderers described one finding differently.
+  const html = renderHtml(
+    report({
+      findings: [
+        finding({
+          pages_affected: 0,
+          observed: [
+            {
+              value: 'GPTBot',
+              detail: '<script>alert(1)</script>',
+              observation_count: 1,
+              page_count: 0,
+              provenance: [],
+            },
+          ],
+        }),
+      ],
+    }),
+  );
+
+  assert.equal(html.includes('<script>'), false);
+  assert.match(html, /&lt;script&gt;/);
+  // Twice over: the row's own count, and the finding's "0 pages affected" chip
+  // above it. The markdown renderer has omitted both for two releases.
+  assert.equal(html.includes('0 page'), false, 'a zero page count is not a claim worth printing');
+});
+
 test('the site origin is escaped in both the title and the heading', () => {
   const html = renderHtml(
     report({ run: { ...report().run, site_origin: 'https://x.example/"><script>' } }),

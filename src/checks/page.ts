@@ -58,7 +58,14 @@ function siteFinding(options: {
   remediation: string;
   tradeoff?: string;
   pages: readonly PageRecord[];
-  describe?: (page: PageRecord) => string;
+  /**
+   * The annotation beside the URL — "3 <h1> elements", "2 of 23 images".
+   *
+   * This was `describe`, and it built the whole `value`, so every row read
+   * `https://…/ — 2 of 23 images` and the URL stopped being a URL. The row
+   * names the page; this says what is wrong with it.
+   */
+  detail?: (page: PageRecord) => string;
 }): Finding {
   return {
     finding_id: findingId(options.check, 'site'),
@@ -73,7 +80,8 @@ function siteFinding(options: {
     // same URL twice reads as a bug in the tool rather than a fact about the site.
     ...sampleObserved(
       options.pages.map((page) => ({
-        value: options.describe === undefined ? page.canonical_url : options.describe(page),
+        value: page.canonical_url,
+        ...(options.detail === undefined ? {} : { detail: options.detail(page) }),
         observation_count: 1,
         page_count: 1,
         provenance: [],
@@ -184,8 +192,8 @@ const h1Multiple: Check = {
           'HTML5 sectioning permits several, so this is reported as an ambiguity to resolve rather ' +
           'than an error to fix.',
         pages: affected,
-        describe: (page) =>
-          `${page.canonical_url} — ${(page.page_facts?.heading_levels ?? []).filter((l) => l === 1).length} <h1> elements`,
+        detail: (page) =>
+          `${(page.page_facts?.heading_levels ?? []).filter((l) => l === 1).length} <h1> elements`,
       }),
     ];
   },
@@ -228,8 +236,8 @@ const imageAltMissing: Check = {
           'Describe what the image shows, or set alt="" if it is decorative. The media library ' +
           'usually carries a default that most themes will use.',
         pages: affected,
-        describe: (page) =>
-          `${page.canonical_url} — ${page.page_facts?.images.missing_alt ?? 0} of ${page.page_facts?.images.total ?? 0} images`,
+        detail: (page) =>
+          `${page.page_facts?.images.missing_alt ?? 0} of ${page.page_facts?.images.total ?? 0} images`,
       }),
     ];
   },
@@ -277,8 +285,7 @@ const imageAltUseless: Check = {
           'Replace the filenames with descriptions. These usually come from a bulk upload where ' +
           'the media library took the filename as the title.',
         pages: affected,
-        describe: (page) =>
-          `${page.canonical_url} — ${(page.page_facts?.images.suspect_alt ?? []).join(', ')}`,
+        detail: (page) => (page.page_facts?.images.suspect_alt ?? []).join(', '),
       }),
     ];
   },
@@ -356,14 +363,19 @@ const titleDuplicate: Check = {
         }),
         // The duplicated titles are what an operator acts on. A list of URLs
         // says which pages collide without saying what they collide on.
+        //
         // The title is not wrapped in quotes. One corpus site has a page title
         // beginning with a stray `"`, and wrapping produced `""Virtual …` —
         // which reads as a rendering fault and makes a reader distrust a finding
-        // that had just surfaced a real typo. The count leads instead, and the
-        // renderers already delimit the value.
+        // that had just surfaced a real typo. The renderers already delimit it.
+        //
+        // The count used to lead — `2 pages: Shop` — beside a `page_count` of 2,
+        // so the row said the same number twice and the title was no longer a
+        // string you could search the site for. The row is the title now, and
+        // the count is where every other row keeps it.
         ...sampleObserved(
           shared.map(([title, group]) => ({
-            value: `${group.length} pages: ${title}`,
+            value: title,
             observation_count: group.length,
             page_count: group.length,
             provenance: [],

@@ -39,6 +39,15 @@ export interface ReportDiff {
  * What the finding currently rests on. Deliberately excludes anything that can
  * shift without the underlying problem changing — the run id, timestamps, the
  * prose.
+ *
+ * **`observed[].detail` is excluded, and that is the point of it existing.**
+ * The signature reads `value` and `page_count`, both facts about the site; until
+ * 1.12.0 nine checks glued their annotation onto `value`, so the signature was
+ * reading presentation without meaning to. A `content.javascript-only` row said
+ * `https://…/ — 23 KB, 400 words`, and a page gaining a paragraph reported the
+ * finding as *changed* on a run where nothing about the problem had moved. The
+ * category error was the same one the annotation itself was: a field that
+ * identifies something being asked to carry how big it is.
  */
 function evidenceSignature(finding: Finding): string {
   return JSON.stringify({

@@ -81,12 +81,18 @@ function renderFinding(finding: Finding, index: number): string {
     lines.push('**Observed:**');
     lines.push('');
     for (const observed of finding.observed) {
+      // The identifier is delimited; everything after it is annotation. Keeping
+      // them apart is what lets a reader copy the value out of the report and
+      // paste it somewhere useful — which is the whole reason `detail` exists.
+      //
       // A zero page count means the value is not page-scoped — a name, a type,
-      // a URL pair — so the suffix is omitted rather than printed as "0 page(s)".
+      // a URL pair — so that suffix is omitted rather than printed as "0 page(s)".
+      const annotations = [
+        observed.detail ?? '',
+        observed.page_count > 0 ? `on ${observed.page_count} page(s)` : '',
+      ].filter((part) => part !== '');
       lines.push(
-        observed.page_count > 0
-          ? `- \`${decodeValue(observed.value)}\` — on ${observed.page_count} page(s)`
-          : `- \`${decodeValue(observed.value)}\``,
+        `- \`${decodeValue(observed.value)}\`${annotations.map((part) => ` — ${part}`).join('')}`,
       );
       for (const provenance of observed.provenance) {
         lines.push(`    - ${provenance.url}`);

@@ -123,6 +123,58 @@ test('prose changes alone do not count as a change', () => {
   assert.equal(diff.summary.changed, 0);
 });
 
+test('a row whose annotation moved is not a row whose evidence moved', () => {
+  // `detail` is annotation — how many KB, how many nodes, which operator — and
+  // the signature must not read it. Before 1.12.0 it was concatenated into
+  // `value`, so a page gaining a paragraph made `content.javascript-only` come
+  // back Changed on a run where nothing about the problem had moved. The churn
+  // was invisible because it was indistinguishable from real movement.
+  const diff = diffReports(
+    report([
+      finding({
+        observed: [
+          {
+            value: 'https://example.com/a',
+            detail: '23 KB, 400 words',
+            observation_count: 1,
+            page_count: 1,
+            provenance: [],
+          },
+        ],
+      }),
+    ]),
+    report([
+      finding({
+        observed: [
+          {
+            value: 'https://example.com/a',
+            detail: '24 KB, 412 words',
+            observation_count: 1,
+            page_count: 1,
+            provenance: [],
+          },
+        ],
+      }),
+    ]),
+  );
+  assert.equal(diff.summary.unchanged, 1);
+  assert.equal(diff.summary.changed, 0);
+});
+
+test('a row whose identifier moved is a change', () => {
+  // The other half, or the test above would pass on a signature that read
+  // nothing at all.
+  const diff = diffReports(
+    report([finding()]),
+    report([
+      finding({
+        observed: [{ value: '+44 2', observation_count: 100, page_count: 100, provenance: [] }],
+      }),
+    ]),
+  );
+  assert.equal(diff.summary.changed, 1);
+});
+
 // --- the trap: coverage drift ------------------------------------------------
 
 test('a shrunken crawl warns rather than claiming success', () => {

@@ -90,7 +90,9 @@ test('text outside the landmarks is reported', () => {
 
   assert.equal(findings.length, 1);
   assert.equal(findings[0]?.severity, 'error');
-  assert.match(findings[0]?.observed[0]?.value ?? '', /landmarks hold 32 of 2030/);
+  // The row names the page; the annotation beside it says how bad it is.
+  assert.equal(findings[0]?.observed[0]?.value, 'https://example.com/p1');
+  assert.match(findings[0]?.observed[0]?.detail ?? '', /landmarks hold 32 of 2030/);
 });
 
 test('a page whose landmarks hold its content is silent', () => {
