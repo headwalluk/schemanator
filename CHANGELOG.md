@@ -2,7 +2,7 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
-## Unreleased
+## 1.12.0 — 2026-08-14
 
 What a field report found. 1.11.1 was run against a real site by somebody using
 it to check their own work rather than to test the tool, and the nine
@@ -192,13 +192,31 @@ before, and so will the nine checks whose values shed an annotation.
 
 All three are this release landing. **Subsequent runs compare more quietly than
 they did**, because the annotation the fingerprint used to read is now somewhere
-it cannot see. That is this fix landing, not a regression. Subsequent
-runs compare normally.
+it cannot see.
 
 Findings are matched by id, and an id names the question asked. Merging
 `aggregateRating` and `review` into one question therefore asks a new one, so
 that first diff also shows **two resolved and one appeared** where the pair used
 to be. Nothing has been fixed and nothing has broken.
+
+**A site whose sitemap lists a redirect and its destination will report fewer
+nodes and fewer affected pages** after a re-crawl — not because anything was
+fixed, but because the page had been counted twice and now is not.
+
+### What was validated, and how
+
+Everything here was run against the 22-site fixture corpus and a purpose-built
+fixture site; the 22 stored crawls report identically, which is the point, since
+they predate this release and nothing about them changed.
+
+**Two things could not be validated that way and are honestly less proven.** The
+sitemap-duplicate checks and the redirect reconciliation both need a crawl made
+by this version. A live run against the site the field report came from was made
+on 2026-08-14 and came back clean — the sitemap that carried both defects had
+since been removed — so both features are exercised end to end by the fixture
+site, and neither has yet fired on a real site's markup.
+
+542 tests, all passing.
 
 ## 1.11.1 — 2026-08-09
 
