@@ -2,6 +2,30 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## Unreleased
+
+Documentation accuracy, found by auditing the claims rather than by reading
+them. Both stale claims were in files nothing was checking.
+
+### Fixed
+
+- **`CLAUDE.md` said Prettier and ESLint were "agreed and not yet configured"**,
+  and told contributors to hand-match the surrounding file's style. They landed
+  in M6 on 2026-08-09. A stale instruction is worse than a missing one: it is
+  followed.
+- **`docs/agents.md` did not mention that evidence is sampled.** An agent that
+  works through the ten visible `observed` rows of a 150-subject finding and
+  reports the job done has fixed a fifteenth of it — the machine version of the
+  misreading that opened 1.12.0. It now says so, and says to match on `value`
+  rather than parse `detail`.
+
+### Added
+
+- **A test for every claim about how many checks exist.** The README badge was
+  guarded; the same number written in prose in `CLAUDE.md` and
+  `docs/dev/getting-started.md` was not, and both were wrong until this release
+  corrected them by hand. Correcting a number by hand is a job that recurs.
+
 ## 1.12.0 — 2026-08-14
 
 What a field report found. 1.11.1 was run against a real site by somebody using

@@ -148,6 +148,19 @@ narrow enough that they fire rarely or not at all, and a report with no
 `graph.orphan-node` finding does not mean the graph was audited for orphans and
 found clean. `summary.checks_run` lists what actually ran.
 
+**The evidence under a finding is a sample, and it says so.** `observed` lists
+at most ten rows and `omitted_count` says how many it did not list — so a
+finding reading `omitted_count: 140` has 150 affected subjects, not the ten you
+can see. An agent that works through the visible rows and reports the job done
+has fixed a fifteenth of it. Where the full set matters, `pages_affected` is the
+count and `pages.jsonl` has the pages; the rows beyond the cap are not recorded
+anywhere, deliberately, so that a report about an 8,000-page site stays a
+readable document.
+
+Each row splits into an identifier and an annotation: `value` is the URL, `@id`
+or title — the thing to match on — and `detail` is prose about it, such as
+*"23 KB, 400 words"*. Match on `value`; never parse `detail`.
+
 **Coverage qualifies every absence claim.** If `coverage.complete` is `false`,
 any finding asserting something is missing may simply be describing a page that
 was never fetched. Findings carry `coverage_qualified` for exactly this, and the

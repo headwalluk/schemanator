@@ -315,6 +315,63 @@ test('the README check-count badge matches reality', () => {
   );
 });
 
+test('nothing anywhere claims a check count that is not the check count', () => {
+  // The badge test above guards one number in one file. The same number is
+  // written in prose in at least three others, and every one of them was wrong
+  // at some point today — `CLAUDE.md` and `docs/dev/getting-started.md` both
+  // still said 52 after the catalogue reached 54, and were corrected by hand.
+  //
+  // Correcting a number by hand is a job that recurs; a test is a job that
+  // does not. This is deliberately wider than `docs/`, because the two stale
+  // claims found in the 1.12.0 wrap-up were both in files nothing was
+  // checking — `CLAUDE.md`, which instructs whoever picks this up, and the
+  // internal notes. Prose reads exactly the same whether or not it is true.
+  const FILES = [
+    'README.md',
+    'CLAUDE.md',
+    'CONTRIBUTING.md',
+    'docs/checks.md',
+    'docs/usage.md',
+    'docs/agents.md',
+    'docs/reports.md',
+    'docs/dev/getting-started.md',
+    'docs/dev/adding-a-check.md',
+    'docs/dev/writing-tests.md',
+  ];
+
+  const wrong: string[] = [];
+  for (const file of FILES) {
+    let source: string;
+    try {
+      source = read(file);
+    } catch {
+      continue; // A file that does not exist is another test's problem.
+    }
+    // **"All 54 checks", "The 54 checks" — a definite article and a number.**
+    // That is how a claim about the whole catalogue is actually written in this
+    // repository, checked rather than assumed: the only other numbered mention
+    // anywhere is `writing-tests.md` recounting that the catalogue "went from 13
+    // checks to 27", which is history and must not be flagged.
+    //
+    // A first attempt matched any number before the word and exempted anything
+    // below the real total, to spare counts of a subset. That exemption swallowed
+    // exactly the failure being guarded against — every stale claim found so far
+    // has been an *under*-count, written when the catalogue was smaller — and the
+    // test passed against a deliberately broken copy. Hence the narrower match
+    // and no exemption.
+    for (const match of source.matchAll(/\b(?:All|The) (\d+) checks\b/g)) {
+      const claimed = Number(match[1]);
+      if (claimed !== BUILT.size) wrong.push(`${file} claims ${claimed} checks`);
+    }
+  }
+
+  assert.deepEqual(
+    wrong,
+    [],
+    `the engine can emit ${BUILT.size} checks — update these, or the next reader trusts the wrong number`,
+  );
+});
+
 test('only badges that cannot be sourced live are static', () => {
   // npm serves version, licence and the engines floor, so those three are
   // dynamic and cannot rot. Test and check counts have no live source without

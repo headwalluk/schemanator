@@ -173,10 +173,10 @@ can be asserted, assert it: `docs-consistency.test.ts` and `exit-codes.test.ts`
 exist precisely so these standards are enforced rather than remembered. **Adding
 a standard means asking what test would catch its violation.**
 
-**Prettier and ESLint are agreed and not yet configured** — decided 2026-08-09,
-tracked as M6 in `dev-notes/00`. Until they land, match the surrounding file:
-single quotes, semicolons, two-space indent, 100-ish columns, trailing commas in
-multi-line literals.
+**Prettier and ESLint are configured and enforced** — M6, landed 2026-08-09.
+`npm run format` writes, `npm run format:check` and `npm run lint` verify, and
+both run in `prepublishOnly`. Do not hand-match the surrounding file's style;
+run the formatter.
 
 They complement these tests rather than replace them. A linter enforces *shape*;
 `docs-consistency`, `exit-codes`, `contract` and `data-files` enforce *meaning*,
