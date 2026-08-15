@@ -216,6 +216,15 @@ on 2026-08-14 and came back clean — the sitemap that carried both defects had
 since been removed — so both features are exercised end to end by the fixture
 site, and neither has yet fired on a real site's markup.
 
+### Found by the validation crawl, 2026-08-15
+
+- **The crawl said "36 stored" where 35 pages were stored.** `fetched` counts
+  requests that succeeded, and reconciliation means two requests can land on one
+  page — so printing it as the stored count was a number that could not be true,
+  which is the exact fault this release was written to remove. It found its way
+  into the first real run of the feature that caused it. `crawl-summary.json`
+  gains `pages_stored`, the manifest count, and the CLI prints that.
+
 ### Documentation accuracy, 2026-08-15
 
 Found by auditing the claims rather than by reading them, in the wrap-up pass

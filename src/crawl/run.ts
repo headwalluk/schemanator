@@ -92,6 +92,16 @@ export interface CrawlSummary {
   /** Populated only under --dry-run: the URLs that would have been fetched. */
   queued_urls?: string[];
   fetched: number;
+  /**
+   * Pages in the manifest — which is **not** `fetched`.
+   *
+   * `fetched` counts requests that succeeded, and since 1.12.0 two requests can
+   * land on one page: a sitemap listing both a redirecting URL and its
+   * destination produces two fetches and one record. Reporting the request count
+   * as "stored" is a number that cannot be true, which is the exact fault the
+   * release this shipped in was written to remove.
+   */
+  pages_stored: number;
   failed: number;
   skipped: number;
   aborted: string | null;
@@ -389,6 +399,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     seeded_from: seededFrom,
     fetched_this_run: 0,
     fetched: 0,
+    pages_stored: 0,
     failed: 0,
     skipped: 0,
     aborted: null,
@@ -504,6 +515,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     );
   }
   if (reconciled.length > 0) await workDir.rewritePageRecords(reconciled);
+  summary.pages_stored = reconciled.length;
 
   const counts = frontier.counts();
   summary.fetched = counts.done;

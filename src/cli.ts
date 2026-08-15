@@ -605,7 +605,7 @@ async function main(argv: string[]): Promise<ExitCode> {
     logger.info(
       `\nDone. ${requested} page(s) requested this run` +
         (requested === 0 ? ' (everything was already stored)' : '') +
-        `. ${summary.fetched} stored, ${summary.skipped} skipped, ${summary.failed} failed.`,
+        `. ${summary.pages_stored} stored, ${summary.skipped} skipped, ${summary.failed} failed.`,
     );
     logger.info(`Output: ${summary.work_dir}`);
 

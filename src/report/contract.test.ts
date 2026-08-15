@@ -55,6 +55,7 @@ const CRAWL: CrawlSummary = {
   seeded_from: 'sitemap',
   fetched_this_run: 2,
   fetched: 2,
+  pages_stored: 2,
   failed: 0,
   skipped: 0,
   aborted: null,

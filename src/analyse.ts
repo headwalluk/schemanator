@@ -93,6 +93,9 @@ async function readCrawlSummary(workDir: WorkDir, pageCount: number): Promise<Cr
       sample_strategy: 'spread',
       seeded_from: 'sitemap',
       fetched: pageCount,
+      // The manifest is the only thing we have here, so what it holds *is* the
+      // stored count — there is no crawl to disagree with it.
+      pages_stored: pageCount,
       fetched_this_run: 0,
       failed: 0,
       skipped: 0,

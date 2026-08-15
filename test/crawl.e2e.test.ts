@@ -152,8 +152,13 @@ test('a full crawl stores every fetchable page and records the rest', async () =
     }
 
     // Requests that succeeded — which is more than the pages stored, because
-    // two of them landed on a page another request had already claimed.
+    // two of them landed on a page another request had already claimed. The two
+    // numbers are reported separately because the CLI said "36 stored" on a real
+    // site whose manifest held 35, which is the class of defect the release this
+    // landed in exists to remove.
     assert.equal(summary.fetched, FIXTURE_FETCHABLE_PATHS.length + FIXTURE_ALIAS_PATHS.length);
+    assert.equal(summary.pages_stored, FIXTURE_FETCHABLE_PATHS.length + 2, 'the manifest count');
+    assert.equal(summary.pages_stored, manifest.length);
 
     for (const aliasPath of FIXTURE_ALIAS_PATHS) {
       assert.equal(
