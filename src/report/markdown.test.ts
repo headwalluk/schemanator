@@ -21,6 +21,7 @@ function report(overrides: Partial<Report> = {}): Report {
       urls_queued: 47,
       pages_fetched: 47,
       pages_extracted: 47,
+      pages_linked: 0,
       truncated: null,
       sample_strategy: 'spread',
       caveat: null,

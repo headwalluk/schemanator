@@ -25,7 +25,7 @@ import { renderHtml } from './report/html.ts';
 import { diffReports, type ReportDiff } from './report/diff.ts';
 import { renderDiffMarkdown } from './report/diff-markdown.ts';
 import { DEFAULT_EMIT_BY_TYPE, VERSION } from './runtime.ts';
-import { WorkDir } from './store/workdir.ts';
+import { isHopPage, WorkDir } from './store/workdir.ts';
 
 export interface AnalyseOptions {
   workRoot: string;
@@ -122,6 +122,10 @@ export async function runAnalysis(options: AnalyseOptions): Promise<AnalyseResul
   logger.info('Running checks …');
   const nodes = await readGraph(workDir);
   const pages = await workDir.readPageRecords();
+  // The audited sample and its nodes, split once and used by both the checks
+  // and the report — see `isHopPage`.
+  const auditedPageIds = new Set(pages.filter((page) => !isHopPage(page)).map((p) => p.page_id));
+  const auditedNodes = nodes.filter((node) => auditedPageIds.has(node.page_id));
 
   const { findings, silenced, checksRun, checksDisabled } = runChecks({
     nodes,
@@ -133,6 +137,11 @@ export async function runAnalysis(options: AnalyseOptions): Promise<AnalyseResul
     // `duplicate_entries` key at all, and reading that absence as "none found"
     // would let two checks report a clean sitemap they never looked at.
     sitemapDuplicates: crawl.duplicate_entries ?? null,
+    links: await workDir.readLinks(),
+    // Same rule again, and it matters more here: a crawl older than 1.13.0 has
+    // no `link_hop` key, and group `link` reading that as "the hop found
+    // nothing" would report every page behind a noindexed hub as an orphan.
+    linkHop: crawl.link_hop ?? null,
     ...(options.disabledChecks === undefined ? {} : { disabled: options.disabledChecks }),
   });
 
@@ -142,7 +151,10 @@ export async function runAnalysis(options: AnalyseOptions): Promise<AnalyseResul
     crawl,
     extraction,
     pages,
-    entities: buildGraph(nodes).groups.size,
+    // Over the audited nodes, matching `graph.nodes` beside it. A hop page
+    // repeating the sitewide Organization must not add an entity the checks
+    // never looked at.
+    entities: buildGraph(auditedNodes).groups.size,
     findings,
     silenced,
     checksRun,

@@ -73,7 +73,8 @@ somebody else's website, not something you authored.
 
 Measured across 1,829 pages of real sites: **about 250 KB of stored HTML per
 page**, and roughly 370 KB per page once the extracted nodes and raw blocks are
-counted. So a 500-page site is around 125 MB of HTML, or 180 MB all in.
+counted. So a default 100-page crawl is around 25 MB of HTML, or 37 MB all in,
+and a 500-page one is 125 MB of HTML, or 180 MB all in.
 
 The stored HTML is what lets you re-analyse a crawl without re-fetching it, but
 it is disposable:

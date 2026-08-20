@@ -15,14 +15,44 @@ rather than for your convenience.
 | Delay between requests | **1000 ms**, measured from the previous request *finishing* |
 | Minimum delay | **200 ms**, even if you ask for less |
 | `robots.txt` | Fully obeyed, including `Disallow` and `Crawl-delay` |
-| Maximum pages | 500 |
+| Maximum pages | 100 |
+| Maximum linked pages | 50, on top of the page cap |
 | Timeout | 20 s |
 | Retries | 2, on 5xx and network errors only |
 | Redirects | Followed to 5, and the full chain is recorded |
 | Response size | Capped at 10 MB |
 
-A 500-page crawl therefore takes about nine minutes, and there is no option to
-make it dramatically faster. That is the point.
+A default 100-page crawl therefore takes under two minutes, a raised cap of 500
+takes nine, and there is no option to make either dramatically faster. That is
+the point.
+
+### The one hop out of the sitemap
+
+Since 1.13.0 the crawl also follows internal links that lead **off** the
+sitemap — a section index, a tag archive, page 2 of a listing — and stops there.
+It never follows their links in turn; that would be a general web crawler, which
+is a different tool with a different argument to make.
+
+This is the only thing here that adds requests, so it is worth being plain about
+the cost — and about the fact that it grows faster than you would expect. A
+54-page site turned up 21 unlisted URLs. A 564-page shop turned up **832**,
+because it generates `/product-tag/` and `/brand/` archives in bulk and lists
+none of them in a sitemap.
+
+It is capped separately at 50 rather than sharing `--max-pages`, so the worst
+case is bounded and additive rather than a surprise. **The default deliberately
+will not close the link graph on a large site.** The alternative is a tool that
+quietly makes several hundred extra requests to somebody's server because a
+check wanted them; instead the crawl prints the number that would close it and
+leaves the decision with you.
+
+`robots.txt` governs it exactly as it governs everything else — two of those 21
+were `Disallow`ed and were not fetched.
+
+`--no-link-hop` turns it off. The cost is that the
+[`link`](checks.md#link--the-sitemap-and-the-link-graph-disagree) checks then
+report nothing at all, because without those pages the crawl cannot tell a page
+nothing links to from a page whose only link sits somewhere it never looked.
 
 ### Why only one crawl at a time
 
@@ -51,8 +81,8 @@ somebody else's server rather than yours.
   the body.
 - **No JavaScript.** No headless browser. See [the limitation](#what-it-cannot-see).
 - **No off-site media.** Images on other hosts are reported but never fetched.
-- **No vocabulary fetching.** schema.org is bundled. A 500-page crawl would
-  otherwise mean 500 requests to schema.org for a file that changes a few times
+- **No vocabulary fetching.** schema.org is bundled. A 100-page crawl would
+  otherwise mean 100 requests to schema.org for a file that changes a few times
   a year.
 
 ## Identify yourself
@@ -113,7 +143,7 @@ shorten it.
 schemanator example.com --delay 5000
 
 # Fewer pages, still representative across content types
-schemanator example.com --max-pages 100
+schemanator example.com --max-pages 50
 
 # Just the list, no page fetches at all
 schemanator example.com --dry-run

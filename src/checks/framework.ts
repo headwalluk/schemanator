@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 
 import type { DuplicateEntry as SitemapDuplicate } from '../crawl/sitemaps.ts';
 import type { ExtractedNode } from '../extract/types.ts';
-import type { PageRecord } from '../store/workdir.ts';
+import type { PageRecord, StoredLink } from '../store/workdir.ts';
 import type { CardinalityRules } from './cardinality.ts';
 import type { EntityGraph } from './graph.ts';
 import type { GoogleRules } from './google.ts';
@@ -212,6 +212,41 @@ export interface CheckContext {
    * re-crawl.
    */
   sitemapDuplicates: readonly SitemapDuplicate[] | null;
+  /**
+   * Every page the crawl stored, including the ones the link hop fetched.
+   *
+   * **Group `link` only.** Everything else reads {@link pages}, which is the
+   * audited sample — see `isHopPage`. A check reaching for this is claiming
+   * that a page nobody asked to audit belongs in its finding, and needs to say
+   * why.
+   */
+  allPages: PageRecord[];
+  /**
+   * The internal link graph. Empty on a crawl that never extracted one.
+   *
+   * Group `link` only. Empty and "not extracted" are indistinguishable here,
+   * which is safe *only* because {@link linkHopRan} is what actually gates the
+   * findings — a site with no links at all and a crawl with no link file both
+   * produce nothing, and neither should report every page as an orphan.
+   */
+  links: readonly StoredLink[];
+  /**
+   * The crawl's one hop out of the sitemap, or null if it did not happen.
+   *
+   * **Null is a crawl older than 1.13.0 or one run with `--no-link-hop`** — not
+   * "the hop found nothing". Either way the link graph has a hole in exactly the
+   * place group `link` looks.
+   *
+   * The counts matter as much as the fact: `dropped` above zero means the hop
+   * was capped and the graph is *still* open, which is not visibly different
+   * from a closed one unless you look. See `link.ts`.
+   */
+  linkHop: {
+    discovered: number;
+    queued: number;
+    disallowed: number;
+    dropped: number;
+  } | null;
   /** The host being audited. Needed to tell own-domain media from foreign. */
   siteHost: string;
   /** True when the crawl did not cover the whole site. Gates absence claims (rule 3). */

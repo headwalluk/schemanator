@@ -209,25 +209,61 @@ export function extractBlocks($: CheerioAPI): TextBlock[] {
   return blocks;
 }
 
+/**
+ * Resolve one `href` against the page it was found on. `null` if it is not a
+ * link to a document — an anchor, a `mailto:`, a `tel:`, or unparseable.
+ *
+ * **Factored out so the crawl and extraction cannot disagree about what a link
+ * is.** The link hop (`dev-notes/11`) has to decide which URLs a page points at
+ * during the crawl, hours before extraction runs; two implementations of "is
+ * this internal" would be two answers to a question this whole tool is about.
+ */
+export function resolveHref(
+  href: string,
+  pageUrl: string,
+  siteHost: string,
+): { resolved: string; internal: boolean } | null {
+  const trimmed = href.trim();
+  if (trimmed === '' || trimmed.startsWith('#') || /^(mailto|tel|javascript):/i.test(trimmed))
+    return null;
+
+  try {
+    const url = new URL(trimmed, pageUrl);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    url.hash = '';
+    return { resolved: url.toString(), internal: url.host === siteHost };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Every distinct internal URL this page links to.
+ *
+ * Deliberately cheaper than {@link extractLinks}: no anchor text, no enclosing
+ * block, no hashing. The crawl calls this on a body it already holds in memory,
+ * and the block work is the expensive half — `.closest()` and `.text()` per
+ * link, against 2,871 links on a 54-page site.
+ */
+export function collectLinkTargets($: CheerioAPI, pageUrl: string, siteHost: string): string[] {
+  const targets = new Set<string>();
+
+  $('a[href]').each((_index, element) => {
+    const link = resolveHref($(element).attr('href') ?? '', pageUrl, siteHost);
+    if (link !== null && link.internal) targets.add(link.resolved);
+  });
+
+  return [...targets];
+}
+
 export function extractLinks($: CheerioAPI, pageUrl: string, siteHost: string): PageLink[] {
   const links: PageLink[] = [];
 
   $('a[href]').each((_index, element) => {
     const node = $(element);
-    const href = (node.attr('href') ?? '').trim();
-    if (href === '' || href.startsWith('#') || /^(mailto|tel|javascript):/i.test(href)) return;
-
-    let resolved: string;
-    let internal: boolean;
-    try {
-      const url = new URL(href, pageUrl);
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-      url.hash = '';
-      resolved = url.toString();
-      internal = url.host === siteHost;
-    } catch {
-      return;
-    }
+    const link = resolveHref(node.attr('href') ?? '', pageUrl, siteHost);
+    if (link === null) return;
+    const { resolved, internal } = link;
 
     // Which block encloses this link decides whether it is navigation or
     // content, once the site-wide frequency count is known.

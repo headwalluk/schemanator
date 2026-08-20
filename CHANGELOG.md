@@ -2,6 +2,92 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.13.0 — 2026-08-20
+
+### Added
+
+- **Group `link`, and the crawler change underneath it.** The last item in
+  `07`'s build order. `graph/links.jsonl` has been written since 1.7.0 and read
+  by nothing; it is read now.
+
+  - **`link.noindex-only-inbound`** (Warning) — a page in a sitemap whose only
+    inbound internal links are on pages carrying `noindex`. The common shape is
+    a section index or tag archive set to `noindex, follow`, which is usually
+    correct, quietly becoming the only route to everything filed under it.
+    Google eventually stops following those links, at which point the pages are
+    listed for indexing and cut off from every page that could support them.
+    Nothing that reads one page at a time can see it: every page involved is
+    individually fine.
+  - **`link.orphan`** (Warning) — a sitemap page nothing on the site links to.
+    Self-links do not count, which is most of what a real orphan has: comment
+    permalinks and "Cancel reply".
+
+- **The crawl follows one hop out of the sitemap.** Internal URLs that are
+  linked from a crawled page but listed in no sitemap are now fetched, and it
+  stops there — following their links in turn would be a general web crawler.
+
+  **This is not a feature the checks happen to need; it is the reason they could
+  not exist before.** Measured on a real site, a sitemap-only crawl finds eight
+  pages with no inbound link, of which five are genuine and three are posts on
+  page 2 of a paginated archive nothing fetched. **37% false positives, and no
+  narrowing of the rule could have fixed it** — the evidence was not on disk. On
+  a crawl without the hop, group `link` reports nothing at all rather than
+  guessing.
+
+  **It also needs every page that could hold a link to have been fetched** —
+  neither `--max-pages` nor `--link-hop-pages` may have bitten. Both conditions
+  came from the corpus shakedown rather than the design, and in that order. On a
+  564-URL site sampled at 100, `link.orphan` reported nine pages "linked from
+  nowhere on the site", a claim resting on 18% of it. `coverage_qualified` was
+  already set and was not enough: a footnote does not rescue a headline. Then
+  the same site at *full* sitemap coverage reported 29 — with 205 unlisted URLs
+  still unfetched behind the hop's own cap. `coverage.complete` was true and the
+  link graph was not.
+
+  When either cap silences the group, the crawl prints the number that would
+  lift it. On a large site that number is not small: the same shop linked to 832
+  pages listed in no sitemap, against 564 in its sitemaps. **The defaults will
+  not close the link graph on a big site, deliberately** — the alternative is
+  making several hundred unrequested extra requests to somebody's server.
+
+  Capped separately at `--link-hop-pages` (default 50) rather than sharing
+  `--max-pages`: these are evidence about the sample, not members of it, and
+  sharing one budget means an audited page drops out to make room for a footer
+  link. `--no-link-hop` turns it off. `robots.txt` governs it as it governs
+  everything else.
+
+- **`coverage.pages_linked` in `report.json`.** Adding a key is not a breaking
+  change, so `report_schema` stays at 1. Hop pages are excluded from
+  `pages_fetched`, `pages_extracted` and every number under `graph`, because the
+  report describes the audited sample — the first live run printed *"Pages
+  fetched | 73 of 54 discovered"*, which is not a number that can be true.
+
+### Changed
+
+- **`--max-pages` now defaults to 100, down from 500.** The default's job is to
+  see several instances of every content type, and under `spread` sampling that
+  is governed by how many sitemaps a site partitions into rather than by the
+  total — six groups and a hundred pages is sixteen of each. Divergence under a
+  shared `@id` shows up in the first handful; the next four hundred pages
+  restate it.
+
+  The number that changed is a time budget. At one request per second 500 pages
+  is nine minutes, which outlives most agent shell timeouts, and an audit nobody
+  waits for is worth nothing. A hundred is under two.
+
+  **What it costs, stated plainly:** checks that compare pages against each
+  other need both halves of a pair in the sample, so a lower cap means more
+  sites fall under the sampling warning. That warning is the mitigation — it
+  names the checks that weaken, and `--max-pages 500` restores the old
+  behaviour exactly.
+
+- **The cap is a named constant with a test behind it.** It was a bare `500` in
+  one destructure and written out again in `--help` and three documents. The
+  help text interpolates `DEFAULT_MAX_PAGES`, and `docs-consistency.test.ts`
+  asserts every document claiming a page cap claims this one — including that
+  the sentence it matches still exists, so a rewording fails the test rather
+  than silently matching nothing.
+
 ## 1.12.0 — 2026-08-14
 
 What a field report found. 1.11.1 was run against a real site by somebody using

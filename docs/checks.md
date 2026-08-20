@@ -597,6 +597,75 @@ either a duplicate of another file's or a URL that redirected away.
 
 ---
 
+## `link` — the sitemap and the link graph disagree
+
+Same shape as [`indexing`](#indexing--the-signals-disagree-about-whether-to-index-a-page),
+one layer along. A sitemap entry is a request to index a page. A link graph with
+no route to that page is the site declining to point at it. Both cannot be the
+plan.
+
+**These two need a crawl from 1.13.0 or later, and they say nothing without
+one.** Answering "does anything link to this page" means fetching the pages that
+might — including the ones no sitemap lists, which is what `--max-pages` and the
+sitemap never covered. Since 1.13.0 the crawl follows **one hop** out of the
+sitemap to close that gap.
+
+**They also need every page that could hold a link to have been fetched.** These
+are pure absence claims — *nothing* links here — and an absence claim is only as
+good as its coverage. Any URL left unfetched is a page free to hold the link
+that would disprove the finding, so this group reports **nothing at all** rather
+than a qualified finding unless all three of these hold:
+
+| | Why |
+| --- | --- |
+| The hop ran | Without it, a page whose only inbound link sits on an unlisted archive looks exactly like a page nothing links to. Guessing was wrong 3 times in 8 on a real site |
+| `--max-pages` did not bite | On a 564-URL site sampled at 100, `link.orphan` produced nine findings that could be neither confirmed nor refuted |
+| `--link-hop-pages` did not bite | The same site at *full* sitemap coverage still had 205 unlisted URLs unfetched. `coverage.complete` was true and the link graph was not |
+
+When a cap silences the group, the crawl prints the number that would lift it —
+for both caps. On a large site those numbers can be substantial: a shop
+generating `/product-tag/` and `/brand/` archives in bulk had 832 unlisted URLs
+against 564 in its sitemap. **A complete link audit of a large site is
+genuinely expensive, and the tool asks rather than assumes.**
+
+Because of that gate, a `link` finding is never *qualified by coverage* — if one
+appears, the graph behind it was closed.
+
+Pages the hop fetched are **evidence, not sample**. They are audited by nothing
+else — they do not gain findings of their own, and they do not appear in any
+other group's page counts.
+
+### `link.orphan` — Warning
+
+Pages listed in a sitemap that no other page on the site links to. The sitemap
+asks for them to be indexed; nothing on the site points at them, so they get no
+support from the pages around them and a visitor cannot reach them by browsing.
+
+**Links a page makes to itself do not count**, which is most of what a real
+orphan has — comment permalinks, *"Cancel reply"*, a self-referential breadcrumb.
+Counting those finds nothing anywhere.
+
+### `link.noindex-only-inbound` — Warning
+
+A page in a sitemap whose only inbound internal links are on pages carrying
+`noindex`.
+
+The common shape is a section index or tag archive set to `noindex, follow` —
+which is usually correct — that has quietly become the only route to everything
+filed under it. Google has said it eventually treats a long-lived
+`noindex, follow` as not following either, at which point those pages are listed
+for indexing and cut off from every page that could support them.
+
+> **Trade-off:** only the link matters here, not the `noindex`. Setting a section
+> index, tag archive or paginated listing to `noindex` is usually a deliberate
+> and correct decision, and this check is not asking you to reverse it. Link to
+> the pages from somewhere indexable instead.
+
+Nothing that reads one page at a time can see this: every page involved is
+individually fine.
+
+---
+
 ## `content` — the page was fetched, but can a machine find the content?
 
 The group that answers the question the rest of this tool cannot: an AI agent

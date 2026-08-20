@@ -2,7 +2,7 @@
  * The JSON-LD document loader.
  *
  * `jsonld.js` resolves `@context` by fetching it. Left alone, extracting a
- * 500-page crawl means 500+ requests to schema.org for a file that changes a
+ * 100-page crawl means 100+ requests to schema.org for a file that changes a
  * few times a year — unacceptable from a tool whose first principle is
  * politeness, and it makes extraction fail outright when offline.
  *

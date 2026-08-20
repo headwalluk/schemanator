@@ -123,7 +123,7 @@ holds the verbatim source, and `nodes.jsonl` holds what expansion made of it.
   "schemanator": { "version": "1.0.0", "report_schema": 1 },
   "run":      { "run_id": "…", "site_origin": "…", "started_at": "…", "finished_at": "…" },
   "coverage": { "complete": false, "urls_discovered": 8341, "urls_queued": 150,
-                "pages_fetched": 150, "pages_extracted": 150,
+                "pages_fetched": 150, "pages_extracted": 150, "pages_linked": 12,
                 "truncated": { "limit": 150, "dropped": 8191 },
                 "sample_strategy": "spread", "caveat": "…" },
   "graph":    { "nodes": 761, "entities": 279, "pages_with_data": 150,
@@ -138,6 +138,13 @@ Note `urls_discovered` and `pages_fetched` are different numbers whenever a cap
 bit, and `coverage.complete` means *"everything discovered was fetched"* — not
 *"every URL on the site was seen"*. A sitemap-driven crawl never discovers pages
 the sitemap omits.
+
+`pages_linked` (added in 1.13.0, absent on older reports) counts pages the crawl
+reached by following **one hop out of the sitemap**. They are deliberately *not*
+in `pages_fetched`, `pages_extracted` or anything under `graph`: they were
+fetched as evidence for the [`link`](checks.md#link--the-sitemap-and-the-link-graph-disagree)
+group and no other check looks at them. Every other number in the report
+describes the audited sample.
 
 **Pin against `report_schema`.** It is an integer and bumps on any breaking
 change.

@@ -156,6 +156,13 @@ export function renderMarkdown(report: Report): string {
   lines.push(
     `| Pages fetched | ${report.coverage.pages_fetched} of ${report.coverage.urls_discovered} discovered |`,
   );
+  // Its own row, never folded into the one above. Adding hop pages to "fetched"
+  // is what printed "73 of 54 discovered" the first time this ran on a real site.
+  if ((report.coverage.pages_linked ?? 0) > 0) {
+    lines.push(
+      `| Linked pages followed | ${report.coverage.pages_linked} — not in any sitemap, checked by group \`link\` only |`,
+    );
+  }
   lines.push(`| Nodes extracted | ${report.graph.nodes} |`);
   lines.push(`| Distinct entities | ${report.graph.entities} |`);
   lines.push(

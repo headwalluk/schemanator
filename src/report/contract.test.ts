@@ -165,6 +165,9 @@ test('each section holds exactly its documented keys', () => {
       'complete',
       'pages_extracted',
       'pages_fetched',
+      // Added 1.13.0. Adding a key is not a breaking change, so no schema bump
+      // — but it still has to be a decision, which is what this test is for.
+      'pages_linked',
       'sample_strategy',
       'truncated',
       'urls_discovered',

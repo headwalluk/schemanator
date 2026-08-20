@@ -41,9 +41,10 @@ answer.
 
 Three reasons, and only the first is about convenience:
 
-- **`crawl` is slow by design.** One request per second, per host. A 500-page
-  site takes nine minutes, which is longer than most agent shell tools will wait
-  before timing out.
+- **`crawl` is slow by design.** One request per second, per host. The default
+  100 pages takes under two minutes, but a raised `--max-pages` scales straight
+  off that rate — 500 pages is nine minutes, which is longer than most agent
+  shell tools will wait before timing out.
 - **`analyse` is offline and idempotent.** It re-reads stored HTML, so the agent
   can run it as often as it likes, with different `--disable` flags, without
   touching anybody's server again.

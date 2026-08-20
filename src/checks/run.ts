@@ -8,7 +8,7 @@
 
 import type { ExtractedNode } from '../extract/types.ts';
 import { canonicaliseUrl } from '../url/canonical.ts';
-import type { PageRecord } from '../store/workdir.ts';
+import { isHopPage, type PageRecord, type StoredLink } from '../store/workdir.ts';
 import { isFunctional, loadCardinalityRules } from './cardinality.ts';
 import { buildGraph, denote, shortIri, valueKey, type EntityGraph } from './graph.ts';
 import { loadHierarchy, typeSetRelation } from './hierarchy.ts';
@@ -23,6 +23,7 @@ import { GOOGLE_CHECKS, loadGoogleRules } from './google.ts';
 import { CONTENT_CHECKS } from './content.ts';
 import { PAGE_CHECKS } from './page.ts';
 import { INDEXING_CHECKS } from './indexing.ts';
+import { LINK_CHECKS } from './link.ts';
 import { ROBOTS_CHECKS, loadAiCrawlers, type RobotsFile } from './robots.ts';
 import { SYNTAX_CHECKS } from './syntax.ts';
 import { STRUCTURE_CHECKS } from './structure.ts';
@@ -909,6 +910,7 @@ export const ALL_CHECKS: Check[] = [
   ...INDEXING_CHECKS,
   ...CONTENT_CHECKS,
   ...PAGE_CHECKS,
+  ...LINK_CHECKS,
 ];
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, opportunity: 2 };
@@ -949,6 +951,7 @@ const GROUP_ORDER: readonly string[] = [
   'page',
   'google',
   'indexing',
+  'link',
   'robots',
   'coverage',
 ];
@@ -1135,6 +1138,10 @@ export function runChecks(options: {
   /** Sitemaps the crawl found, however it found them. */
   sitemapsFound?: readonly string[];
   sitemapDuplicates?: readonly SitemapDuplicate[] | null;
+  /** The extracted link graph. Group `link` only. */
+  links?: readonly StoredLink[];
+  /** The crawl's link hop. Undefined and null both mean "it did not happen". */
+  linkHop?: CheckContext['linkHop'];
 }): RunChecksResult {
   const disabled = new Set(options.disabled ?? []);
   const silenced: Record<string, number> = {};
@@ -1151,9 +1158,30 @@ export function runChecks(options: {
     }
   }
 
+  /**
+   * The audited sample: everything the hop did not fetch.
+   *
+   * Filtered once, here, rather than in each check. A hop page was fetched to
+   * explain the sample, not to join it — see `isHopPage` for what including
+   * them measurably did to the catalogue.
+   */
+  const auditedPages = options.pages.filter((page) => !isHopPage(page));
+
+  /**
+   * The entity graph is built from the sample too, not from everything stored.
+   *
+   * Filtering the pages and not the nodes would have been the subtler half of
+   * the same bug: a `noindex` hub repeating the sitewide `Organization` node
+   * with one field different is a contradiction reported against a page that is
+   * not in the audit, and `entity.contradiction` is the flagship finding.
+   */
+  const auditedPageIds = new Set(auditedPages.map((page) => page.page_id));
+  const auditedNodes = options.nodes.filter((node) => auditedPageIds.has(node.page_id));
+
   const context: CheckContext = {
-    graph: buildGraph(options.nodes),
-    pages: options.pages,
+    graph: buildGraph(auditedNodes),
+    pages: auditedPages,
+    allPages: options.pages,
     rules: loadCardinalityRules(),
     hierarchy: loadHierarchy(),
     heuristics: loadValueHeuristics(),
@@ -1165,6 +1193,10 @@ export function runChecks(options: {
     // measurement passes it; a caller that does not must not be able to
     // accidentally assert a clean site by omission.
     sitemapDuplicates: options.sitemapDuplicates ?? null,
+    links: options.links ?? [],
+    // Same rule as `sitemapDuplicates`: a caller without the measurement must
+    // not be able to assert a clean site by omission.
+    linkHop: options.linkHop ?? null,
     siteHost,
     partialCoverage: options.partialCoverage,
     silenced,

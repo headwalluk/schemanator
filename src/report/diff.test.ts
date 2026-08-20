@@ -49,6 +49,7 @@ function report(
       urls_queued: 100,
       pages_fetched: 100,
       pages_extracted: 100,
+      pages_linked: 0,
       truncated: null,
       sample_strategy: 'spread',
       caveat: null,

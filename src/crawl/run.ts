@@ -1,13 +1,21 @@
 /**
  * The crawl: seed, filter, fetch, store.
  *
- * Phase 0 crawls the sitemap and nothing else. Discovery of pages that are
- * linked but absent from the sitemap is Phase 1+ (`dev-notes/02`).
+ * The sitemap is the sample, plus **one hop** out of it: internal URLs that are
+ * linked from a sitemap page but listed in no sitemap. Those are not sample
+ * members — they are the evidence that makes a claim about the sample
+ * trustworthy. Without them "nothing links to this page" cannot be
+ * distinguished from "the page that links to it was never fetched", which on
+ * the first real site measured was a 37% false-positive rate (`dev-notes/11`).
+ *
+ * It stops there. Following the hop's own links would be a general web crawler,
+ * which is a different tool with a different politeness argument.
  */
 
 import { CrawlAbortedError, PoliteFetcher, type FetchRecord } from '../net/fetcher.ts';
 import { canonicaliseUrl, tryCanonicaliseUrl } from '../url/canonical.ts';
-import { Frontier } from './frontier.ts';
+import { collectLinkTargets, loadDom } from '../extract/page-facts.ts';
+import { Frontier, type FrontierItem } from './frontier.ts';
 import {
   fetchRobots,
   RobotsUnavailableError,
@@ -16,8 +24,10 @@ import {
 } from './robots.ts';
 import { discoverSitemaps, type SitemapDiscovery } from './sitemaps.ts';
 import {
+  LINK_HOP_SOURCE,
   pageIdFor,
   sha256,
+  SITEMAP_SOURCE,
   siteSlugFor,
   WorkDir,
   type PageAlias,
@@ -46,6 +56,10 @@ export interface CrawlOptions {
   dryRun?: boolean;
   resume?: boolean;
   sortQuery?: boolean;
+  /** Follow internal links out of the sitemap. Default true — see {@link DEFAULT_LINK_HOP_PAGES}. */
+  linkHop?: boolean;
+  /** Cap on the hop, separate from {@link DEFAULT_MAX_PAGES} on purpose. */
+  linkHopPages?: number;
   logger?: Logger;
   /**
    * Called after each page is stored, so a detached crawl can publish
@@ -82,6 +96,32 @@ export interface CrawlSummary {
   sample_strategy: SampleStrategy;
   seeded_from: 'sitemap' | 'front-page';
   /**
+   * The one hop out of the sitemap. `null` when it was disabled.
+   *
+   * **Absent on a crawl older than 1.13.0, and that is not the same as
+   * disabled.** The link checks must treat a missing key as *unknown* and
+   * qualify themselves by coverage: on a sitemap-only crawl every unlisted page
+   * is invisible, so "nothing links here" cannot be distinguished from "the
+   * page that links here was never fetched" — which is the whole reason the hop
+   * exists (`dev-notes/11`). It takes a re-crawl to fill in.
+   */
+  link_hop?: {
+    /** Distinct internal URLs linked from sitemap pages that no sitemap lists. */
+    discovered: number;
+    queued: number;
+    /**
+     * Refused by robots.txt. **Not the same as `dropped`**, and the split is
+     * not pedantry: the first live run of the hop reported "2 not followed —
+     * raise --link-hop-pages" against a cap of 50 that was nowhere near biting.
+     * Both were `/basket/` and `/account/`, `Disallow`ed, and no cap would ever
+     * have fetched them. Advice that names the wrong constraint sends somebody
+     * to change a setting that cannot help.
+     */
+    disallowed: number;
+    /** Over `--link-hop-pages`. Raising it would fetch these. */
+    dropped: number;
+  } | null;
+  /**
    * Pages actually requested during THIS run.
    *
    * Distinct from `fetched`, which is the cumulative count of everything stored
@@ -112,6 +152,59 @@ export interface CrawlSummary {
 const HTML_TYPES = ['text/html', 'application/xhtml+xml'];
 
 /**
+ * How many pages a crawl takes when nobody says otherwise.
+ *
+ * A hundred, because the job of the default is to see **several instances of
+ * every content type**, and under `spread` sampling that is governed by how
+ * many sitemaps a site partitions into, not by the total. Six groups — posts,
+ * pages, products, categories, tags, authors — is a typical WordPress site,
+ * and a hundred pages is sixteen of each. Divergence under a shared `@id`
+ * shows up in the first handful; the next four hundred pages restate it.
+ *
+ * It was 500 until 1.13.0, chosen when the cap was purely a time-and-politeness
+ * knob. At one request per second 500 pages is nine minutes, which outlives
+ * most agent shell timeouts, and an audit nobody waits for is worth nothing.
+ * A hundred is under two minutes.
+ *
+ * What this costs is bought back by a flag: cross-page checks such as
+ * `indexing.duplicate-content` need both halves of a pair in the sample, and a
+ * lower cap means more sites fall under {@link SAMPLING_WARNING_SHARE}. That
+ * warning is the whole mitigation — it names the checks that weaken, and
+ * raising `--max-pages` is one argument away.
+ */
+export const DEFAULT_MAX_PAGES = 100;
+
+/**
+ * How many unlisted pages the link hop may fetch, on top of `--max-pages`.
+ *
+ * **A separate budget, deliberately.** `--max-pages` is a sample of the site;
+ * these are not sample members, they are *evidence about* the sample — the
+ * pages that hold the inbound links. Sharing one cap means an audited page
+ * drops out to make room for a footer link, which is the wrong trade every
+ * time.
+ *
+ * Fifty is a **politeness default, not a sufficient one**, and the difference
+ * matters because group `link` goes silent when this cap bites.
+ *
+ * It was chosen believing the unlisted set stays small — section indexes, tag
+ * pages, pagination — and that it does not scale with the site the way the
+ * sitemap does. **The corpus shakedown falsified that**: 21 unlisted URLs on a
+ * 54-page site, and 832 on a 564-page shop, which generates `/product-tag/`,
+ * `/brand/` and similar taxonomy archives in bulk and lists none of them. It
+ * scales *faster* than the sitemap.
+ *
+ * So on a large site the default cannot close the graph, and 50 stays the
+ * default anyway: the alternative is a tool that quietly makes several hundred
+ * extra requests to somebody's server because a check wanted them. The crawl
+ * prints the number that would close it instead, and the choice stays with the
+ * person whose bandwidth it is.
+ *
+ * When the cap does bite, the most-linked candidates are kept — a page linked
+ * from everywhere is the one most likely to explain an orphan (`dev-notes/11`).
+ */
+export const DEFAULT_LINK_HOP_PAGES = 50;
+
+/**
  * Below this share of the discovered URLs, the crawl warns that cross-page
  * checks become unreliable. See the use site for why a half.
  */
@@ -131,7 +224,7 @@ interface Candidate {
  *
  * A large WordPress site partitions its sitemap index by post type — eight
  * `post` sitemaps of 1,000 URLs each, one `page` sitemap of 82, one taxonomy
- * sitemap of 1,031. Under document order, `--max-pages 500` takes 500 news
+ * sitemap of 1,031. Under document order, `--max-pages 100` takes 100 news
  * articles and never reaches the `page` sitemap at all. But the `page` sitemap
  * is where `Organization`, `LocalBusiness` and `AboutPage` live — and the
  * homepage with them.
@@ -198,13 +291,15 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
   const {
     workRoot,
     cliSitemaps = [],
-    maxPages = 500,
+    maxPages = DEFAULT_MAX_PAGES,
     sample = 'spread',
     maxDepth = 3,
     delayMs = 1000,
     dryRun = false,
     resume = false,
     sortQuery = true,
+    linkHop = true,
+    linkHopPages = DEFAULT_LINK_HOP_PAGES,
     logger = SILENT_LOGGER,
     onProgress,
   } = options;
@@ -303,7 +398,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
   let seededFrom: 'sitemap' | 'front-page' = 'sitemap';
   let candidates: Candidate[] = discovery.urls.map((entry) => ({
     url: entry.url,
-    source: `sitemap:${entry.fromSitemap}`,
+    source: `${SITEMAP_SOURCE}${entry.fromSitemap}`,
     fromSitemap: entry.fromSitemap,
   }));
 
@@ -338,7 +433,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
         `${truncated.dropped} of ${allowed.length} URL(s) not queued`,
     );
     // Show what the sample actually covers. On a partitioned sitemap index this
-    // is the difference between a representative audit and 500 news articles.
+    // is the difference between a representative audit and 100 news articles.
     const perSitemap = new Map<string, number>();
     for (const candidate of queued)
       perSitemap.set(candidate.fromSitemap, (perSitemap.get(candidate.fromSitemap) ?? 0) + 1);
@@ -377,6 +472,21 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
           `absent are already marked as qualified by coverage`,
       );
     }
+
+    /**
+     * Group `link` is silenced by a cap, not merely weakened by it, so the cap
+     * has to say so at any size — the warning above only fires below half.
+     *
+     * "Nothing links to this page" is an absence claim over the *whole* site,
+     * and every URL the cap dropped is a page free to hold the link that would
+     * disprove it. Naming the number that would lift the silence is the
+     * difference between a silence somebody can act on and one they read as a
+     * pass.
+     */
+    logger.info(
+      `  group link is silent on a capped crawl: "nothing links here" cannot be true of a site ` +
+        `only ${queued.length} of ${allowed.length} pages were seen of. Use --max-pages ${allowed.length} for it`,
+    );
   }
 
   const summary: CrawlSummary = {
@@ -448,54 +558,187 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
   if (resume && alreadyDone > 0)
     logger.info(`Resuming: ${alreadyDone} already fetched, ${pending.length} to go`);
 
-  const estimateMs = pending.length * fetcher.hostDelay(new URL(siteOrigin).host);
+  const siteHost = new URL(siteOrigin).host;
+  const estimateMs = pending.length * fetcher.hostDelay(siteHost);
   logger.info(
     `Fetching ${pending.length} page(s), ~${Math.ceil(estimateMs / 60000)} min at the current delay …`,
   );
 
-  const total = pending.length;
-  const width = String(total).length;
+  /**
+   * Every internal URL linked from a page we fetched: how many pages link to
+   * it, and the first one that did.
+   *
+   * The count is the ranking that survives the hop's cap. `from` becomes the
+   * fetched page's `source`, so a URL in the manifest that no sitemap lists can
+   * still say why it is there — provenance is mandatory (`01`), and "because
+   * something linked to it" is not an answer without the something.
+   */
+  const linkedTargets = new Map<string, { count: number; from: string }>();
+
+  /**
+   * Progress counts across both rounds rather than restarting.
+   *
+   * The hop's size is unknowable until the first round finishes — it is a fact
+   * about the pages, not about the site — so `total` grows once, mid-crawl.
+   * That is honest; resetting the numerator to zero for a second round is not,
+   * and `status` prints this straight to somebody watching a detached run.
+   */
+  let total = pending.length;
   let index = 0;
+  let aborted = false;
 
-  for (const item of pending) {
-    index += 1;
+  const fetchRound = async (items: readonly FrontierItem[]): Promise<void> => {
+    const width = String(total).length;
 
-    let record: FetchRecord;
-    try {
-      record = await fetcher.fetch(item.url, { accept: HTML_TYPES });
-    } catch (error) {
-      if (error instanceof CrawlAbortedError) {
-        summary.aborted = error.message;
-        logger.error(error.message);
-        break;
+    for (const item of items) {
+      index += 1;
+
+      let record: FetchRecord;
+      try {
+        record = await fetcher.fetch(item.url, { accept: HTML_TYPES });
+      } catch (error) {
+        if (error instanceof CrawlAbortedError) {
+          summary.aborted = error.message;
+          logger.error(error.message);
+          aborted = true;
+          break;
+        }
+        throw error;
       }
-      throw error;
+
+      await workDir.appendCrawlLog(record);
+      summary.fetched_this_run += 1;
+      await storeResult(
+        workDir,
+        frontier,
+        records,
+        item.url,
+        item.page_id,
+        item.source,
+        record,
+        summary,
+        sortQuery,
+      );
+
+      /**
+       * Collect link targets while the body is still in memory.
+       *
+       * The crawl does not otherwise parse HTML — `03` gives that job to
+       * extraction, and this does not take it back: no blocks, no anchor text,
+       * no chrome. Only "which internal URLs does this page point at", which
+       * the hop needs *now* and extraction cannot answer until the crawl is
+       * over. One cheap parse against a one-second delay is free, and
+       * `resolveHref` is shared so the two layers cannot disagree about what
+       * counts as internal.
+       */
+      if (record.body !== null && !item.source.startsWith(LINK_HOP_SOURCE)) {
+        // `utf8` to match `readPageHtml`, so the hop sees exactly the bytes
+        // extraction will see later rather than a second decoding of them.
+        const dom = loadDom(record.body.toString('utf8'));
+        for (const target of collectLinkTargets(dom, record.finalUrl, siteHost)) {
+          const canonical = tryCanonicaliseUrl(target, { sortQuery });
+          if (!canonical.ok) continue;
+          const seen = linkedTargets.get(canonical.url);
+          if (seen === undefined) {
+            linkedTargets.set(canonical.url, { count: 1, from: item.page_id });
+          } else {
+            seen.count += 1;
+          }
+        }
+      }
+
+      // Per-page progress. A long crawl is otherwise silent for over an hour,
+      // which makes a wedged run indistinguishable from a slow one.
+      const outcome = record.status ?? record.error?.kind ?? '—';
+      const size = record.bytes > 0 ? `${(record.bytes / 1024).toFixed(1)} KB` : '';
+      const note = record.redirectChain.length > 0 ? ` → ${record.finalUrl}` : '';
+      logger.info(
+        `  [${String(index).padStart(width)}/${total}] ${String(outcome).padEnd(7)}${size.padStart(9)}  ${item.url}${note}`,
+      );
+
+      onProgress?.({ fetched: index, total });
+    }
+  };
+
+  await fetchRound(pending);
+
+  // --- the one hop out of the sitemap ------------------------------------
+  if (!linkHop) {
+    summary.link_hop = null;
+  } else if (!aborted) {
+    /**
+     * Everything a sitemap listed, **not** everything the sample kept.
+     *
+     * `candidates` rather than `queued`, and the difference is the whole check:
+     * a hop target is a URL *in no sitemap*, which is a fact about the site. A
+     * sitemap URL that lost the `--max-pages` lottery is still in a sitemap.
+     *
+     * Keyed on `queued` this was invisible on the site it was built against —
+     * 54 URLs under a cap of 100, so the two sets were identical. A dry run of
+     * a larger site is what exposed it: 564 URLs discovered and 100 sampled, so
+     * 464 sitemap URLs would have read as "linked but unlisted" and the hop
+     * would have spent its entire budget re-fetching pages the sample had
+     * deliberately dropped — then excluded them from the audit for being hop
+     * pages. Wasted requests against somebody else's server, and a
+     * `link_hop.discovered` that measured the cap rather than the site.
+     */
+    const known = new Set<string>();
+    for (const candidate of candidates) known.add(candidate.url);
+    for (const record of records.values()) {
+      known.add(record.canonical_url);
+      known.add(record.url);
     }
 
-    await workDir.appendCrawlLog(record);
-    summary.fetched_this_run += 1;
-    await storeResult(
-      workDir,
-      frontier,
-      records,
-      item.url,
-      item.page_id,
-      item.source,
-      record,
-      summary,
-      sortQuery,
-    );
+    const unlisted = [...linkedTargets.entries()].filter(([url]) => !known.has(url));
+    const allowedUnlisted = unlisted.filter(([url]) => policy.isAllowed(url));
 
-    // Per-page progress. A long crawl is otherwise silent for over an hour,
-    // which makes a wedged run indistinguishable from a slow one.
-    const outcome = record.status ?? record.error?.kind ?? '—';
-    const size = record.bytes > 0 ? `${(record.bytes / 1024).toFixed(1)} KB` : '';
-    const note = record.redirectChain.length > 0 ? ` → ${record.finalUrl}` : '';
-    logger.info(
-      `  [${String(index).padStart(width)}/${total}] ${String(outcome).padEnd(7)}${size.padStart(9)}  ${item.url}${note}`,
+    /**
+     * Most-linked first, then alphabetical.
+     *
+     * The tie-break is not cosmetic: two runs of the same site must queue the
+     * same pages or `--since` reports a diff that is really a sort order.
+     */
+    const ranked = allowedUnlisted.sort(
+      ([leftUrl, left], [rightUrl, right]) =>
+        right.count - left.count || leftUrl.localeCompare(rightUrl),
     );
+    const hopQueue = ranked.slice(0, linkHopPages);
 
-    onProgress?.({ fetched: index, total });
+    summary.link_hop = {
+      discovered: unlisted.length,
+      queued: hopQueue.length,
+      disallowed: unlisted.length - allowedUnlisted.length,
+      dropped: allowedUnlisted.length - hopQueue.length,
+    };
+
+    if (hopQueue.length > 0) {
+      logger.info(
+        `  ${unlisted.length} internal URL(s) linked but in no sitemap; ` +
+          `following ${hopQueue.length}`,
+      );
+      // Two reasons a URL is not followed, and only one of them is a setting.
+      if (summary.link_hop.disallowed > 0) {
+        logger.info(`    ${summary.link_hop.disallowed} excluded by robots.txt`);
+      }
+      if (summary.link_hop.dropped > 0) {
+        // Name the number that closes the graph, for the same reason the page
+        // cap does: group `link` is silent while any of these are unfetched, and
+        // a silence nobody can act on reads as a pass.
+        const needed = summary.link_hop.queued + summary.link_hop.dropped;
+        logger.info(
+          `    ${summary.link_hop.dropped} over --link-hop-pages=${linkHopPages}; group link stays ` +
+            `silent until every linked page is fetched — use --link-hop-pages ${needed} for it`,
+        );
+      }
+
+      for (const [url, target] of hopQueue) {
+        await frontier.add(url, pageIdFor(url), `${LINK_HOP_SOURCE}${target.from}`);
+      }
+
+      const hopPending = frontier.pending();
+      total += hopPending.length;
+      await fetchRound(hopPending);
+    }
   }
 
   /**

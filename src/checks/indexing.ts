@@ -17,13 +17,13 @@
  * 1.0.0 and were read by nothing until now. No extraction change, no re-crawl.
  */
 
-import type { PageRecord } from '../store/workdir.ts';
+import { SITEMAP_SOURCE, type PageRecord } from '../store/workdir.ts';
 import { tryCanonicaliseUrl } from '../url/canonical.ts';
 import { findingId, sampleObserved, type Check } from './framework.ts';
 
 /** Did this URL come from a sitemap, and which one? Null when it did not. */
 function sitemapOf(page: PageRecord): string | null {
-  return page.source.startsWith('sitemap:') ? page.source.slice('sitemap:'.length) : null;
+  return page.source.startsWith(SITEMAP_SOURCE) ? page.source.slice(SITEMAP_SOURCE.length) : null;
 }
 
 /**
@@ -196,7 +196,7 @@ const sitemapRedirects: Check = {
   group: 'indexing',
   run({ pages }) {
     const redirected = requestsOf(pages).filter(
-      (request) => request.source.startsWith('sitemap:') && request.redirect_chain.length > 0,
+      (request) => request.source.startsWith(SITEMAP_SOURCE) && request.redirect_chain.length > 0,
     );
     if (redirected.length === 0) return [];
 

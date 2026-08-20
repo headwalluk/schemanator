@@ -22,6 +22,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ALL_CHECKS } from '../src/checks/run.ts';
+import { DEFAULT_MAX_PAGES } from '../src/crawl/run.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative: string): string => fs.readFileSync(path.join(ROOT, relative), 'utf8');
@@ -200,7 +201,13 @@ test('no shipped source or data file names a client', () => {
   // Comments in `src/` reach the published tarball three ways: the `.ts` source
   // itself, the compiled `dist/` (TypeScript keeps comments by default), and
   // the source maps.
-  const roots = ['src', 'data'];
+  //
+  // **`test/` is here because the repository is public**, which is a different
+  // question from what npm packs. It is absent from the `files` list and still
+  // published to everyone, and a fixture written from a real site is exactly
+  // where a client name goes unnoticed — this test was extended after one did,
+  // in a comment explaining which site had exposed a bug.
+  const roots = ['src', 'data', 'test'];
   const offenders: string[] = [];
 
   for (const root of roots) {
@@ -208,6 +215,8 @@ test('no shipped source or data file names a client', () => {
     for (const entry of entries) {
       if (!/\.(ts|json)$/.test(entry)) continue;
       const relative = `${root}/${entry}`;
+      // This file holds the list of names, so it necessarily matches itself.
+      if (relative === 'test/docs-consistency.test.ts') continue;
       const match = CLIENT_NAMES.exec(read(relative));
       if (match !== null) offenders.push(`${relative}: ${match[0]}`);
     }
@@ -269,6 +278,52 @@ test('the version is not hardcoded anywhere', () => {
   }
 
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
+});
+
+test('the documented page cap is the page cap', () => {
+  // `--max-pages` went from 500 to 100 in 1.13.0, and the number was written
+  // out in five places across three documents and the `--help` text. Every one
+  // of them reads perfectly whether or not it matches the code, and an operator
+  // who plans a crawl around "stops at 500 pages" gets a fifth of what they
+  // budgeted for with no error to tell them why.
+  //
+  // Each entry is the sentence as it is actually written, not a general pattern
+  // — a loose one would either miss a rewording or capture the unrelated
+  // numbers in the same paragraphs, and a docs test that quietly matches
+  // nothing is the failure it was built to prevent. Hence the count assertion
+  // at the end: if a sentence is rephrased, this test fails and gets updated
+  // alongside it, rather than passing on zero matches.
+  const CLAIMS: Array<[string, RegExp]> = [
+    ['docs/usage.md', /Cap the crawl\. Default (\d+)/],
+    ['docs/usage.md', /stops at (\d+) pages/],
+    ['docs/politeness.md', /^\| Maximum pages \| (\d+) \|$/m],
+  ];
+
+  const wrong: string[] = [];
+  for (const [file, pattern] of CLAIMS) {
+    const found = pattern.exec(read(file));
+    if (found === null) {
+      wrong.push(`${file} no longer contains ${String(pattern)}`);
+      continue;
+    }
+    if (Number(found[1]) !== DEFAULT_MAX_PAGES) {
+      wrong.push(`${file} claims a cap of ${found[1]}`);
+    }
+  }
+
+  assert.deepEqual(
+    wrong,
+    [],
+    `the default cap is ${DEFAULT_MAX_PAGES} pages — update these, or an operator plans around the wrong number`,
+  );
+
+  // The `--help` text carries the same claim, so it interpolates the constant
+  // rather than restating it. `MIN_DELAY_MS` set the precedent in the line below.
+  assert.equal(
+    /Cap the crawl\. Default \d/.test(read('src/cli.ts')),
+    false,
+    'src/cli.ts hardcodes the page cap in --help; interpolate DEFAULT_MAX_PAGES instead',
+  );
 });
 
 test('the README test-count badge matches reality', () => {

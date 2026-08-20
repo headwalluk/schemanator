@@ -58,6 +58,67 @@ export function sha256(body: Buffer): string {
   return createHash('sha256').update(body).digest('hex');
 }
 
+/**
+ * Why a page was crawled, as the `source` field spells it.
+ *
+ * These are a contract between the crawl and the checks, and the checks read
+ * them by prefix — so a second spelling is a check that silently stops
+ * excluding what it meant to exclude. `indexing.ts` carried `'sitemap:'` as a
+ * bare literal in two places until the link hop arrived and made the
+ * distinction load-bearing (`dev-notes/11`).
+ *
+ * `LINK_HOP_SOURCE` carries the `page_id` that linked to it, which is the only
+ * record of why an unlisted URL was fetched at all.
+ */
+export const SITEMAP_SOURCE = 'sitemap:';
+export const LINK_HOP_SOURCE = 'link-hop:';
+
+/**
+ * Was this page listed in a sitemap, or found by following a link out of one?
+ *
+ * **Every check that reasons about the sitemap must ask.** A hop page is
+ * evidence about the sample, not a member of it: `/basket/` is not a thin
+ * sitemap entry, and a `noindex` tag archive is not a section missing its
+ * `Article`. See `dev-notes/11`, decision 3.
+ */
+export function isSitemapPage(page: Pick<PageRecord, 'source'>): boolean {
+  return page.source.startsWith(SITEMAP_SOURCE);
+}
+
+/**
+ * Was this page fetched by the link hop rather than asked for?
+ *
+ * **The audited sample is everything this is false for**, and `runChecks`
+ * enforces that for the whole catalogue rather than check by check. The
+ * alternative was auditing each of the fifty-odd checks for whether a hop page
+ * belongs in it, which is the kind of rule that is right on the day it is
+ * written and wrong six checks later.
+ *
+ * Measured before it was decided: with hop pages in scope, `graph.relative-id`
+ * on the link-graph fixture reports 8 pages instead of 6 — the two extra being
+ * a noindexed hub and a paginated archive nobody asked to audit. Turning the
+ * hop on by default would otherwise have moved numbers in every group on every
+ * site, which is a silent regression across the catalogue and would have made
+ * every `--since` diff after the upgrade unreadable.
+ *
+ * Group `link` is the exception and reads {@link CheckContext.allPages}: it
+ * needs the hop pages precisely because their directives are the finding.
+ */
+export function isHopPage(page: Pick<PageRecord, 'source'>): boolean {
+  return page.source.startsWith(LINK_HOP_SOURCE);
+}
+
+/** One line of `graph/links.jsonl`. Written by extraction, read by group `link`. */
+export interface StoredLink {
+  /** `page_id` of the page the link was found on. */
+  from: string;
+  to: string;
+  anchor: string;
+  internal: boolean;
+  rel: string | null;
+  in_chrome: boolean;
+}
+
 /** One line of `pages.jsonl` — the index. Shape per `dev-notes/01`. */
 /**
  * Another URL whose fetch resolved to this page.
@@ -330,6 +391,27 @@ export class WorkDir {
   /** Clear the link graph before a re-extract, for `resetExtraction`'s reason. */
   async resetLinks(): Promise<void> {
     await fs.rm(this.linksPath, { force: true });
+  }
+
+  /**
+   * The whole link graph. Empty when nothing has extracted one yet.
+   *
+   * Read whole, like the manifest, and for the same reason — the checks that
+   * want it want all of it at once. It is the biggest artefact on disk (a
+   * 500-page site is ~190,000 edges, `dev-notes/07`), so it is read by the
+   * `link` checks and by nothing on the `sites` path.
+   */
+  async readLinks(): Promise<StoredLink[]> {
+    let raw: string;
+    try {
+      raw = await fs.readFile(this.linksPath, 'utf8');
+    } catch {
+      return [];
+    }
+    return raw
+      .split('\n')
+      .filter((line) => line.trim() !== '')
+      .map((line) => JSON.parse(line) as StoredLink);
   }
 
   /** The de-boilerplated page. Survives `purge --html` deliberately. */

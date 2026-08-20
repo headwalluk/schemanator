@@ -79,20 +79,25 @@ schemanator example.com --dry-run --quiet > urls.txt
 schemanator example.com
 ```
 
-Crawls at **one request per second** by default and stops at 500 pages. A
-47-page site takes about a minute; 500 pages takes nine. Progress appears per
-page on stderr.
+Crawls at **one request per second** by default and stops at 100 pages. A
+47-page site takes about a minute; the full 100 takes under two. Progress
+appears per page on stderr.
+
+The default is 100 because the job is to see **several instances of every
+content type**, and under `spread` sampling that depends on how many sitemaps
+the site partitions into rather than on the total. A site with six — posts,
+pages, products, categories, tags, authors — gets sixteen of each.
 
 ### Large sites
 
 ```sh
-schemanator example.com --max-pages 150
+schemanator example.com --max-pages 500
 ```
 
 When the cap bites, **which** pages you get matters more than how many. A large
 site usually partitions its sitemap index by content type — several thousand
-posts, a hundred pages, a few thousand tags. Taking the first 150 in document
-order gives you 150 blog posts and never reaches the page sitemap, which is
+posts, a hundred pages, a few thousand tags. Taking the first 100 in document
+order gives you 100 blog posts and never reaches the page sitemap, which is
 where `Organization`, `LocalBusiness` and the contact details live.
 
 So the default is `--sample spread`: round-robin across the source sitemaps, so
@@ -101,6 +106,35 @@ want the first N in order.
 
 The report states what the sample covered, and findings that assert something is
 **absent** are marked as qualified by coverage.
+
+### One hop off the sitemap
+
+After the sitemap pages, the crawl follows internal links that lead somewhere no
+sitemap lists — a section index, a tag archive, page 2 of a listing — and stops
+there.
+
+Those pages are **evidence, not sample**. They are what makes
+"nothing links to this page" a fact rather than a guess, and no check outside
+the [`link`](checks.md#link--the-sitemap-and-the-link-graph-disagree) group looks
+at them: they gain no findings of their own and appear in no other page count.
+The report lists them on their own row.
+
+**The hop is necessary for group `link` but not sufficient.** Those checks need
+every page that could hold a link to have been fetched — so neither
+`--max-pages` nor `--link-hop-pages` may have bitten. "Nothing links to this
+page" cannot be true of a site you have seen a fifth of. When either cap
+silences the group, the crawl prints the number that would lift it.
+
+On a large site that can be a lot of requests: a shop with 564 sitemap URLs also
+linked to 832 pages listed in no sitemap. The defaults will not close that graph,
+and raising them is your decision to make rather than the tool's.
+
+They have their own budget, so they never displace an audited page:
+
+```sh
+schemanator example.com --link-hop-pages 200   # a site with many section indexes
+schemanator example.com --no-link-hop          # skip it, and lose group link
+```
 
 ### The crawl warns when the sample gets thin
 
@@ -186,7 +220,9 @@ Keep `--max-pages` the same across runs you intend to compare.
 | Option | Effect |
 | --- | --- |
 | `--dry-run` | Print the URL list, fetch no pages |
-| `--max-pages <n>` | Cap the crawl. Default 500 |
+| `--max-pages <n>` | Cap the crawl. Default 100 |
+| `--no-link-hop` | Do not follow internal links out of the sitemap |
+| `--link-hop-pages <n>` | Cap the hop. Default 50, separate from `--max-pages` |
 | `--sample spread\|document` | Which URLs survive the cap. Default `spread` |
 | `--sitemap <url>` | Use this sitemap. Repeatable. Overrides discovery entirely |
 | `--max-depth <n>` | Sitemap index recursion depth. Default 3 |
@@ -297,8 +333,9 @@ works but leaves `pages.jsonl` claiming the HTML is still there.
 
 ## Crawling in the background
 
-A 500-page crawl takes about nine minutes, which is longer than most agent shell
-tools will wait. `--detach` starts one and returns immediately:
+A crawl runs at one request per second, so a raised `--max-pages` can outlive
+what most agent shell tools will wait for — 500 pages is about nine minutes.
+`--detach` starts one and returns immediately:
 
 ```sh
 schemanator crawl example.com --detach

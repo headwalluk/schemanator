@@ -200,6 +200,153 @@ export async function startFixtureSite(): Promise<TestServer> {
   });
 }
 
+/** Sitemap pages of the link-graph fixture, by the role each one plays. */
+export const LINK_GRAPH_PATHS = {
+  /** Links to the hub and to `/linked-post`. */
+  home: '/',
+  /** Linked from the home page. Neither orphaned nor cut off. */
+  linked: '/linked-post',
+  /** Linked only from `/hub`, which is noindex. `link.noindex-only-inbound`. */
+  behindNoIndex: ['/guide-one', '/guide-two'],
+  /**
+   * Linked only from `/archive/page/2`, which is unlisted but **indexable**.
+   *
+   * The false positive the hop exists to kill: sitemap-only, this page has no
+   * inbound link and reads exactly like `/guide-one`. It is the difference
+   * between a check that is right and one that is right 63% of the time.
+   */
+  behindPagination: '/page-two-post',
+  /** Linked from nowhere at all. `link.orphan`. */
+  orphan: '/stranded',
+  /**
+   * In the sitemap, linked from the home page, and last in document order.
+   *
+   * Exists to be dropped by a low `--max-pages`. A sitemap URL the sample let
+   * go is **not** an unlisted page, and the hop must not spend its budget
+   * re-fetching it — the bug a larger site's dry run exposed, where 464
+   * dropped sitemap URLs read as "linked but in no sitemap".
+   */
+  droppedBySample: '/also-in-the-sitemap',
+} as const;
+
+/** Pages the link-graph fixture does NOT list in a sitemap. Reached only by the hop. */
+export const LINK_GRAPH_UNLISTED = {
+  /** `noindex, follow` — a section index, exactly as an SEO plugin produces one. */
+  hub: '/hub',
+  /** `index, follow` — archive pagination, normal to leave out of a sitemap. */
+  paginated: '/archive/page/2',
+  /**
+   * Redirects to {@link hub}, so two hop requests produce **one** hop record.
+   *
+   * The condition that broke the report's arithmetic on a large site: 48 hop
+   * requests, 44 records. Any coverage number computed by subtracting a record
+   * count from a request count is wrong the moment this exists, and it exists
+   * on real sites constantly.
+   */
+  redirectsToHub: '/guides-old',
+  /**
+   * Linked sitewide, unlisted, and `Disallow`ed — a basket or account screen.
+   *
+   * Here because the first live run of the hop got this wrong: two such URLs on
+   * a real site were reported as *"2 not followed — raise --link-hop-pages"*
+   * against a cap of 50 that was nowhere near biting. No cap would ever fetch
+   * them. The counts must keep the two reasons apart.
+   */
+  disallowed: '/private/basket',
+} as const;
+
+/**
+ * A site whose link graph disagrees with its sitemap.
+ *
+ * Modelled directly on what `headwall-hosting.com` turned out to be
+ * (`dev-notes/11`), because the shape is what makes the checks hard: a
+ * noindexed section index is the only route to the pages under it, and a
+ * paginated archive nobody lists is the only route to the posts on page 2.
+ * Sitemap-only, those two are indistinguishable. One is a finding and the other
+ * is nothing at all.
+ *
+ * Separate from {@link startFixtureSite} on purpose. That one is dense with
+ * redirect and duplicate semantics whose counts a dozen tests assert, and
+ * threading link structure through it would make both harder to read and every
+ * one of those counts a guess.
+ */
+export async function startLinkGraphSite(): Promise<TestServer> {
+  const origin = (request: { headers: { host?: string | undefined } }): string =>
+    `http://${request.headers.host}`;
+
+  const linked = (title: string, hrefs: string[], robots?: string): string =>
+    `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${title}</title>
+${robots === undefined ? '' : `<meta name="robots" content="${robots}">`}
+<script type="application/ld+json">${ORGANIZATION}</script>
+</head>
+<body>
+<h1>${title}</h1>
+<main><p>Body copy for ${title}, long enough not to read as a thin page.</p>
+${hrefs.map((href) => `<a href="${href}">${href}</a>`).join('\n')}
+<a href="${hrefs[0] ?? '/'}#comment-1">Cancel reply</a>
+</main>
+</body>
+</html>`;
+
+  return startTestServer({
+    '/robots.txt': (request) => ({
+      headers: { 'content-type': 'text/plain' },
+      body: `User-agent: *\nDisallow: /private/\nCrawl-delay: 0\nSitemap: ${origin(request)}/sitemap.xml\n`,
+    }),
+
+    '/sitemap.xml': (request) =>
+      xmlRoute(
+        urlset([
+          `${origin(request)}${LINK_GRAPH_PATHS.home}`,
+          `${origin(request)}${LINK_GRAPH_PATHS.linked}`,
+          ...LINK_GRAPH_PATHS.behindNoIndex.map((path) => `${origin(request)}${path}`),
+          `${origin(request)}${LINK_GRAPH_PATHS.behindPagination}`,
+          `${origin(request)}${LINK_GRAPH_PATHS.orphan}`,
+          `${origin(request)}${LINK_GRAPH_PATHS.droppedBySample}`,
+        ]),
+      ),
+
+    // The only page linking to the hub and the archive, so the hop has exactly
+    // two candidates and the cap can be tested against a known number.
+    '/': htmlRoute(
+      linked('Home', [
+        LINK_GRAPH_PATHS.linked,
+        LINK_GRAPH_UNLISTED.hub,
+        LINK_GRAPH_UNLISTED.paginated,
+        LINK_GRAPH_UNLISTED.disallowed,
+        LINK_GRAPH_UNLISTED.redirectsToHub,
+        LINK_GRAPH_PATHS.droppedBySample,
+      ]),
+    ),
+    '/linked-post': htmlRoute(linked('Linked Post', [LINK_GRAPH_PATHS.home])),
+    '/also-in-the-sitemap': htmlRoute(linked('Also In The Sitemap', [LINK_GRAPH_PATHS.home])),
+    '/guide-one': htmlRoute(linked('Guide One', [LINK_GRAPH_PATHS.home])),
+    '/guide-two': htmlRoute(linked('Guide Two', [LINK_GRAPH_PATHS.home])),
+    '/page-two-post': htmlRoute(linked('Page Two Post', [LINK_GRAPH_PATHS.home])),
+
+    // Links only to itself, the way a real orphan does — a comment permalink
+    // and a "Cancel reply". Anything counting self-links finds nothing here.
+    '/stranded': htmlRoute(linked('Stranded', [LINK_GRAPH_PATHS.orphan])),
+
+    [LINK_GRAPH_UNLISTED.hub]: htmlRoute(
+      linked('Guides', [...LINK_GRAPH_PATHS.behindNoIndex], 'noindex, follow'),
+    ),
+    [LINK_GRAPH_UNLISTED.paginated]: htmlRoute(
+      linked('Archive, page 2', [LINK_GRAPH_PATHS.behindPagination], 'index, follow'),
+    ),
+    [LINK_GRAPH_UNLISTED.redirectsToHub]: {
+      status: 301,
+      headers: { location: LINK_GRAPH_UNLISTED.hub },
+    },
+    // Served, but robots.txt refuses it. Must never be fetched.
+    [LINK_GRAPH_UNLISTED.disallowed]: htmlRoute(linked('Basket', [LINK_GRAPH_PATHS.home])),
+  });
+}
+
 /**
  * A variant that throttles the first request to `/about` with a 429, to prove
  * the crawl backs off and recovers rather than dropping the page.

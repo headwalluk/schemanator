@@ -5,7 +5,7 @@
 import type { Finding } from '../checks/run.ts';
 import type { CrawlSummary } from '../crawl/run.ts';
 import type { ExtractionRunSummary } from '../extract/run.ts';
-import type { PageRecord } from '../store/workdir.ts';
+import { isHopPage, type PageRecord } from '../store/workdir.ts';
 
 export const REPORT_SCHEMA = 1;
 
@@ -24,6 +24,14 @@ export interface Report {
     urls_queued: number;
     pages_fetched: number;
     pages_extracted: number;
+    /**
+     * Pages the crawl followed one hop out of the sitemap to reach.
+     *
+     * Not part of the audit — they are evidence for group `link` and appear in
+     * no other finding. Added in 1.13.0; absent on an older report, and 0 on a
+     * crawl run with `--no-link-hop`.
+     */
+    pages_linked: number;
     truncated: { limit: number; dropped: number } | null;
     sample_strategy: string;
     caveat: string | null;
@@ -67,6 +75,39 @@ export function buildReport(input: {
   const truncated = input.crawl.truncated;
   const complete = truncated === null;
 
+  /**
+   * The report describes the **audited sample**, and the link hop is not in it.
+   *
+   * Its pages were fetched to explain the sample — whether anything links to a
+   * page, and whether the thing that does is indexable — and no check outside
+   * group `link` looks at them. Counting them here produced the first
+   * impossible number the hop shipped: *"Pages fetched | 73 of 54 discovered"*,
+   * on a site with 54 URLs in its sitemap and 19 linked pages followed.
+   *
+   * **Counted from the manifest, never subtracted from a crawl total.** The
+   * first attempt did subtract, and got it wrong on the first large site it
+   * met: 48 hop requests became 44 stored records because four redirected into
+   * each other, two more 404d and were stored as failures, and `crawl.fetched`
+   * counts requests that succeeded. Subtracting a record count from a request
+   * count printed `pages_fetched: 102` beside `pages_extracted: 98` for a
+   * sample of exactly 100 — two numbers in one table that could not both be
+   * true.
+   *
+   * That is the 1.12.0 defect wearing a different hat: requests and records are
+   * different things and two of them can land on one page. So each number here
+   * is the length of a set a reader can count in `pages.jsonl` themselves.
+   */
+  const hopPages = input.pages.filter(isHopPage);
+  const auditedPages = input.pages.filter((page) => !isHopPage(page));
+  const hopTotals = hopPages.reduce(
+    (total, page) => ({
+      nodes: total.nodes + (page.extraction?.nodes ?? 0),
+      blocks: total.blocks + (page.extraction?.json_ld_blocks ?? 0),
+      malformed: total.malformed + (page.extraction?.json_ld_failed ?? 0),
+    }),
+    { nodes: 0, blocks: 0, malformed: 0 },
+  );
+
   return {
     schemanator: { version: input.version, report_schema: REPORT_SCHEMA },
     run: {
@@ -80,8 +121,9 @@ export function buildReport(input: {
       complete,
       urls_discovered: input.crawl.urls_discovered,
       urls_queued: input.crawl.urls_queued,
-      pages_fetched: input.crawl.fetched,
-      pages_extracted: input.extraction.pages_extracted,
+      pages_fetched: auditedPages.length,
+      pages_extracted: auditedPages.filter((page) => page.extraction !== null).length,
+      pages_linked: hopPages.length,
       truncated,
       sample_strategy: input.crawl.sample_strategy,
       // Rule 3 of `04`: an absence claim is only as good as the coverage, and
@@ -93,11 +135,11 @@ export function buildReport(input: {
           `qualified: it may exist on a page not fetched.`,
     },
     graph: {
-      nodes: input.extraction.nodes,
+      nodes: input.extraction.nodes - hopTotals.nodes,
       entities: input.entities,
-      pages_with_data: input.pages.filter((page) => (page.extraction?.['nodes'] ?? 0) > 0).length,
-      json_ld_blocks: input.extraction.json_ld_blocks,
-      malformed_blocks: input.extraction.json_ld_failed,
+      pages_with_data: auditedPages.filter((page) => (page.extraction?.['nodes'] ?? 0) > 0).length,
+      json_ld_blocks: input.extraction.json_ld_blocks - hopTotals.blocks,
+      malformed_blocks: input.extraction.json_ld_failed - hopTotals.malformed,
     },
     summary: {
       by_severity: bySeverity,

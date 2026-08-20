@@ -9,7 +9,12 @@
 import { parseArgs } from 'node:util';
 import process from 'node:process';
 
-import { CrawlAbortedError, runCrawl } from './crawl/run.ts';
+import {
+  CrawlAbortedError,
+  DEFAULT_LINK_HOP_PAGES,
+  DEFAULT_MAX_PAGES,
+  runCrawl,
+} from './crawl/run.ts';
 import { runPipeline, type PipelineOptions } from './pipeline.ts';
 import { runAnalysis, UnknownRunError } from './analyse.ts';
 import { RobotsUnavailableError } from './crawl/robots.ts';
@@ -65,13 +70,20 @@ Options:
   --sitemap <url>        Use this sitemap. Repeatable. Suppresses both the
                          robots.txt directives and well-known-path probing;
                          robots.txt is still obeyed for Disallow and Crawl-delay.
-  --max-pages <n>        Cap the crawl. Default 500. The cap and what it dropped
-                         are recorded in the run summary.
+  --max-pages <n>        Cap the crawl. Default ${DEFAULT_MAX_PAGES}. The cap and what it
+                         dropped are recorded in the run summary.
   --sample <how>         Which URLs survive the cap. Default "spread":
                          round-robin across the source sitemaps, so a site whose
                          sitemap index is partitioned by post type still gets its
-                         pages audited and not just its 500 newest posts. Use
+                         pages audited and not just its newest posts. Use
                          "document" for strict sitemap document order.
+  --no-link-hop          Do not follow internal links out of the sitemap. The
+                         crawl then cannot tell "nothing links to this page"
+                         from "the page that links to it was never fetched",
+                         and the link checks say so rather than guess.
+  --link-hop-pages <n>   Cap the hop. Default ${DEFAULT_LINK_HOP_PAGES}, and separate from
+                         --max-pages on purpose: these are evidence about the
+                         sample, not members of it.
   --max-depth <n>        Sitemap index recursion depth. Default 3.
   --delay <ms>           Delay between requests to one host. Default 1000,
                          floor ${MIN_DELAY_MS}.
@@ -136,6 +148,8 @@ async function main(argv: string[]): Promise<ExitCode> {
       'dry-run': { type: 'boolean', default: false },
       sitemap: { type: 'string', multiple: true, default: [] },
       'max-pages': { type: 'string' },
+      'no-link-hop': { type: 'boolean', default: false },
+      'link-hop-pages': { type: 'string' },
       sample: { type: 'string' },
       'max-depth': { type: 'string' },
       delay: { type: 'string' },
@@ -441,6 +455,7 @@ async function main(argv: string[]): Promise<ExitCode> {
   }
 
   const maxPages = numeric('max-pages', values['max-pages']);
+  const linkHopPages = numeric('link-hop-pages', values['link-hop-pages']);
   const maxDepth = numeric('max-depth', values['max-depth']);
   const delayMs = numeric('delay', values.delay);
 
@@ -450,6 +465,8 @@ async function main(argv: string[]): Promise<ExitCode> {
     ...(values.site === undefined ? {} : { siteSlug: values.site }),
     cliSitemaps: values.sitemap ?? [],
     ...(maxPages === undefined ? {} : { maxPages }),
+    linkHop: values['no-link-hop'] !== true,
+    ...(linkHopPages === undefined ? {} : { linkHopPages }),
     ...(sample === undefined ? {} : { sample }),
     ...(maxDepth === undefined ? {} : { maxDepth }),
     ...(delayMs === undefined ? {} : { delayMs }),

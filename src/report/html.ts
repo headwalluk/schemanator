@@ -295,6 +295,11 @@ export function renderHtml(report: Report): string {
   parts.push(
     `<tr><td>Pages fetched</td><td>${report.coverage.pages_fetched} of ${report.coverage.urls_discovered} discovered</td></tr>`,
   );
+  if ((report.coverage.pages_linked ?? 0) > 0) {
+    parts.push(
+      `<tr><td>Linked pages followed</td><td>${report.coverage.pages_linked} — not in any sitemap, checked by group <code>link</code> only</td></tr>`,
+    );
+  }
   parts.push(`<tr><td>Nodes extracted</td><td>${report.graph.nodes}</td></tr>`);
   parts.push(`<tr><td>Distinct entities</td><td>${report.graph.entities}</td></tr>`);
   parts.push(
