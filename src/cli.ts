@@ -17,6 +17,7 @@ import {
 } from './crawl/run.ts';
 import { runPipeline, type PipelineOptions } from './pipeline.ts';
 import { runAnalysis, UnknownRunError } from './analyse.ts';
+import { UnknownCheckError, unknownDisables } from './checks/run.ts';
 import { RobotsUnavailableError } from './crawl/robots.ts';
 import { MIN_DELAY_MS, USER_AGENT } from './net/fetcher.ts';
 import { createLogger, resolveLogLevel, LOG_LEVELS } from './log.ts';
@@ -224,6 +225,13 @@ async function main(argv: string[]): Promise<ExitCode> {
     process.stderr.write(`${command} needs a site\n\n${USAGE}`);
     return EXIT.FAILURE;
   }
+
+  // Before anything is fetched. `runChecks` rejects these too, and that is the
+  // check that protects library callers — but by the time it runs, `crawl` has
+  // already spent an hour of somebody else's bandwidth, and `02` is emphatic
+  // that a crawl is not a thing to waste on a typo.
+  const badDisables = unknownDisables(values.disable ?? []);
+  if (badDisables.length > 0) throw new UnknownCheckError(badDisables);
 
   const numeric = (name: string, raw: string | undefined): number | undefined => {
     if (raw === undefined) return undefined;
@@ -739,6 +747,9 @@ const EXIT_BY_ERROR: readonly [new (...args: never[]) => Error, ExitCode][] = [
   [RobotsUnavailableError, EXIT.ROBOTS_UNAVAILABLE],
   [CrawlAbortedError, EXIT.CRAWL_ABORTED],
   [UnknownRunError, EXIT.FAILURE],
+  // A bad --disable value. FAILURE is "bad arguments" and this is exactly that:
+  // the run did not happen because the request could not be honoured.
+  [UnknownCheckError, EXIT.FAILURE],
   [UrlCanonicalisationError, EXIT.FAILURE],
   // Extraction catches this per block and records it on the page, where
   // `syntax.unresolvable-context` reports it — so it should never reach here.

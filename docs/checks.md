@@ -6,6 +6,11 @@ Every check is on by default. Disable one, or a whole group:
 schemanator example.com --disable graph.dangling-reference --disable coverage
 ```
 
+Any id below works, and so does any group name. **A value that is neither is
+refused before the crawl starts**, with the nearest real name if there is one —
+a typo used to be accepted in silence and reported back as disabled, which is
+worse than an error, because the report then agrees with you.
+
 ## Severity
 
 | Severity | Means |

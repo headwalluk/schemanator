@@ -108,6 +108,28 @@ Notable changes. Dates are the day the work landed, not a release date.
   or not the code follows it. Found the first time the check ever produced a
   true positive.
 
+- **`--disable` accepted anything and silently ignored what it did not know.**
+  A typo, an invented name, or a real check id the flag could not match was
+  taken without complaint, echoed back to the operator as *"Disabled:"*, and
+  written into `report.json`'s `checks_disabled`. The check ran normally. A
+  caller cannot detect that, because the report agrees with them.
+
+  **The case that made it more than a typo guard**: `entity.page-scoped-value`
+  is raised by `entity.contradiction` rather than registered separately, so
+  `--disable entity.page-scoped-value` matched nothing — while `docs/checks.md`
+  gives that id its own write-up and `docs/reports.md` tells consumers a check
+  id is stable so they can disable it. Two documented promises, both untrue for
+  that one id, with no way to find out.
+
+  Unknown values are now refused **before the crawl starts**, naming the nearest
+  real check or group where there is one. Failing after the crawl would have
+  meant an hour of somebody else's bandwidth spent on a typo. Ids raised by
+  another check are disableable by their own name, and appear in `checks_run`
+  when they run — `docs/agents.md` promises that list says what actually ran.
+
+  Found by reading a real report and asking why `checks_run` held 55 entries
+  against a 56-check catalogue.
+
 ### Testing
 
 - **A fixture site for the checks that had never fired.** Sixteen catalogue

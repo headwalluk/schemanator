@@ -233,7 +233,7 @@ Keep `--max-pages` the same across runs you intend to compare.
 | `--force` | Take a lock whose owning process cannot be checked from here |
 | `--work-dir <path>` | Where output goes |
 | `--site <slug>` | Site key under the work directory. Default: the hostname |
-| `--disable <check>` | Disable a check or a whole group. Repeatable |
+| `--disable <check>` | Disable a check or a whole group. Repeatable. An unknown name is an error, not a no-op |
 | `--since <run-id>` | Diff against an earlier run. `last` for the most recent |
 | `--format <fmt>` | `md` (default), `json` or `html`. Picks what goes to stdout |
 | `--json` | Alias for `--format json` |

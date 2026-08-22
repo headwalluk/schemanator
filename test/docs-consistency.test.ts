@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ALL_CHECKS } from '../src/checks/run.ts';
+import { ALL_CHECKS, DISABLEABLE, EMITTED_CHECK_IDS } from '../src/checks/run.ts';
 import { DEFAULT_MAX_PAGES } from '../src/crawl/run.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -45,11 +45,14 @@ function docFiles(): string[] {
 /**
  * Every check id the engine can emit.
  *
- * `entity.page-scoped-value` is raised by `entity.contradiction` rather than
- * registered separately, because only that check has the evidence to tell the
- * two apart — so it is absent from `ALL_CHECKS` by design.
+ * Read from the engine rather than restated here. This set used to spell out
+ * `entity.page-scoped-value` as a literal exception — the id is raised by
+ * `entity.contradiction` and is absent from `ALL_CHECKS` by design — which meant
+ * the test knew about an emittable id that `--disable` did not. That gap was the
+ * bug: the id was documented, appeared in `finding.check`, and could not be
+ * disabled.
  */
-const BUILT = new Set([...ALL_CHECKS.map((check) => check.id), 'entity.page-scoped-value']);
+const BUILT = new Set(EMITTED_CHECK_IDS);
 
 const CHECKS_DOC = read('docs/checks.md');
 
@@ -100,6 +103,34 @@ test('check ids are unique, well-formed, and prefixed with their own group', () 
 test('every built check is documented', () => {
   const missing = [...BUILT].filter((id) => !DOCUMENTED.has(id)).sort();
   assert.deepEqual(missing, [], `built but undocumented: ${missing.join(', ')}`);
+});
+
+test('every documented check can actually be disabled', () => {
+  // The invariant that was missing on 2026-08-22, and the one that would have
+  // caught the bug. `docs/reports.md` tells consumers a check id is stable so
+  // they can `--disable` it, and `docs/checks.md` gives each one a write-up —
+  // two promises that `--disable` has to keep for every id, not for most of
+  // them.
+  //
+  // Asserted against the documentation rather than against the engine's own
+  // list, deliberately. Comparing the engine to itself cannot fail; the
+  // catalogue is written by hand and is what an operator reads.
+  const undisableable = [...DOCUMENTED].filter((id) => !DISABLEABLE.has(id)).sort();
+
+  assert.deepEqual(
+    undisableable,
+    [],
+    `documented but --disable does not accept it: ${undisableable.join(', ')}`,
+  );
+});
+
+test('every group named at the front of a check id is disableable', () => {
+  // `--disable <group>` is documented in usage.md and checks.md, and a reader
+  // types the group they saw at the front of an id.
+  const groups = new Set([...DOCUMENTED].map((id) => id.split('.')[0] ?? ''));
+  const missing = [...groups].filter((group) => !DISABLEABLE.has(group)).sort();
+
+  assert.deepEqual(missing, [], `documented group cannot be disabled: ${missing.join(', ')}`);
 });
 
 test('every documented check is built', () => {

@@ -885,10 +885,28 @@ const noStructuredData: Check = {
 };
 
 /**
- * `entity.page-scoped-value` has no entry here: it is raised by
+ * Ids emitted by another check's `run`, mapped to the check that raises them.
+ *
+ * `entity.page-scoped-value` has no entry in {@link ALL_CHECKS}: it is raised by
  * `entity.contradiction`, which is the only check with the evidence to tell the
- * two apart. Disabling `entity.contradiction` disables both.
+ * two apart — the same observations mean "a few variants disagree" or "the
+ * property is page-scoped" depending on how many distinct values there are.
+ *
+ * **That is a design decision, and until 2026-08-22 it silently broke a
+ * promise.** `docs/reports.md` tells consumers a finding's check id is stable so
+ * they can `--disable` it; the id appears in `finding.check` and has its own
+ * write-up in `docs/checks.md`. But `--disable` matched on `ALL_CHECKS`, so
+ * `--disable entity.page-scoped-value` was accepted, echoed back to the operator
+ * as *"Disabled:"*, written into `report.json` — and did nothing at all.
+ *
+ * Declared here rather than special-cased at each use so the three places that
+ * have to agree — what can be disabled, what `checks_run` reports, and what the
+ * documentation test considers built — read it from one source.
  */
+export const RAISED_BY: Readonly<Record<string, string>> = {
+  'entity.page-scoped-value': 'entity.contradiction',
+};
+
 export const ALL_CHECKS: Check[] = [
   contradiction,
   typeNarrowing,
@@ -912,6 +930,118 @@ export const ALL_CHECKS: Check[] = [
   ...PAGE_CHECKS,
   ...LINK_CHECKS,
 ];
+
+/**
+ * Every check id that can appear in `finding.check`.
+ *
+ * **Not the same set as {@link ALL_CHECKS}**, and the difference is exactly what
+ * made `--disable` lie — see {@link RAISED_BY}.
+ */
+export const EMITTED_CHECK_IDS: readonly string[] = [
+  ...ALL_CHECKS.map((check) => check.id),
+  ...Object.keys(RAISED_BY),
+];
+
+/** Every group name, which `--disable <group>` matches on. */
+export const CHECK_GROUPS: readonly string[] = [...new Set(ALL_CHECKS.map((check) => check.group))];
+
+/**
+ * Everything `--disable` accepts: a check id or a whole group.
+ *
+ * Anything else is rejected rather than ignored. An unrecognised value used to
+ * be accepted in silence and reported back as disabled, so a typo — or a real id
+ * this set did not know about — produced a report that stated a check had been
+ * silenced when it had run normally. A caller cannot detect that; the report
+ * agrees with them.
+ */
+export const DISABLEABLE: ReadonlySet<string> = new Set([...EMITTED_CHECK_IDS, ...CHECK_GROUPS]);
+
+/**
+ * Near-miss ids offered when a `--disable` value is not recognised.
+ *
+ * Three, because the message names them inline beside the value that was wrong
+ * and a longer list stops being readable there. It is a nudge rather than a
+ * catalogue — the message points at `docs/checks.md` for the full set, which is
+ * the one place that cannot go stale against the code.
+ */
+const SUGGESTIONS_SHOWN = 3;
+
+/**
+ * How far a name may be from what was typed and still be offered as a
+ * correction: a quarter of its length, and never less than one.
+ *
+ * Proportional because the candidates are not one size. A fixed tolerance of
+ * three characters matches `google` against half the group names; one character
+ * catches the single-key slips that are most of what people actually type, and
+ * `entity.contradiction` — twenty characters — can afford five.
+ */
+function tolerance(name: string): number {
+  return Math.max(1, Math.floor(name.length / 4));
+}
+
+/** Levenshtein distance, two rows at a time. Candidate lists here are tens of items. */
+function editDistance(left: string, right: string): number {
+  let previous = Array.from({ length: right.length + 1 }, (_unused, index) => index);
+
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column += 1) {
+      const substitution =
+        (previous[column - 1] ?? 0) + (left[row - 1] === right[column - 1] ? 0 : 1);
+      current[column] = Math.min(
+        substitution,
+        (previous[column] ?? 0) + 1,
+        (current[column - 1] ?? 0) + 1,
+      );
+    }
+    previous = current;
+  }
+
+  return previous[right.length] ?? 0;
+}
+
+/** `--disable` was given something that is neither a check id nor a group. */
+export class UnknownCheckError extends Error {
+  readonly unknown: readonly string[];
+
+  constructor(unknown: readonly string[]) {
+    /**
+     * The nearest names to what was typed, by edit distance.
+     *
+     * "Did you mean" has to be *true* to be worth printing. The first draft
+     * listed whatever came next in the same group, and answered
+     * `entity.contradction` with one correction followed by two ids that merely
+     * shared a prefix. A common-prefix score fixed that and still could not see
+     * `goggle` for `google`, because the typo is in the middle.
+     *
+     * Groups are candidates as well as check ids: `--disable` takes either, so
+     * a hint that only knows one half is wrong for the other.
+     */
+    const suggestion = (value: string): string => {
+      const near = [...EMITTED_CHECK_IDS, ...CHECK_GROUPS]
+        .map((name) => ({ name, distance: editDistance(name, value) }))
+        .filter((candidate) => candidate.distance <= tolerance(candidate.name))
+        .sort((left, right) => left.distance - right.distance)
+        .slice(0, SUGGESTIONS_SHOWN)
+        .map((candidate) => candidate.name);
+
+      return near.length > 0 ? ` (closest: ${near.join(', ')})` : '';
+    };
+
+    super(
+      `--disable: ${unknown.length === 1 ? 'unknown check or group' : 'unknown checks or groups'} ` +
+        unknown.map((value) => `"${value}"${suggestion(value)}`).join('; ') +
+        `. Every check id and group is listed in docs/checks.md.`,
+    );
+    this.name = 'UnknownCheckError';
+    this.unknown = unknown;
+  }
+}
+
+/** The unrecognised entries in a `--disable` list, in the order they were given. */
+export function unknownDisables(disabled: readonly string[]): string[] {
+  return disabled.filter((value) => !DISABLEABLE.has(value));
+}
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, opportunity: 2 };
 
@@ -1143,7 +1273,14 @@ export function runChecks(options: {
   /** The crawl's link hop. Undefined and null both mean "it did not happen". */
   linkHop?: CheckContext['linkHop'];
 }): RunChecksResult {
-  const disabled = new Set(options.disabled ?? []);
+  const requested = options.disabled ?? [];
+  // Rejected here rather than in the CLI so every caller gets it — `analyse`,
+  // `scan` and any library consumer — and because a silently ignored disable is
+  // indistinguishable from one that worked.
+  const unknown = unknownDisables(requested);
+  if (unknown.length > 0) throw new UnknownCheckError(unknown);
+
+  const disabled = new Set(requested);
   const silenced: Record<string, number> = {};
 
   // Derive the site host from what was actually crawled rather than taking it
@@ -1209,9 +1346,22 @@ export function runChecks(options: {
     if (disabled.has(check.id) || disabled.has(check.group)) continue;
     run.push(check.id);
     findings.push(...check.run(context));
+
+    // A check that raises ids of its own ran them too, so `checks_run` says so.
+    // `docs/agents.md` promises it "lists what actually ran", and a consumer
+    // holding an `entity.page-scoped-value` finding whose id is absent from that
+    // list has been told the check did not run.
+    for (const [raised, raiser] of Object.entries(RAISED_BY)) {
+      if (raiser === check.id && !disabled.has(raised)) run.push(raised);
+    }
   }
 
-  const aggregated = aggregate(findings);
+  // The only place a raised id can be filtered: it has no entry in the loop
+  // above to skip. Applied before aggregation, so a disabled check cannot
+  // survive as one constituent of an aggregate.
+  const kept = findings.filter((finding) => !disabled.has(finding.check));
+
+  const aggregated = aggregate(kept);
 
   aggregated.sort(
     (left, right) =>

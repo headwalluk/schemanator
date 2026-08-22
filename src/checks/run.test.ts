@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import type { ExtractedNode } from '../extract/types.ts';
 import type { PageRecord } from '../store/workdir.ts';
-import { AGGREGATE_SAMPLE, runChecks } from './run.ts';
+import { AGGREGATE_SAMPLE, runChecks, UnknownCheckError } from './run.ts';
 
 const S = (name: string): string => `http://schema.org/${name}`;
 
@@ -83,6 +83,99 @@ const run = (
 
 const value = (text: string) => [{ '@value': text }];
 const ref = (id: string) => [{ '@id': id }];
+
+// --- entity.page-scoped-value, and what --disable does with it ---------------
+
+/** Six pages, one @id, and a `url` that is never twice the same. */
+const pageScopedFixture = (): { nodes: ExtractedNode[]; pages: PageRecord[] } => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
+  return {
+    nodes: ids.map((id) =>
+      node({
+        id: 'https://example.com/#org',
+        page: id,
+        // Not example.com: `value.placeholder` reports that host by design, and
+        // a second finding here would be about the fixture rather than the check.
+        props: { [S('url')]: value(`https://fixture.test/${id}`) },
+      }),
+    ),
+    pages: ids.map((id) => page(id)),
+  };
+};
+
+test('a functional property with one value per page is page-scoped, not a contradiction', () => {
+  // The check had no test at all before 2026-08-22: it fires readily on the
+  // corpus, so nothing in the suite ever needed to make it fire on purpose.
+  const { nodes, pages } = pageScopedFixture();
+  const { findings } = run(nodes, pages);
+
+  assert.deepEqual(
+    findings.map((finding) => finding.check),
+    ['entity.page-scoped-value'],
+  );
+});
+
+test('a check raised by another check can be disabled by its own id', () => {
+  // The defect, found 2026-08-22 by reading a real report. `entity.page-scoped-value`
+  // is raised by `entity.contradiction` and has no entry in ALL_CHECKS, so
+  // --disable matched nothing: the id was accepted, echoed back to the operator
+  // as "Disabled:", written into report.json, and the finding appeared anyway.
+  const { nodes, pages } = pageScopedFixture();
+  const { findings, checksRun } = run(nodes, pages, [
+    'coverage.missing-expected-entity',
+    'google',
+    'entity.page-scoped-value',
+  ]);
+
+  assert.deepEqual(findings, [], 'the disabled check still reported');
+  assert.equal(
+    checksRun.includes('entity.page-scoped-value'),
+    false,
+    'a disabled check is listed as having run',
+  );
+});
+
+test('disabling the raising check disables what it raises', () => {
+  const { nodes, pages } = pageScopedFixture();
+  const { findings } = run(nodes, pages, [
+    'coverage.missing-expected-entity',
+    'google',
+    'entity.contradiction',
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('a raised check is listed in checks_run, because it ran', () => {
+  // `docs/agents.md` promises checks_run "lists what actually ran". A consumer
+  // holding an entity.page-scoped-value finding whose id is absent from that
+  // list has been told the check did not run.
+  const { nodes, pages } = pageScopedFixture();
+  const { checksRun } = run(nodes, pages);
+
+  assert.equal(checksRun.includes('entity.page-scoped-value'), true);
+  assert.equal(checksRun.includes('entity.contradiction'), true);
+});
+
+test('an unknown --disable value is refused rather than ignored', () => {
+  // Silently accepting one produced a report that stated a check had been
+  // silenced when it had run normally, which the caller cannot detect: the
+  // report agrees with them.
+  assert.throws(
+    () => run([], [page('a')], ['entity.contradction']),
+    (error: unknown) => {
+      assert.equal(error instanceof UnknownCheckError, true);
+      assert.match((error as Error).message, /entity\.contradction/);
+      // The hint has to be a real correction to be worth printing.
+      assert.match((error as Error).message, /closest: entity\.contradiction/);
+      return true;
+    },
+  );
+});
+
+test('a group name is still a valid --disable value', () => {
+  assert.doesNotThrow(() => run([], [page('a')], ['coverage', 'google']));
+});
 
 // --- entity.contradiction ----------------------------------------------------
 
