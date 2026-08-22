@@ -130,6 +130,34 @@ export function isSameSiteHost(left: string, right: string): boolean {
   return strip(left.toLowerCase()) === strip(right.toLowerCase());
 }
 
+/**
+ * The sitemaps a crawl actually **found**, out of every path it touched.
+ *
+ * `sitemaps` records attempts, not discoveries — its own field comment says
+ * "every sitemap we touched". When robots.txt declares none, five well-known
+ * paths are probed and a typical site 404s four of them, so every one of those
+ * dead URLs is in the list.
+ *
+ * That matters because `robots.sitemap-missing` reads this to say *"this site
+ * has N sitemap(s), found by probing well-known paths"* and to name one in its
+ * remediation. Handed the attempts, it reported four 404s as sitemaps and
+ * advised advertising one of them in robots.txt. Its own documentation already
+ * said a site with no sitemap at all is a different finding and not this one;
+ * without this filter the code could not tell the two apart.
+ *
+ * Found 2026-08-22 by the fixture site built for the checks that had never
+ * fired — the check's first true positive was also its first wrong output.
+ *
+ * `format` is the discriminator rather than the status: it is non-null only
+ * when a body came back and parsed as a sitemap, which is the actual question,
+ * and it correctly rejects the host that answers `/sitemap.xml` with a 200 and
+ * an HTML error page. `finalUrl` rather than `url` so a sitemap reached through
+ * a redirect is advertised at the URL that serves it.
+ */
+export function sitemapsFound(sitemaps: readonly FetchedSitemap[]): string[] {
+  return sitemaps.filter((sitemap) => sitemap.format !== null).map((sitemap) => sitemap.finalUrl);
+}
+
 export interface SitemapDiscovery {
   /** Every sitemap we touched, in the order we touched them. */
   sitemaps: FetchedSitemap[];

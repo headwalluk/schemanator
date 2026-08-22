@@ -21,6 +21,15 @@
  * The pages also carry JSON-LD, including a malformed block and a
  * plugin-style repeated Organization node, so the same corpus drives the
  * extraction work in `dev-notes/03` without needing to be rebuilt.
+ *
+ * Three sites live here, separate on purpose — a dozen tests assert exact counts
+ * against each, and a defect added to one for another's benefit is a count to
+ * re-derive everywhere:
+ *
+ *   - {@link startFixtureSite} — the crawler's nasty cases, above.
+ *   - {@link startLinkGraphSite} — a link graph that disagrees with its sitemap.
+ *   - {@link startDefectSite} — one deliberate defect per check that had never
+ *     fired on anything real, and the near misses each must stay silent on.
  */
 
 import zlib from 'node:zlib';
@@ -344,6 +353,379 @@ ${hrefs.map((href) => `<a href="${href}">${href}</a>`).join('\n')}
     },
     // Served, but robots.txt refuses it. Must never be fetched.
     [LINK_GRAPH_UNLISTED.disallowed]: htmlRoute(linked('Basket', [LINK_GRAPH_PATHS.home])),
+  });
+}
+
+/** Where each defect on the untriggered-check site lives. */
+export const DEFECT_PATHS = {
+  /** Carries `#brand` as an `Organization`, and a one-crumb trail of its own. */
+  home: '/',
+  /** Carries `#brand` as a `Person`. `entity.type-conflict`. */
+  typeConflict: '/about',
+  /** Two telephones on one node, and an address nobody references. */
+  multiValue: '/contact',
+  /**
+   * Named as a crumb by {@link product}'s trail, and publishes none itself.
+   * `breadcrumb.missing`.
+   */
+  breadcrumbSilent: '/shop',
+  /** A `Product` with a name and nothing else. `google.incomplete-alternative`. */
+  product: '/shop/widget',
+  /** A block whose `@context` is not schema.org. `syntax.unresolvable-context`. */
+  remoteContext: '/blog/post',
+  /**
+   * In the sitemap, 404s, and named as a crumb by {@link remoteContext}.
+   *
+   * `breadcrumb.broken-trail-item` reports only what was *fetched and refused* —
+   * "absent from the crawl" was removed after it called four live pages dead
+   * (`dev-notes/04`) — so this has to be a URL the crawl actually requested.
+   */
+  brokenCrumb: '/gone-section',
+  /** Byte-identical bodies at two URLs. `indexing.duplicate-content`. */
+  twins: ['/twin-a', '/twin-b'],
+  /** Declares a canonical pointing at {@link redirecting}. */
+  canonicalToRedirect: '/canonical-source',
+  /** 301s to {@link redirectDestination}, making the canonical above a contradiction. */
+  redirecting: '/moved-away',
+  /** Where {@link redirecting} lands. Not in the sitemap; reached only through it. */
+  redirectDestination: '/landing',
+  /** Canonical → {@link chainMiddle} → {@link chainEnd}. `indexing.canonical-chain`. */
+  chainStart: '/chain-start',
+  chainMiddle: '/chain-middle',
+  /** Self-canonical, which is what stops the chain being two chains. */
+  chainEnd: '/chain-end',
+  /** More words behind `hidden` than in the open. `content.hidden-text`. */
+  hiddenText: '/hidden',
+  /**
+   * Also more hidden than shown, and **must not be reported**.
+   *
+   * Both sides are under the 50-word floor, so this is a *sparse* page rather
+   * than one concealing anything — the class that made `content.hidden-text`
+   * fire on 48 colour-swatch pages of 17 visible words apiece. Without a page of
+   * this shape the fixture cannot tell the narrowed rule from the naive one:
+   * every other page here hides nothing at all, and `hidden > visible` is false
+   * for all of them however the floor is written.
+   */
+  sparseHidden: '/swatch',
+  /** No `<title>` and no `lang`. `page.title-missing`, `page.lang-missing`. */
+  bareHead: '/bare-head',
+} as const;
+
+/** Every path the defect site lists in its sitemap, in the order it lists them. */
+const DEFECT_SITEMAP_PATHS: readonly string[] = [
+  DEFECT_PATHS.home,
+  DEFECT_PATHS.typeConflict,
+  DEFECT_PATHS.multiValue,
+  DEFECT_PATHS.breadcrumbSilent,
+  DEFECT_PATHS.product,
+  DEFECT_PATHS.remoteContext,
+  DEFECT_PATHS.brokenCrumb,
+  ...DEFECT_PATHS.twins,
+  DEFECT_PATHS.canonicalToRedirect,
+  DEFECT_PATHS.redirecting,
+  DEFECT_PATHS.chainStart,
+  DEFECT_PATHS.chainMiddle,
+  DEFECT_PATHS.chainEnd,
+  DEFECT_PATHS.hiddenText,
+  DEFECT_PATHS.sparseHidden,
+  DEFECT_PATHS.bareHead,
+];
+
+/** The theme directory blocked for everyone. `robots.resource-blocked`. */
+export const DEFECT_BLOCKED_RESOURCE = '/wp-content/themes/';
+
+/**
+ * Blocked too, and must **not** be reported.
+ *
+ * The check's own remediation says blocking wp-admin is fine and normal, so a
+ * fixture that only carried the theme rule could not tell a working matcher
+ * from one that reports every `Disallow` it sees.
+ */
+export const DEFECT_ALLOWED_BLOCK = '/wp-admin/';
+
+/** AI crawler tokens the defect site disallows. Both are in `data/ai-crawlers.json`. */
+export const DEFECT_BLOCKED_CRAWLERS = ['GPTBot', 'CCBot'];
+
+/**
+ * A site built to make the never-fired checks fire.
+ *
+ * **Nineteen checks in the catalogue have never seen a true positive** — not
+ * because they are wrong, but because no site in the 22-site corpus does the
+ * thing they look for. Several are silent precisely *because* a false-positive
+ * class was correctly removed from them, which is the outcome we wanted. But a
+ * check that has never fired is untriggered rather than validated, and a
+ * regression in one would stay invisible until a user hit it (`dev-notes/00`).
+ *
+ * So every defect here is deliberate and each one is annotated with the check it
+ * exists for. Driven end to end through `runCrawl` → `runAnalysis` rather than
+ * by handing synthetic records to a check, for the reason
+ * `link-graph.e2e.test.ts` gives: a unit test proves the rule, and what is
+ * unproven is whether the pipeline in front of it delivers what the rule needs.
+ *
+ * Separate from {@link startFixtureSite} and {@link startLinkGraphSite} for the
+ * reason those two are separate from each other — a dozen tests assert exact
+ * counts against them, and every defect added here would be a count to re-derive
+ * there.
+ *
+ * **Every page links to every other page.** Not decoration: without inbound
+ * links `link.orphan` would correctly report the entire sitemap, burying the
+ * findings this site exists to produce under fifteen it does not. The nav is a
+ * `<nav>`, so it is structural chrome and its words stay out of the content
+ * ratios that `content.hidden-text` turns on.
+ */
+export async function startDefectSite(): Promise<TestServer> {
+  const origin = (request: { headers: { host?: string | undefined } }): string =>
+    `http://${request.headers.host}`;
+
+  /**
+   * `count` words unique to `label`.
+   *
+   * The label is not decoration. A block repeated on 80% of pages *is* site
+   * chrome and its words are subtracted from the page's own — so giving every
+   * page the same filler made eleven of them read as having nothing to index,
+   * and `indexing.thin-sitemap-entry` said so, correctly, about a fixture that
+   * was supposed to carry only deliberate defects.
+   */
+  const filler = (label: string, count: number): string =>
+    Array.from({ length: count }, (_, index) => `${label}${index}`).join(' ');
+
+  /** Body words unique to one page, derived from its title so nothing has to repeat it. */
+  const ownWords = (title: string | null): string =>
+    filler((title ?? 'untitled').toLowerCase().replace(/[^a-z]+/g, ''), 60);
+
+  const nav = (): string =>
+    `<nav>${DEFECT_SITEMAP_PATHS.map((path) => `<a href="${path}">${path}</a>`).join('')}</nav>`;
+
+  interface DefectPage {
+    /** Null omits the element entirely, which is what `page.title-missing` reads. */
+    title: string | null;
+    lang?: boolean;
+    canonical?: string;
+    jsonLd?: string[];
+    body?: string;
+    hidden?: string;
+  }
+
+  const page = (options: DefectPage): string =>
+    `<!DOCTYPE html>
+<html${options.lang === false ? '' : ' lang="en"'}>
+<head>
+<meta charset="utf-8">
+${options.title === null ? '' : `<title>${options.title}</title>`}
+${options.canonical === undefined ? '' : `<link rel="canonical" href="${options.canonical}">`}
+${(options.jsonLd ?? []).map((block) => `<script type="application/ld+json">${block}</script>`).join('\n')}
+</head>
+<body>
+${nav()}
+<main>
+<h1>${options.title ?? 'Untitled'}</h1>
+<p>${options.body ?? ownWords(options.title)}</p>
+${options.hidden === undefined ? '' : `<div hidden><p>${options.hidden}</p></div>`}
+</main>
+</body>
+</html>`;
+
+  const brand = (base: string, type: string): string =>
+    JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': type,
+      '@id': `${base}/#brand`,
+      name: 'Fixture Defects Ltd',
+    });
+
+  const breadcrumb = (base: string, trail: { name: string; path: string }[]): string =>
+    JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      '@id': `${base}/#breadcrumb`,
+      itemListElement: trail.map((crumb, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: crumb.name,
+        item: `${base}${crumb.path}`,
+      })),
+    });
+
+  const htmlPage = (options: DefectPage): RouteResponse => htmlRoute(page(options));
+
+  return startTestServer({
+    /**
+     * No `Sitemap:` directive, so the crawl finds `/sitemap.xml` by probing —
+     * which is the only case `robots.sitemap-missing` reports, because it is the
+     * only one where the evidence is unambiguous.
+     */
+    '/robots.txt': {
+      headers: { 'content-type': 'text/plain' },
+      body: [
+        'User-agent: *',
+        `Disallow: ${DEFECT_ALLOWED_BLOCK}`,
+        `Disallow: ${DEFECT_BLOCKED_RESOURCE}`,
+        'Crawl-delay: 0',
+        '',
+        ...DEFECT_BLOCKED_CRAWLERS.flatMap((token) => [`User-agent: ${token}`, 'Disallow: /', '']),
+      ].join('\n'),
+    },
+
+    '/sitemap.xml': (request) =>
+      xmlRoute(urlset(DEFECT_SITEMAP_PATHS.map((path) => `${origin(request)}${path}`))),
+
+    // A one-crumb trail. It places nothing in the tree, and `breadcrumb.missing`
+    // needs the *parent* of a silent page to carry a trail — without this the
+    // check has nothing to compare `/shop` against.
+    [DEFECT_PATHS.home]: (request) =>
+      htmlPage({
+        title: 'Home',
+        jsonLd: [
+          brand(origin(request), 'Organization'),
+          breadcrumb(origin(request), [{ name: 'Home', path: '/' }]),
+        ],
+      }),
+
+    // The same absolute @id, typed as something an Organization cannot also be.
+    // Absolute on purpose: a fragment-only @id resolves per page, so the two
+    // observations would never meet and this would be `graph.relative-id`
+    // instead — which the other two fixtures already cover.
+    [DEFECT_PATHS.typeConflict]: (request) =>
+      htmlPage({ title: 'About', jsonLd: [brand(origin(request), 'Person')] }),
+
+    [DEFECT_PATHS.multiValue]: (request) =>
+      htmlPage({
+        title: 'Contact',
+        jsonLd: [
+          // Two values for a functional property in one block. schema.org
+          // permits any property to repeat, so a per-page validator passes this.
+          JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Organization',
+            '@id': `${origin(request)}/#switchboard`,
+            name: 'Fixture Defects Ltd',
+            telephone: ['+44 20 7946 0000', '+44 20 7946 3333'],
+          }),
+          // Defined, complete, and referenced by nothing. A PostalAddress cannot
+          // be what a page is about, which is the one distinction that makes
+          // `graph.orphan-node` trustworthy rather than a 1,480-hit false alarm.
+          JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'PostalAddress',
+            '@id': `${origin(request)}/#address-nobody-uses`,
+            // Not "1 Example Street": `value.placeholder` matches that, and a
+            // second finding on this node would obscure the one it is here for.
+            streetAddress: '12 Fixture Lane',
+            addressLocality: 'London',
+            postalCode: 'EC1A 1BB',
+          }),
+        ],
+      }),
+
+    [DEFECT_PATHS.breadcrumbSilent]: htmlPage({ title: 'Shop' }),
+
+    [DEFECT_PATHS.product]: (request) =>
+      htmlPage({
+        title: 'Widget',
+        jsonLd: [
+          // Google requires one of offers / review / aggregateRating. This has
+          // none, which is one decision to fix rather than three fields.
+          JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            '@id': `${origin(request)}${DEFECT_PATHS.product}#product`,
+            name: 'A Widget',
+          }),
+          breadcrumb(origin(request), [
+            { name: 'Home', path: DEFECT_PATHS.home },
+            { name: 'Shop', path: DEFECT_PATHS.breadcrumbSilent },
+            { name: 'Widget', path: DEFECT_PATHS.product },
+          ]),
+        ],
+      }),
+
+    [DEFECT_PATHS.remoteContext]: (request) =>
+      htmlPage({
+        title: 'Post',
+        jsonLd: [
+          // Valid JSON, and unresolvable: `03` refuses to fetch remote contexts,
+          // because a crawl that depends on a third-party server being reachable
+          // is not reproducible. The entities in this block are simply lost.
+          JSON.stringify({
+            '@context': 'https://example.invalid/vocabulary.jsonld',
+            '@type': 'Thing',
+            name: 'An entity whose vocabulary we cannot resolve',
+          }),
+          // Referenced by nothing, and never a `graph.orphan-node` — an Article
+          // nobody points at is what the page is *about*. The obvious version of
+          // that rule fired 1,480 times across the corpus and was wrong every
+          // time, so the fixture has to hold the case it must stay quiet on.
+          JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Article',
+            '@id': `${origin(request)}${DEFECT_PATHS.remoteContext}#article`,
+            headline: 'A post nothing in the graph refers to',
+          }),
+          breadcrumb(origin(request), [
+            { name: 'Home', path: DEFECT_PATHS.home },
+            { name: 'Section', path: DEFECT_PATHS.brokenCrumb },
+            { name: 'Post', path: DEFECT_PATHS.remoteContext },
+          ]),
+        ],
+      }),
+
+    [DEFECT_PATHS.brokenCrumb]: { status: 404, body: 'not found' },
+
+    // Byte-identical, which is all `indexing.duplicate-content` claims to find.
+    // Neither declares a canonical, or the pair would have an answer already.
+    ...Object.fromEntries(
+      DEFECT_PATHS.twins.map((path) => [
+        path,
+        htmlPage({ title: 'One Page, Two URLs', body: filler('twin', 60) }),
+      ]),
+    ),
+
+    [DEFECT_PATHS.canonicalToRedirect]: (request) =>
+      htmlPage({
+        title: 'Canonical Source',
+        canonical: `${origin(request)}${DEFECT_PATHS.redirecting}`,
+      }),
+
+    [DEFECT_PATHS.redirecting]: {
+      status: 301,
+      headers: { location: DEFECT_PATHS.redirectDestination },
+    },
+    [DEFECT_PATHS.redirectDestination]: htmlPage({ title: 'Landing' }),
+
+    [DEFECT_PATHS.chainStart]: (request) =>
+      htmlPage({
+        title: 'Chain Start',
+        canonical: `${origin(request)}${DEFECT_PATHS.chainMiddle}`,
+      }),
+    [DEFECT_PATHS.chainMiddle]: (request) =>
+      htmlPage({
+        title: 'Chain Middle',
+        canonical: `${origin(request)}${DEFECT_PATHS.chainEnd}`,
+      }),
+    [DEFECT_PATHS.chainEnd]: (request) =>
+      htmlPage({
+        title: 'Chain End',
+        canonical: `${origin(request)}${DEFECT_PATHS.chainEnd}`,
+      }),
+
+    // Both sides must clear 50 words or the ratio means nothing — the rule that
+    // stopped this firing on 48 colour-swatch pages with 17 visible words each.
+    [DEFECT_PATHS.hiddenText]: htmlPage({
+      title: 'Hidden',
+      body: filler('shown', 60),
+      hidden: filler('concealed', 150),
+    }),
+
+    // Under the floor on both sides, and above `indexing.thin-sitemap-entry`'s
+    // 25 words on the visible one, so the only thing keeping this quiet is the
+    // rule this fixture is here to hold in place.
+    [DEFECT_PATHS.sparseHidden]: htmlPage({
+      title: 'Swatch',
+      body: filler('swatch', 30),
+      hidden: filler('swatchnote', 40),
+    }),
+
+    [DEFECT_PATHS.bareHead]: htmlPage({ title: null, lang: false }),
   });
 }
 

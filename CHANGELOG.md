@@ -88,6 +88,51 @@ Notable changes. Dates are the day the work landed, not a release date.
   the sentence it matches still exists, so a rewording fails the test rather
   than silently matching nothing.
 
+### Fixed
+
+- **`robots.sitemap-missing` counted the paths it probed for a sitemap as
+  sitemaps.** When `robots.txt` declares none, the crawl probes five well-known
+  paths; a site that answers one of them 404s the other four, and all five were
+  recorded as found. The finding read *"this site has 5 sitemap(s), found by
+  probing well-known paths"* and its remediation offered one of the dead URLs to
+  paste into `robots.txt`.
+
+  It also made the check unable to honour its own documentation. *"A site with
+  no sitemap at all is a different finding and is not this one"* was written into
+  the source and into `docs/checks.md`, and could not hold while five failed
+  probes counted as five sitemaps — on a site with no sitemap anywhere, the
+  check fired and named five that were not there.
+
+  **The documentation was right and the code was wrong**, which is the failure
+  `CLAUDE.md` warns about from the other direction: prose reads the same whether
+  or not the code follows it. Found the first time the check ever produced a
+  true positive.
+
+### Testing
+
+- **A fixture site for the checks that had never fired.** Sixteen catalogue
+  checks had never seen a true positive — not because they were wrong, but
+  because nothing in the 22-site corpus does what they look for, and three of
+  them are silent precisely *because* a false-positive class was correctly
+  removed. Every one was unit-tested, and unit tests were never the gap: what
+  was unproven is whether the pipeline in front of a rule delivers what the rule
+  needs.
+
+  `startDefectSite()` is a site built to make each of them fire, driven end to
+  end through `runCrawl` → `runAnalysis` in one shared crawl. It carries the
+  cases each check must stay **silent** on as well: an unreferenced `Article`
+  that is the page rather than dead markup, a `Disallow` on `/wp-admin/` that
+  blocks nothing a renderer needs, and a sparse page hiding more than it shows
+  whose word counts are both under the floor.
+
+  Those negatives are not decoration. Two of the three were added after
+  deliberately breaking the rule they guard and finding the suite still green.
+
+  With the other two fixture sites, every check in the catalogue that had never
+  fired now has an end-to-end regression test. **That is regression cover, not
+  field validation** — most of these still have not fired on a real site, and
+  `dev-notes/00` keeps that distinction.
+
 ## 1.12.0 — 2026-08-14
 
 What a field report found. 1.11.1 was run against a real site by somebody using

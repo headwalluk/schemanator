@@ -9,6 +9,7 @@ import { runChecks } from './checks/run.ts';
 import { buildGraph } from './checks/graph.ts';
 import { readStoredRobots } from './checks/robots.ts';
 import { runCrawl, type CrawlOptions, type CrawlSummary } from './crawl/run.ts';
+import { sitemapsFound } from './crawl/sitemaps.ts';
 import { readGraph, runExtraction } from './extract/run.ts';
 import { SILENT_LOGGER, type Logger } from './log.ts';
 import { buildReport, type Report } from './report/build.ts';
@@ -64,7 +65,7 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
     pages,
     partialCoverage: crawl.truncated !== null,
     robots: await readStoredRobots(workDir.crawlDir),
-    sitemapsFound: crawl.sitemaps.map((entry) => (typeof entry === 'string' ? entry : entry.url)),
+    sitemapsFound: sitemapsFound(crawl.sitemaps),
     // `?? null` rather than `?? []`: a crawl older than 1.12.0 has no
     // `duplicate_entries` key at all, and reading that absence as "none found"
     // would let two checks report a clean sitemap they never looked at.
