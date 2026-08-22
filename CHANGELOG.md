@@ -154,6 +154,40 @@ Notable changes. Dates are the day the work landed, not a release date.
   check module — a source rule, because the behavioural version can only see
   checks a fixture makes fire, and reinstating one of the four left it green.
 
+- **The link hop spent its budget on images.** It queued every internal
+  `<a href>` that no sitemap listed, with no filter on what could actually be a
+  page — and it ranks candidates most-linked-first, so the sitewide asset links
+  on a WordPress site outranked every real page. **Measured on a client site: 30
+  of 50 hop slots went to `.png`, `.jpeg` and `.pdf` while 70 unlisted pages
+  were dropped for want of budget.**
+
+  Three costs, and the first is the one that matters: 30 requests made against
+  somebody else's server for files the fetcher refuses on Content-Type the
+  moment the headers arrive. Then the group the hop exists to serve was starved
+  by its own ranking — `link.orphan` and `link.noindex-only-inbound` stay silent
+  while any linked page is unfetched, so images were buying silence. And 30
+  manifest rows held no page.
+
+  The hop now skips URLs whose extension cannot be an HTML page, and says how
+  many it skipped rather than dropping them quietly. On the site that exposed
+  it: **200 requests down to 170, 100 asset links skipped without a request, and
+  `dropped` from 70 to 0** — the link graph closed on a site where it never had.
+
+  **Sitemap URLs are deliberately not filtered this way.** A sitemap entry is
+  the site asking for that URL to be indexed, so a PDF listed in one is a fact
+  worth fetching and reporting. The hop is speculative; only the speculative
+  half guesses.
+
+- **`pages_stored` counted manifest rows, including rows that stored nothing.**
+  A 404 and a refused Content-Type each get a row so the failure stays
+  inspectable, and neither holds a page. The crawl closed with *"200 page(s)
+  requested this run. 199 stored, 30 skipped, 0 failed"* — 229 outcomes from 200
+  requests, because every skip was counted as a store as well. The true figure
+  was 169.
+
+  The `crawl.e2e.test.ts` assertion had `+ 2` written into it, so the test and
+  the code agreed and both were wrong. It now asserts pages and rows separately.
+
 ### Testing
 
 - **A fixture site for the checks that had never fired.** Sixteen catalogue

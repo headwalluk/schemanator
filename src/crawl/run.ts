@@ -120,6 +120,15 @@ export interface CrawlSummary {
     disallowed: number;
     /** Over `--link-hop-pages`. Raising it would fetch these. */
     dropped: number;
+    /**
+     * Linked, unlisted, and not an HTML page — never requested at all.
+     *
+     * Counted rather than silently discarded, and kept out of `discovered` on
+     * purpose: `discovered` feeds the "use --link-hop-pages N" advice, and a
+     * number inflated with image links names a setting that would not close the
+     * graph. Absent on a crawl older than this fix.
+     */
+    non_page: number;
   } | null;
   /**
    * Pages actually requested during THIS run.
@@ -173,6 +182,127 @@ const HTML_TYPES = ['text/html', 'application/xhtml+xml'];
  * raising `--max-pages` is one argument away.
  */
 export const DEFAULT_MAX_PAGES = 100;
+
+/**
+ * Extensions the hop will not spend a request on.
+ *
+ * The hop exists to fetch unlisted *pages*, because a page might hold the link
+ * that proves another page is not an orphan. A PNG holds no links, and the
+ * fetcher refuses it on Content-Type the moment the headers arrive — so
+ * requesting one is a request nobody needed, made against somebody else's
+ * server, and `02` is emphatic about that.
+ *
+ * **Measured on a real 150-page site, 2026-08-22: 30 of 50 hop slots went to
+ * `.png`, `.jpeg` and `.pdf` while 70 unlisted pages were dropped for want of
+ * budget.** That is not bad luck. The hop ranks candidates most-linked-first,
+ * and the most-linked unlisted URLs on a WordPress site are sitewide asset
+ * links — a certificate logo in the footer outranks every real page — so images
+ * sort straight to the top of the queue. The group the hop exists to serve was
+ * starved by its own ranking.
+ *
+ * **Sitemap URLs are deliberately *not* filtered this way.** A sitemap entry is
+ * the site asking for that URL to be indexed, so a PDF listed in one is a fact
+ * worth fetching and reporting — `indexing.sitemap-dead-url` and
+ * `indexing.thin-sitemap-entry` both have things to say about it. The hop is
+ * speculative and the sitemap is a request; only the speculative half guesses.
+ *
+ * Extension-only, and conservative by design. An extensionless URL is a page,
+ * and so are `.html`, `.php` and `.aspx`. Anything ambiguous stays in: a wrong
+ * exclusion costs a page that is never audited, which is worse than a wrong
+ * inclusion costing one request.
+ */
+const NON_PAGE_EXTENSIONS = new Set([
+  // Images. 29 of the 30 wasted slots on the site that exposed this.
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'avif',
+  'svg',
+  'bmp',
+  'ico',
+  'tif',
+  'tiff',
+  // Documents. A PDF is the one a site is most likely to link from body copy.
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'odt',
+  'ods',
+  'odp',
+  'rtf',
+  'csv',
+  // Archives and installers.
+  'zip',
+  'gz',
+  'tgz',
+  'bz2',
+  'xz',
+  'rar',
+  '7z',
+  'exe',
+  'dmg',
+  'pkg',
+  'deb',
+  'rpm',
+  // Media.
+  'mp3',
+  'wav',
+  'ogg',
+  'm4a',
+  'flac',
+  'mp4',
+  'm4v',
+  'mov',
+  'avi',
+  'wmv',
+  'webm',
+  'mkv',
+  // Assets and data. `.xml` covers a sitemap the hop has no business re-fetching.
+  'css',
+  'js',
+  'mjs',
+  'json',
+  'xml',
+  'rss',
+  'atom',
+  'txt',
+  'map',
+  // Fonts.
+  'woff',
+  'woff2',
+  'ttf',
+  'otf',
+  'eot',
+]);
+
+/**
+ * Could this URL be an HTML page?
+ *
+ * Judged on the path's extension alone — no request, no HEAD, no guessing from
+ * the link text. Anything without a recognised non-page extension is treated as
+ * a page, which is the safe direction to be wrong in.
+ */
+export function couldBeAPage(url: string): boolean {
+  let pathname: string;
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    return false;
+  }
+
+  const lastSegment = pathname.split('/').pop() ?? '';
+  const dot = lastSegment.lastIndexOf('.');
+  // `dot <= 0` covers both "no extension" and a leading-dot name.
+  if (dot <= 0) return true;
+
+  return !NON_PAGE_EXTENSIONS.has(lastSegment.slice(dot + 1).toLowerCase());
+}
 
 /**
  * How many unlisted pages the link hop may fetch, on top of `--max-pages`.
@@ -689,7 +819,11 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
       known.add(record.url);
     }
 
-    const unlisted = [...linkedTargets.entries()].filter(([url]) => !known.has(url));
+    const offSitemap = [...linkedTargets.entries()].filter(([url]) => !known.has(url));
+    // Assets are removed before anything is counted, so every number below
+    // describes pages. See `NON_PAGE_EXTENSIONS`.
+    const unlisted = offSitemap.filter(([url]) => couldBeAPage(url));
+    const nonPage = offSitemap.length - unlisted.length;
     const allowedUnlisted = unlisted.filter(([url]) => policy.isAllowed(url));
 
     /**
@@ -709,6 +843,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
       queued: hopQueue.length,
       disallowed: unlisted.length - allowedUnlisted.length,
       dropped: allowedUnlisted.length - hopQueue.length,
+      non_page: nonPage,
     };
 
     if (hopQueue.length > 0) {
@@ -719,6 +854,12 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
       // Two reasons a URL is not followed, and only one of them is a setting.
       if (summary.link_hop.disallowed > 0) {
         logger.info(`    ${summary.link_hop.disallowed} excluded by robots.txt`);
+      }
+      // Said out loud rather than quietly dropped: a reader comparing this
+      // against the site's own link count needs to know where the difference
+      // went, and "we ignored 97 of them" is not a detail to leave implicit.
+      if (nonPage > 0) {
+        logger.info(`    ${nonPage} skipped as images, documents or other non-pages`);
       }
       if (summary.link_hop.dropped > 0) {
         // Name the number that closes the graph, for the same reason the page
@@ -758,7 +899,20 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlSummary> {
     );
   }
   if (reconciled.length > 0) await workDir.rewritePageRecords(reconciled);
-  summary.pages_stored = reconciled.length;
+  /**
+   * Records that actually hold a page, not manifest rows.
+   *
+   * A 404 and a refused Content-Type each get a manifest row — `01` wants the
+   * failure inspectable — but neither stored anything: no HTML on disk, no
+   * hash, nothing for extraction to read. Counting rows made the crawl's own
+   * closing line contradict itself, on a real site: *"200 page(s) requested
+   * this run. 199 stored, 30 skipped"*, where 199 and 30 are 229 of 200,
+   * because every skip was counted twice. The true figure was 169.
+   *
+   * `content_sha256` is the discriminator because it is null exactly when no
+   * body was kept, which is the definition of not stored.
+   */
+  summary.pages_stored = reconciled.filter((record) => record.content_sha256 !== null).length;
 
   const counts = frontier.counts();
   summary.fetched = counts.done;

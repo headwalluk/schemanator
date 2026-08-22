@@ -50,9 +50,26 @@ async function cleanUp(site: { close: () => Promise<void> }, workRoot: string): 
 test('the hop fetches internal pages that no sitemap lists', async () => {
   const { site, workRoot, summary } = await run();
   try {
-    // Four unlisted targets: the hub, the paginated archive, a redirect into
-    // the hub, and one Disallowed.
-    assert.deepEqual(summary.link_hop, { discovered: 4, queued: 3, disallowed: 1, dropped: 0 });
+    // Four unlisted *pages*: the hub, the paginated archive, a redirect into
+    // the hub, and one Disallowed. The linked image is not among them — it is
+    // counted separately and never requested at all.
+    assert.deepEqual(summary.link_hop, {
+      discovered: 4,
+      queued: 3,
+      disallowed: 1,
+      dropped: 0,
+      non_page: 1,
+    });
+
+    // Never requested, which is the point. `disallowed` and `non_page` both
+    // mean "not fetched" and only one of them cost a round trip: robots.txt is
+    // a rule the crawl obeys after asking for the file, and an asset link is
+    // one it never asks about.
+    assert.equal(
+      site.hits.get(LINK_GRAPH_UNLISTED.asset),
+      undefined,
+      'the hop spent a request on an image',
+    );
 
     const raw = await fs.readFile(path.join(workRoot, summary.site_slug, 'pages.jsonl'), 'utf8');
     const pages = raw
@@ -223,7 +240,13 @@ test('the hop cap keeps the most-linked candidate and records the rest', async (
     // Three unlisted targets: two fetchable, one Disallowed. With a cap of 1
     // the counts must attribute one to the cap and one to robots.txt — the
     // live-run defect was reporting both as "raise --link-hop-pages".
-    assert.deepEqual(summary.link_hop, { discovered: 4, queued: 1, disallowed: 1, dropped: 2 });
+    assert.deepEqual(summary.link_hop, {
+      discovered: 4,
+      queued: 1,
+      disallowed: 1,
+      dropped: 2,
+      non_page: 1,
+    });
   } finally {
     await cleanUp(site, workRoot);
   }

@@ -254,6 +254,16 @@ export const LINK_GRAPH_UNLISTED = {
    */
   redirectsToHub: '/guides-old',
   /**
+   * A linked, unlisted image. The hop must never spend a request on it.
+   *
+   * Here because the hop ranks candidates most-linked-first, and on a real site
+   * the most-linked unlisted URLs are sitewide asset links — a footer logo
+   * outranks every real page. 30 of 50 slots went to images and PDFs on a
+   * client site while 70 unlisted pages were dropped for want of budget, and
+   * the group the hop exists to serve was starved by its own ranking.
+   */
+  asset: '/wp-content/uploads/2026/01/logo.png',
+  /**
    * Linked sitewide, unlisted, and `Disallow`ed — a basket or account screen.
    *
    * Here because the first live run of the hop got this wrong: two such URLs on
@@ -328,6 +338,7 @@ ${hrefs.map((href) => `<a href="${href}">${href}</a>`).join('\n')}
         LINK_GRAPH_UNLISTED.paginated,
         LINK_GRAPH_UNLISTED.disallowed,
         LINK_GRAPH_UNLISTED.redirectsToHub,
+        LINK_GRAPH_UNLISTED.asset,
         LINK_GRAPH_PATHS.droppedBySample,
       ]),
     ),
@@ -353,6 +364,14 @@ ${hrefs.map((href) => `<a href="${href}">${href}</a>`).join('\n')}
     },
     // Served, but robots.txt refuses it. Must never be fetched.
     [LINK_GRAPH_UNLISTED.disallowed]: htmlRoute(linked('Basket', [LINK_GRAPH_PATHS.home])),
+
+    // Served, and must never be requested either — for a different reason, which
+    // is why both exist. `hits` proves the difference: robots.txt is a rule the
+    // crawl obeys after asking, and this one it never asks about at all.
+    [LINK_GRAPH_UNLISTED.asset]: {
+      headers: { 'content-type': 'image/png' },
+      body: 'not really a png',
+    },
   });
 }
 

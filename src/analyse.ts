@@ -95,7 +95,9 @@ async function readCrawlSummary(workDir: WorkDir, pageCount: number): Promise<Cr
       seeded_from: 'sitemap',
       fetched: pageCount,
       // The manifest is the only thing we have here, so what it holds *is* the
-      // stored count — there is no crawl to disagree with it.
+      // stored count — there is no crawl to disagree with it. `pageCount` is
+      // rows that hold a page, not rows: the caller filters, because a 404 has
+      // a row and stored nothing.
       pages_stored: pageCount,
       fetched_this_run: 0,
       failed: 0,
@@ -112,7 +114,13 @@ export async function runAnalysis(options: AnalyseOptions): Promise<AnalyseResul
   const workDir = new WorkDir(options.workRoot, options.siteSlug);
 
   const pagesBefore = await workDir.readPageRecords();
-  const crawl = await readCrawlSummary(workDir, pagesBefore.length);
+  // Pages, not rows: a 404 or a refused Content-Type has a manifest row and
+  // stored nothing, and `pages_stored` means the same thing here as it does in
+  // a real crawl summary.
+  const crawl = await readCrawlSummary(
+    workDir,
+    pagesBefore.filter((record) => record.content_sha256 !== null).length,
+  );
 
   const extraction = await runExtraction({
     workDir,

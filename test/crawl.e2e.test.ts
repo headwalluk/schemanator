@@ -157,8 +157,20 @@ test('a full crawl stores every fetchable page and records the rest', async () =
     // site whose manifest held 35, which is the class of defect the release this
     // landed in exists to remove.
     assert.equal(summary.fetched, FIXTURE_FETCHABLE_PATHS.length + FIXTURE_ALIAS_PATHS.length);
-    assert.equal(summary.pages_stored, FIXTURE_FETCHABLE_PATHS.length + 2, 'the manifest count');
-    assert.equal(summary.pages_stored, manifest.length);
+
+    // Pages, not manifest rows. `/gone` (404) and `/brochure.pdf` (refused on
+    // Content-Type) each get a row so the failure stays inspectable, and neither
+    // stored anything. This asserted `+ 2` until 2026-08-22 and the test agreed
+    // with the code: on a real site the crawl closed with "200 page(s)
+    // requested this run. 199 stored, 30 skipped" — 229 outcomes from 200
+    // requests, because every skip was counted as a store as well.
+    assert.equal(summary.pages_stored, FIXTURE_FETCHABLE_PATHS.length, 'pages actually stored');
+    assert.equal(
+      manifest.length,
+      FIXTURE_FETCHABLE_PATHS.length + 2,
+      'rows, including the two skips',
+    );
+    assert.equal(summary.skipped, 2);
 
     for (const aliasPath of FIXTURE_ALIAS_PATHS) {
       assert.equal(
