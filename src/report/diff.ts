@@ -133,9 +133,52 @@ export function diffReports(before: Report, after: Report): ReportDiff {
   };
 }
 
-/** Did a change move in the right direction? Used only for wording. */
-export function directionOf(change: ChangedFinding): 'improved' | 'worsened' | 'shifted' {
-  if (change.after.pages_affected < change.before.pages_affected) return 'improved';
-  if (change.after.pages_affected > change.before.pages_affected) return 'worsened';
+/**
+ * Minimum movement, in pages of the later sample, before a change is called one.
+ *
+ * A finding on 17 of 78 pages that reads 16 of 76 has moved by half a page once
+ * the shrinking sample is accounted for. That is arithmetic, not progress, and
+ * labelling it either way overstates what the two runs can support.
+ */
+const DIRECTION_MIN_PAGES = 1;
+
+/**
+ * Did a change move in the right direction? Used only for wording.
+ *
+ * **Compared as a share of the sample, not as a raw page count**, and the
+ * second draft of this function is why the distinction is spelled out.
+ *
+ * Raw counts call a finding "improved" whenever the sample shrank, because a
+ * sitewide finding tracks the sample by definition. Measured on a real site,
+ * 2026-08-22: the crawl went 78 pages to 76, nothing about the site changed,
+ * and **eight of eleven changed findings were labelled improved** — three of
+ * them `entity.contradiction`, the flagship. A reader would have concluded
+ * eight things got better.
+ *
+ * The first fix compared the finding's drop against the sample's drop, which
+ * traded one wrong label for another: it assumed every finding is sitewide, so
+ * `addressRegion` on 17 of 78 pages reading 16 of 76 came out **WORSENED** —
+ * six findings did. Proportionally it had not moved at all.
+ *
+ * `coverage_warning` already guards the loud version of this — audit 150 pages,
+ * fix nothing, audit 60 — but it fires at a 10% swing, and 78 to 76 is 2.6%.
+ * The trap does not need a big swing to mislead; it needs one page.
+ */
+export function directionOf(
+  change: ChangedFinding,
+  sample: { before: number; after: number },
+): 'improved' | 'worsened' | 'shifted' {
+  // A sample of zero audits nothing, so no direction is claimable.
+  if (sample.before <= 0 || sample.after <= 0) return 'shifted';
+
+  const shareBefore = change.before.pages_affected / sample.before;
+  const shareAfter = change.after.pages_affected / sample.after;
+
+  // Back into pages of the later sample, so the threshold is a number a reader
+  // could count rather than a share nobody has intuition for.
+  const moved = (shareAfter - shareBefore) * sample.after;
+
+  if (moved <= -DIRECTION_MIN_PAGES) return 'improved';
+  if (moved >= DIRECTION_MIN_PAGES) return 'worsened';
   return 'shifted';
 }

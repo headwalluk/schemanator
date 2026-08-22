@@ -188,6 +188,35 @@ Notable changes. Dates are the day the work landed, not a release date.
   The `crawl.e2e.test.ts` assertion had `+ 2` written into it, so the test and
   the code agreed and both were wrong. It now asserts pages and rows separately.
 
+- **`--since` called a finding "improved" whenever the audited sample shrank.**
+  A sitewide finding tracks the sample by definition, so comparing raw page
+  counts congratulates you for auditing less. Measured on a real site: the crawl
+  went from 78 pages to 76, nothing about the site changed, and **eight of
+  eleven changed findings were labelled improved** — three of them
+  `entity.contradiction`, the flagship finding this tool exists for. A reader
+  would have concluded eight things got better.
+
+  `coverage_warning` already guarded the loud version — audit 150 pages, fix
+  nothing, audit 60 — but it fires at a 10% swing and this was 2.6%. The trap
+  does not need a big swing to mislead; it needs one page.
+
+  Direction is now judged on the finding's **share of the sample**, and only
+  when that share moves by more than a page's worth. Where the two moved
+  together the label is "shifted" and the counts are still printed, so a reader
+  sees what happened without being told what it means.
+
+  **The first fix was also wrong, and the test that records it says so.**
+  Comparing the finding's drop against the sample's drop assumed every finding
+  is sitewide, so a finding on 17 of 78 pages reading 16 of 76 came out
+  **WORSENED** — six findings did. Proportionally it had not moved at all.
+
+- **An aggregate title read "6 Sitemap page reachable only from noindex
+  pages".** `aggregate()` renders `<count> <aggregate_title>`, so the phrase has
+  to be a lowercase plural; `link.noindex-only-inbound` was neither. Every other
+  title in the catalogue already followed the rule, which is now a test rather
+  than a convention — read from source, because a runtime check only sees the
+  checks a fixture makes fire, and this one fires on almost nothing.
+
 ### Testing
 
 - **A fixture site for the checks that had never fired.** Sixteen catalogue

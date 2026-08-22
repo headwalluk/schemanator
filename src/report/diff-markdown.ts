@@ -70,7 +70,10 @@ export function renderDiffMarkdown(diff: ReportDiff, siteOrigin: string): string
     );
     lines.push('');
     for (const change of diff.changed) {
-      const direction = directionOf(change);
+      const direction = directionOf(change, {
+        before: diff.before.pages,
+        after: diff.after.pages,
+      });
       const label =
         direction === 'improved' ? 'improved' : direction === 'worsened' ? 'WORSENED' : 'shifted';
       lines.push(`- **${change.after.title}** — ${label}`);

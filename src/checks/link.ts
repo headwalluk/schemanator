@@ -248,7 +248,10 @@ const noIndexOnlyInbound: Check = {
           'paginated listing set to noindex is usually a deliberate, correct decision, and this ' +
           'check is not asking you to reverse it.',
         pattern: 'link.noindex-only-inbound',
-        aggregate_title: 'Sitemap page reachable only from noindex pages',
+        // Lowercase and plural, because `aggregate()` renders it as
+        // `${count} ${aggregate_title}`. This read "6 Sitemap page reachable
+        // only from noindex pages" on a real report.
+        aggregate_title: 'sitemap pages reachable only from a noindex page',
         page_ids: [page.page_id],
       });
     }

@@ -101,7 +101,67 @@ test('a HALF-fixed finding is Changed — the case the whole design exists for',
   assert.equal(diff.summary.changed, 1);
   assert.equal(diff.summary.resolved, 0);
   assert.equal(diff.summary.appeared, 0);
-  assert.equal(directionOf(diff.changed[0]!), 'improved');
+  assert.equal(directionOf(diff.changed[0]!, SAME_SAMPLE), 'improved');
+});
+
+/** Both runs audited the same number of pages, so page counts speak for themselves. */
+const SAME_SAMPLE = { before: 100, after: 100 };
+
+test('a finding that only tracked a shrinking sample is not an improvement', () => {
+  // Found on a real site, 2026-08-22: the crawl went 78 pages to 76, nothing
+  // about the site changed, and eight of eleven changed findings were labelled
+  // "improved" — three of them `entity.contradiction`, the flagship. A sitewide
+  // finding tracks the sample by definition, so raw page counts congratulate you
+  // for auditing less.
+  //
+  // `coverage_warning` guards the loud version of this and fires at a 10% swing.
+  // 78 to 76 is 2.6%: the trap does not need a big swing to mislead.
+  const diff = diffReports(
+    report([finding({ pages_affected: 78 })]),
+    report([finding({ pages_affected: 76 })]),
+  );
+
+  assert.equal(directionOf(diff.changed[0]!, { before: 78, after: 76 }), 'shifted');
+  // ...and the same numbers ARE an improvement when the sample held still.
+  assert.equal(directionOf(diff.changed[0]!, SAME_SAMPLE), 'improved');
+});
+
+test('a finding that shrank by more than the sample did has improved', () => {
+  const diff = diffReports(
+    report([finding({ pages_affected: 78 })]),
+    report([finding({ pages_affected: 70 })]),
+  );
+
+  assert.equal(directionOf(diff.changed[0]!, { before: 78, after: 76 }), 'improved');
+});
+
+test('a finding that held still while the sample halved has worsened', () => {
+  // Half the pages, the same 40 affected: it went from half the site to all of
+  // it. The share is the thing that moved.
+  const diff = diffReports(
+    report([finding({ pages_affected: 40, observed: [] })]),
+    report([
+      finding({
+        pages_affected: 40,
+        observed: [{ value: 'x', observation_count: 1, page_count: 1, provenance: [] }],
+      }),
+    ]),
+  );
+
+  assert.equal(directionOf(diff.changed[0]!, { before: 80, after: 40 }), 'worsened');
+});
+
+test('a part-of-site finding tracking a small sample drift is neither', () => {
+  // The overcorrection this function shipped for about ten minutes. Comparing
+  // the finding's drop against the *sample's* drop assumes every finding is
+  // sitewide, so `addressRegion` on 17 of 78 pages reading 16 of 76 came out
+  // WORSENED. Proportionally it moved by half a page.
+  const diff = diffReports(
+    report([finding({ pages_affected: 17 })]),
+    report([finding({ pages_affected: 16 })]),
+  );
+
+  assert.equal(directionOf(diff.changed[0]!, { before: 78, after: 76 }), 'shifted');
 });
 
 test('a worsening finding is Changed and reads as worsened', () => {
@@ -109,7 +169,7 @@ test('a worsening finding is Changed and reads as worsened', () => {
     report([finding({ pages_affected: 5 })]),
     report([finding({ pages_affected: 50 })]),
   );
-  assert.equal(directionOf(diff.changed[0]!), 'worsened');
+  assert.equal(directionOf(diff.changed[0]!, SAME_SAMPLE), 'worsened');
   assert.match(renderDiffMarkdown(diff, 'https://example.com'), /WORSENED/);
 });
 

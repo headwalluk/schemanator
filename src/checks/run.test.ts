@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import type { ExtractedNode } from '../extract/types.ts';
 import type { PageRecord } from '../store/workdir.ts';
@@ -936,4 +939,49 @@ test('an aggregate keeps every trade-off, not the first one it saw', () => {
     /worse than no date/,
     'the one constituent with a trade-off must not lose it to the two without',
   );
+});
+
+// --- how an aggregate composes its title -------------------------------------
+
+test('every aggregate_title reads correctly after a count', () => {
+  // `aggregate()` renders `${count} ${aggregate_title}`, so the phrase has to be
+  // a lowercase plural. `link.noindex-only-inbound` was neither, and a real
+  // report headed a finding "6 Sitemap page reachable only from noindex pages".
+  //
+  // Read from source rather than from findings, for the reason the
+  // coverage-qualifier rule is: a runtime test only sees checks that a fixture
+  // makes fire, and this one fires on almost nothing.
+  //
+  // The plural test is a heuristic — *some* word near the front must end in `s`
+  // — because these are compound phrases whose head noun is rarely first
+  // ("node types are published", "JSON-LD contexts could not be resolved"). An
+  // irregular plural would trip it; none exists today, and a false failure here
+  // costs one comment rather than a wrong report.
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const wrong: string[] = [];
+
+  for (const file of fs.readdirSync(dir).sort()) {
+    if (!file.endsWith('.ts') || file.endsWith('.test.ts')) continue;
+    const source = fs.readFileSync(path.join(dir, file), 'utf8');
+    for (const match of source.matchAll(/aggregate_title: '([^']+)'/g)) {
+      const phrase = match[1] ?? '';
+      // Sentence case only. `JSON-LD contexts could not be resolved` opens with
+      // a capital because it is an acronym, and "3 JSON-LD contexts" reads
+      // perfectly — the rule is about a phrase that was written as a sentence,
+      // not about any capital letter.
+      if (/^[A-Z][a-z]/.test(phrase)) {
+        wrong.push(`${file}: "${phrase}" is sentence-cased; it follows a number`);
+      }
+      if (
+        !phrase
+          .split(/\s+/)
+          .slice(0, 3)
+          .some((word) => /s$/i.test(word))
+      ) {
+        wrong.push(`${file}: "${phrase}" reads as singular after a count`);
+      }
+    }
+  }
+
+  assert.deepEqual(wrong, [], 'an aggregate title is rendered as `<count> <title>`');
 });
