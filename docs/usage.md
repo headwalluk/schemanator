@@ -111,7 +111,8 @@ The report states what the sample covered, and findings that assert something is
 
 After the sitemap pages, the crawl follows internal links that lead somewhere no
 sitemap lists — a section index, a tag archive, page 2 of a listing — and stops
-there.
+there. Links to images, documents and other non-pages are skipped without a
+request; the crawl says how many it passed over.
 
 Those pages are **evidence, not sample**. They are what makes
 "nothing links to this page" a fact rather than a guess, and no check outside

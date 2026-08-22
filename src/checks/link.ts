@@ -147,10 +147,14 @@ const orphan: Check = {
         title: `${stranded.length} sitemap page(s) are linked from nowhere on the site`,
         subject: { kind: 'site', id: context.siteHost },
         summary:
-          `${stranded.length} page(s) are listed in a sitemap and no other page on the site links ` +
-          `to them. The sitemap asks for them to be indexed; the site itself never points at them, ` +
-          `so they receive nothing from the pages around them and a visitor cannot reach them by ` +
-          `browsing. Links a page makes to itself do not count, which is what most of these have.`,
+          `${stranded.length} page(s) are listed in a sitemap and nothing links to them: not the ` +
+          `sitemap pages, and not the unlisted pages those link out to. The sitemap asks for them ` +
+          `to be indexed; the site never points at them, so they receive nothing from the pages ` +
+          `around them and a visitor cannot reach them by browsing. Links a page makes to itself do ` +
+          `not count, which is what most of these have.\n\n` +
+          `**The crawl follows one hop off the sitemap, so that is how far this looked.** A page ` +
+          `linked only from somewhere two hops out would not be seen — rare, and worth knowing ` +
+          `before you delete anything.`,
         expected: 'Every page worth listing in a sitemap is reachable by following links.',
         ...sampleObserved(
           stranded.map((page) => ({

@@ -78,7 +78,10 @@ somebody else's server rather than yours.
 
 - **`GET` only.** No `POST`, no forms, no login, no authenticated crawling.
 - **HTML only.** Anything else is skipped by `Content-Type` without downloading
-  the body.
+  the body — and when the crawl is following links rather than a sitemap, a URL
+  that ends `.png`, `.pdf` or similar is not requested at all. A sitemap entry
+  still is: the site asked for that URL to be indexed, so what it returns is
+  worth knowing.
 - **No JavaScript.** No headless browser. See [the limitation](#what-it-cannot-see).
 - **No off-site media.** Images on other hosts are reported but never fetched.
 - **No vocabulary fetching.** schema.org is bundled. A 100-page crawl would
