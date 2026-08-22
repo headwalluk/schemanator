@@ -772,7 +772,13 @@ const missing: Check = {
           })),
         ),
         pages_affected: silent.length,
-        coverage_qualified: true,
+        // False, and it cannot be otherwise: this check returns early when
+        // coverage is partial, so a finding only exists on a complete crawl.
+        // It said `true` until 2026-08-22, which rendered as "this finding
+        // depends on pages that were not all fetched" beneath a summary table
+        // reading "564 of 564 discovered" — two statements in one report that
+        // could not both be true.
+        coverage_qualified: false,
         remediation:
           'Most breadcrumb plugins emit trails per post type — check the types these pages use are enabled.',
         tradeoff: null,

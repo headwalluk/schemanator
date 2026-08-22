@@ -381,7 +381,12 @@ test('a page in the tree that publishes no trail is an opportunity', () => {
   const missing = findings.filter((finding) => finding.check === 'breadcrumb.missing');
   assert.equal(missing.length, 1);
   assert.equal(missing[0]?.severity, 'opportunity');
-  assert.equal(missing[0]?.coverage_qualified, true);
+  // Not qualified, and it cannot be: the test below shows the check returns
+  // nothing at all under partial coverage, so any finding it produces came from
+  // a complete crawl. This asserted `true` until 2026-08-22 — the test agreed
+  // with the code and both were wrong, which is why the invariant that caught
+  // it lives in `finding-volume.test.ts` and reads the whole catalogue.
+  assert.equal(missing[0]?.coverage_qualified, false);
 });
 
 test('breadcrumb.missing is suppressed under partial coverage', () => {

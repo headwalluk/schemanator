@@ -32,6 +32,43 @@ const CHECKS_DIR = path.dirname(fileURLToPath(import.meta.url));
 /** `.slice(0, 5)` and friends. A named constant in the same position passes. */
 const BARE_SLICE = /\.slice\(\s*0,\s*\d/;
 
+/** `coverage_qualified: true`, which is a claim rather than a measurement. */
+const HARDCODED_QUALIFIER = /coverage_qualified:\s*true/;
+
+test('no check asserts it was qualified by coverage', () => {
+  // The renderers turn this field into a flat statement of fact — "this finding
+  // depends on pages that were not all fetched" — so a hardcoded `true` prints
+  // that sentence on a crawl that fetched everything it discovered.
+  //
+  // Four checks did. Three of them return early when coverage is partial, so
+  // they could only ever emit on a complete crawl and the sentence was wrong
+  // every single time it appeared. Found 2026-08-22 on a 564-page site whose
+  // own summary table, six lines above, read "564 of 564 discovered".
+  //
+  // A source rule rather than only a behavioural one, because the behavioural
+  // version can only see checks that a fixture makes fire — and when it was
+  // written first, reinstating one of the four left the suite green.
+  //
+  // The legal values are `false` and `partialCoverage`. Both are answers; a
+  // literal `true` is an assertion nobody measured.
+  const offenders: string[] = [];
+
+  for (const file of fs.readdirSync(CHECKS_DIR).sort()) {
+    if (!file.endsWith('.ts') || file.endsWith('.test.ts')) continue;
+    const lines = fs.readFileSync(path.join(CHECKS_DIR, file), 'utf8').split('\n');
+    lines.forEach((line, index) => {
+      if (/^\s*(\*|\/\/)/.test(line)) return;
+      if (HARDCODED_QUALIFIER.test(line)) offenders.push(`${file}:${index + 1}: ${line.trim()}`);
+    });
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    'coverage_qualified must track partialCoverage or be false — never asserted true',
+  );
+});
+
 test('no check module truncates a list with a bare number', () => {
   const offenders: string[] = [];
 

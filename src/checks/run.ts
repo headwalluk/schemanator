@@ -748,7 +748,7 @@ const ABSENT_TYPES_IN_SENTENCE = 4;
 const competingSyntax: Check = {
   id: 'coverage.competing-syntax',
   group: 'coverage',
-  run({ pages, graph }) {
+  run({ pages, graph, partialCoverage }) {
     const microdataPages = pages.filter((page) => (page.extraction?.['microdata_items'] ?? 0) > 0);
     if (microdataPages.length === 0) return [];
 
@@ -831,7 +831,13 @@ const competingSyntax: Check = {
               ],
         ),
         pages_affected: microdataPages.length,
-        coverage_qualified: true,
+        // Unlike the three gated absence checks, this one does run on a partial
+        // crawl — "5 of these types appear nowhere in the JSON-LD" is an absence
+        // claim, and an unfetched page could hold the counter-example. So it
+        // tracks coverage rather than asserting it. The *scope* caveat this
+        // used to conflate with coverage — that no entity-level comparison was
+        // made — is in the summary, in prose, where a reader can act on it.
+        coverage_qualified: partialCoverage,
         remediation:
           'If it comes from the theme, most themes offer a switch to disable it. Otherwise confirm it ' +
           'agrees with the JSON-LD, or drop one of the two.',

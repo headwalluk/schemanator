@@ -241,6 +241,56 @@ test('no observed row claims a page count its finding cannot support', () => {
   assert.deepEqual(wrong, [], 'observed counts must agree with the finding they sit inside');
 });
 
+test('nothing is qualified by coverage when the crawl was complete', () => {
+  // The renderers turn `coverage_qualified` into a flat statement of fact:
+  // "this finding depends on pages that were not all fetched". Four checks set
+  // it to a hardcoded `true`, and three of those return early when coverage is
+  // partial — so they could only ever emit on a complete crawl and were wrong
+  // every single time they fired.
+  //
+  // Found 2026-08-22 on a 564-page site whose own summary table, six lines
+  // above the qualifier, read "Pages fetched | 564 of 564 discovered".
+  //
+  // Same family as the `page_count: 1` defect above and the same blind spot: a
+  // field with a fixed value, rendered as a sentence, that nobody cross-read
+  // against the number beside it.
+  const { nodes, pages } = bigSite();
+  const { findings } = runChecks({ nodes, pages, partialCoverage: false });
+
+  const claiming = findings
+    .filter((finding) => finding.coverage_qualified)
+    .map((finding) => finding.check);
+
+  assert.deepEqual(
+    claiming,
+    [],
+    'a complete crawl produced findings claiming pages were not all fetched',
+  );
+});
+
+test('an absence claim is qualified when the crawl was in fact partial', () => {
+  // The other half, and the one that stops the fix above being "set it to
+  // false everywhere". `coverage.competing-syntax` runs on a partial crawl and
+  // makes an absence claim while doing so, so it has to say as much.
+  const { nodes, pages } = bigSite();
+  // The shared fixture emits no microdata, so `coverage.competing-syntax` — the
+  // one check left that can be qualified — never fires against it. Added here
+  // rather than to `bigSite()`, which a dozen counts depend on.
+  const withMicrodata = pages.map((record) => ({
+    ...record,
+    microdata_types: ['http://schema.org/WPHeader'],
+    extraction: { ...record.extraction!, microdata_items: 1 },
+  }));
+
+  const { findings } = runChecks({ nodes, pages: withMicrodata, partialCoverage: true });
+
+  assert.equal(
+    findings.some((finding) => finding.coverage_qualified),
+    true,
+    'a partial crawl qualified nothing, so the qualifier is now dead',
+  );
+});
+
 test('every check is registered under a group the sort knows about', () => {
   // Ordering is severity, then group. An unlisted group sorts last, which is a
   // deliberate default rather than a bug — but it should be a decision, so this

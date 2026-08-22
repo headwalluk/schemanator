@@ -130,6 +130,30 @@ Notable changes. Dates are the day the work landed, not a release date.
   Found by reading a real report and asking why `checks_run` held 55 entries
   against a 56-check catalogue.
 
+- **Four checks claimed a complete crawl was incomplete.** `coverage_qualified`
+  renders as a flat statement of fact — *"this finding depends on pages that
+  were not all fetched"* — and `coverage.type-gap`,
+  `coverage.missing-expected-entity`, `coverage.competing-syntax` and
+  `breadcrumb.missing` all set it to a hardcoded `true`.
+
+  **Three of those return early when coverage is partial.** They could only ever
+  emit on a complete crawl, so the sentence was wrong every single time it
+  appeared. Found on a 564-page site whose own summary table, six lines above
+  the qualifier, read *"Pages fetched | 564 of 564 discovered"* — two statements
+  in one report that could not both be true.
+
+  The three gated checks now say `false`; `coverage.competing-syntax`, which
+  does run on a partial crawl and does make an absence claim, tracks
+  `partialCoverage`. Its separate *scope* caveat — that no entity-level
+  comparison between the two syntaxes was made — stays in the summary prose,
+  where it was already stated and where a reader can act on it.
+
+  Same family as 1.12.0's `page_count` defect, and the same blind spot: a field
+  with a fixed value, rendered as a sentence, that nobody cross-read against the
+  number beside it. `sample-caps.test.ts` now refuses a literal `true` in any
+  check module — a source rule, because the behavioural version can only see
+  checks a fixture makes fire, and reinstating one of the four left it green.
+
 ### Testing
 
 - **A fixture site for the checks that had never fired.** Sixteen catalogue
