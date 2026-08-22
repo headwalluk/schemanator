@@ -228,6 +228,23 @@ single improvement.
 Comparison ignores wording, so rewording a summary never looks like movement on
 your site.
 
+### Which way a Changed finding moved
+
+Each one is labelled **improved**, **WORSENED** or **shifted**, and both page
+counts are printed beside it so you can see what actually moved.
+
+The label compares the finding's **share of the audited sample**, not its raw
+page count, and only calls a direction when that share moves by more than one
+page's worth. This matters more than it sounds: a sitewide finding tracks the
+sample by definition, so on raw counts *any* shrinkage of the crawl reads as
+progress. On a real site whose crawl went from 78 pages to 76 with nothing
+changed, eight of eleven findings were labelled improved.
+
+**`shifted` means the evidence moved and the direction is not claimable** —
+either the counts held still, or they moved no further than the sample did. It
+is not a synonym for "nothing happened"; it means this comparison cannot tell
+you, and the two counts beside it are what you read instead.
+
 ### Reading order
 
 Findings sort by **severity first, then by group**. The group order is

@@ -47,7 +47,11 @@ Three reasons, and only the first is about convenience:
   shell tools will wait before timing out.
 - **`analyse` is offline and idempotent.** It re-reads stored HTML, so the agent
   can run it as often as it likes, with different `--disable` flags, without
-  touching anybody's server again.
+  touching anybody's server again. Note that an unrecognised `--disable` value
+  is an **error**, not a no-op: it exits `1` before doing any work, and names
+  the nearest real check or group. Until 1.13.0 it was accepted in silence and
+  reported back as disabled, which is worse — the report then agrees with a
+  mistake the caller cannot see.
 - **It keeps the agent away from the one command that fetches other people's
   websites.** Politeness is the tool's responsibility, but an agent in a retry
   loop is a good way to undo it.

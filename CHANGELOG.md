@@ -2,7 +2,7 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
-## 1.13.0 — 2026-08-20
+## 1.13.0 — 2026-08-22
 
 ### Added
 
@@ -87,6 +87,15 @@ Notable changes. Dates are the day the work landed, not a release date.
   asserts every document claiming a page cap claims this one — including that
   the sentence it matches still exists, so a rewording fails the test rather
   than silently matching nothing.
+
+- **`link.orphan` says how far it looked.** Its summary claimed *"no other page
+  on the site links to them"*, which is stronger than the evidence: the crawl
+  follows one hop off the sitemap, so a page linked only from two hops out is
+  not seen. It now says so, and says the hop is the boundary.
+
+  Third pass on this check's wording, and all three have been the same gap —
+  what was searched against what was claimed. Nine pages on an 18% sample, then
+  29 with 205 unlisted URLs unfetched, now this.
 
 ### Fixed
 
@@ -241,6 +250,30 @@ Notable changes. Dates are the day the work landed, not a release date.
   fired now has an end-to-end regression test. **That is regression cover, not
   field validation** — most of these still have not fired on a real site, and
   `dev-notes/00` keeps that distinction.
+
+### Notes for anyone diffing across this release
+
+Four things move on the first run after upgrading, none of them because your
+site changed.
+
+- **`--since` labels.** A finding whose page count fell only as far as the
+  audited sample fell now reads `shifted` where it read `improved`. Nothing
+  regressed; the old label was not supportable.
+- **`coverage_qualified` turns `false`** on `coverage.type-gap`,
+  `coverage.missing-expected-entity`, `coverage.competing-syntax` and
+  `breadcrumb.missing`. Those findings stop carrying the *"depends on pages that
+  were not all fetched"* note on a complete crawl, where it was never true.
+- **`summary.checks_run` gains `entity.page-scoped-value`.** It always ran — it
+  is raised by `entity.contradiction` — and was the one emittable check id the
+  list did not name.
+- **`pages_stored` gets smaller on any site with a 404 or a non-HTML URL in its
+  sitemap**, because those rows were being counted as stored pages. Nothing was
+  lost; the number was wrong.
+
+**Group `link` may report where it was silent before.** The hop no longer spends
+its budget on image and document links, so a graph that could not close under
+`--link-hop-pages` may now close. A crawl is needed either way: this is crawl
+behaviour, and `analyse` cannot fill it in.
 
 ## 1.12.0 — 2026-08-14
 
