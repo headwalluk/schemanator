@@ -102,11 +102,27 @@ evidence behind each, is in the internal design archive (`dev-notes/04`) — see
    "complete" means. It means "we fetched everything we discovered", *not* "we
    saw every URL on the site". Reading it as the latter produced a report saying
    four live pages did not exist.
+
+   **Then set `coverage_qualified` to `partialCoverage`, or to `false` if you
+   gated on it.** Never to a literal `true`. The renderers turn that field into
+   a flat statement — *"this finding depends on pages that were not all
+   fetched"* — so a check that returns early under partial coverage and then
+   hardcodes `true` prints a sentence that cannot be true of any finding it will
+   ever emit. Four did, and one of them sat six lines under a summary table
+   reading *"564 of 564 discovered"*. `sample-caps.test.ts` now refuses the
+   literal.
 4. **A label is not a description.** Breadcrumb crumb text is not the entity's
    name — 56 false contradictions on one site.
 5. **One root cause is one finding.** Supply a `pattern`, and findings sharing
    one collapse above a threshold of 3. 28 findings from one generator behaviour
    still invite 28 unnecessary edits.
+
+   If you also supply an `aggregate_title`, make it a **lowercase plural noun
+   phrase**: it is rendered as `<count> <aggregate_title>`, so a sentence-cased
+   singular reads *"6 Sitemap page reachable only from noindex pages"*. It must
+   name what is being counted — subjects, properties, entities — and never
+   "pages", because an aggregate's `pages_affected` is the union across its
+   constituents and is routinely larger. `run.test.ts` checks the phrasing.
 6. **Compare what a value denotes, not how it is labelled.** Use `denote()`.
 
 ## 3. Write the tests
