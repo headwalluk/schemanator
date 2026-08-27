@@ -67,6 +67,29 @@ reports only what has been stored so far, and `coverage.complete` says so — bu
 poll `status` rather than analysing repeatedly, or the agent reasons about a
 half-crawled site as though it were the whole one.
 
+### Check the crawl age before you trust the numbers
+
+The other side of splitting the two commands is that `analyse` will happily
+report on a crawl made a fortnight ago, and every number in that report will be
+a faithful description of the site *as it was then*. Nothing looks wrong,
+because nothing is wrong — it is simply an answer to a question about the past.
+
+Since 1.14.0 the report header says so on every run:
+
+```
+Crawl 6 days old — fetched 2026-08-21
+```
+
+and `report.json` carries `run.crawl_finished_at` for anything reading the JSON.
+There is no threshold and no warning: how stale is too stale depends on how
+often the site changes, which schemanator cannot know. **An agent should read
+the age and decide** — and when it is about to report on something that moves
+often, re-crawl first rather than qualifying the answer afterwards.
+
+Note the two neighbouring fields are not a pair: `run.started_at` is the
+crawl's, `run.finished_at` is this report's, and on the crawl-then-analyse path
+they can be days apart. See [reports.md](reports.md#the-three-timestamps-which-are-not-two).
+
 ## The pitfall: sandboxed agents cannot see your work directory
 
 If you crawl in a terminal and then start the agent as a **sandboxed desktop
@@ -204,10 +227,38 @@ schemanator crawl example.com                    # you, again
 schemanator analyse example.com --since last     # proof it landed
 ```
 
-`--since` matches findings by an id naming **the question asked, not the
-answer**, so a contradiction fixed on 95 of 100 pages shows as one *Changed*
-finding rather than one resolved plus one new. That distinction is what stops an
-agent reporting success and regression at the same time for a single improvement.
+### The diff is already bucketed — do not rebuild it by eye
+
+`--since` does not print two reports for you to compare. It prints **one diff,
+sorted into four buckets**, and the buckets are the deliverable:
+
+```
+| Resolved | 3 |   | New | 1 |   | Changed | 0 |   | Unchanged | 2 |
+
+## Resolved (3)     — gone. Fixed, or the page no longer says it.
+## Changed (0)      — same finding, different evidence. Partial progress,
+                      or partial regression.
+## New (1)          — not present in the earlier run.
+## Still open (2)   — unchanged since the earlier run.
+```
+
+An agent writing a human a summary can paste that section as it stands. Building
+"fixed / new / persisting" by hand from two reports is work the tool has already
+done, and it is work that gets a case wrong.
+
+**`Changed` is the case it gets wrong.** `--since` matches findings by an id
+naming **the question asked, not the answer**, so a contradiction fixed on 95 of
+100 pages is one *Changed* finding — not one resolved plus one new, and not
+"persisting" either. Three buckets have nowhere to put it, and both of the
+available wrong answers mislead: one claims a fix that is incomplete, the other
+hides an improvement that happened.
+
+`--format json` gives the same four buckets as `resolved`, `appeared`, `changed`
+and `unchanged`, plus a `summary` block of counts, `before`/`after` run
+identifiers and `coverage_warning`. Note `appeared` is the JSON name for what the
+markdown calls *New*, and `unchanged` for *Still open*.
+
+`--format html` does not cover diffs yet; it warns and prints markdown instead.
 
 Keep `--max-pages` consistent between the runs you intend to compare. The diff
 warns when coverage dropped enough to make the comparison unsound, because

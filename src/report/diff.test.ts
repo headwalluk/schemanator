@@ -42,6 +42,7 @@ function report(
       site_origin: 'https://example.com',
       started_at: '2026-08-01T00:00:00Z',
       finished_at: '2026-08-01T00:05:00Z',
+      crawl_finished_at: '2026-08-01T00:04:00Z',
     },
     coverage: {
       complete: true,

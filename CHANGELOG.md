@@ -2,6 +2,54 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.14.0 — 2026-08-27
+
+### Added
+
+- **The report header says how old the crawl is.**
+
+  ```
+  Crawl 6 days old — fetched 2026-08-21
+  ```
+
+  In all three formats, on every run. `analyse` is offline and idempotent by
+  design, which means it will happily report on a crawl made a fortnight ago —
+  and every number in that report is a faithful description of the site *as it
+  was then*. Nothing looks wrong, because nothing is wrong; it is an answer to
+  a question about the past, and that is the hardest kind of wrong conclusion
+  to catch by reading. Asked for by a machine consumer after a sister tool
+  published inbound-link counts from a crawl that had gone stale.
+
+  There is no staleness threshold and no warning. How old is too old depends
+  entirely on how often the site changes, which schemanator has no way to know,
+  and a number nobody has the evidence to choose is worse than no number. The
+  report states the age; the reader decides.
+
+- **`report.json` gains `run.crawl_finished_at`.** Additive, so `report_schema`
+  stays at 1.
+
+  It exists because freshness was **not derivable from the two fields already
+  there**, and they look as though it should be. `run.started_at` is when the
+  *crawl* began; `run.finished_at` is when *this report* was written. On a
+  single `schemanator <site>` run they bracket the same work; on the
+  `crawl`-then-`analyse` path they can be a week apart, so a consumer
+  subtracting one from the other gets a number that means nothing. Renaming
+  either would have been the breaking change; adding one is not.
+
+  The field is empty, and the freshness line absent, when `analyse` runs against
+  a work directory with no `crawl-summary.json` — that branch does not know when
+  the crawl happened, and saying "under an hour old" would be a fabrication of
+  exactly the kind the rest of that fallback exists to avoid.
+
+### Documentation
+
+- **`docs/agents.md` now describes the diff buckets**, after a month of daily
+  use in which its most invested reader hand-built them from two reports every
+  time. `--since` has always printed *Resolved*, *Changed*, *New* and *Still
+  open* with counts, and exposed them to JSON as `resolved`, `changed`,
+  `appeared` and `unchanged`. A feature nobody finds is a documentation defect,
+  and `Changed` is the bucket a hand-built three-way split gets wrong.
+
 ## 1.13.0 — 2026-08-22
 
 ### Added

@@ -24,6 +24,7 @@
 
 import type { Finding, Severity } from '../checks/run.ts';
 import type { Report } from './build.ts';
+import { describeCrawlFreshness } from './freshness.ts';
 
 const SEVERITY_LABEL: Record<Severity, string> = {
   error: 'Error',
@@ -281,6 +282,13 @@ export function renderHtml(report: Report): string {
     `<p class="sub">Run <code>${escapeHtml(report.run.run_id)}</code> &middot; ` +
       `schemanator ${escapeHtml(report.schemanator.version)}</p>`,
   );
+
+  // Same line, same place, same reasoning as the markdown renderer: always
+  // present, so a reader learns where to look before they need it.
+  const freshness = describeCrawlFreshness(report.run);
+  if (freshness !== null) {
+    parts.push(`<p class="sub">${escapeHtml(freshness)}</p>`);
+  }
 
   // The coverage caveat goes FIRST, before any finding — the single most
   // misleading thing about a partial report (`05`).

@@ -155,7 +155,17 @@ test('each section holds exactly its documented keys', () => {
   assert.deepEqual(Object.keys(built.schemanator).sort(), ['report_schema', 'version'], BUMP);
   assert.deepEqual(
     Object.keys(built.run).sort(),
-    ['finished_at', 'run_id', 'site_origin', 'site_slug', 'started_at'],
+    [
+      // Added 1.14.0, additively and on purpose: `started_at` is the crawl's
+      // and `finished_at` is the report's, so freshness was not derivable from
+      // the pair. Renaming either would have been the breaking change.
+      'crawl_finished_at',
+      'finished_at',
+      'run_id',
+      'site_origin',
+      'site_slug',
+      'started_at',
+    ],
     BUMP,
   );
   assert.deepEqual(
@@ -185,6 +195,16 @@ test('each section holds exactly its documented keys', () => {
     ['by_check', 'by_severity', 'checks_disabled', 'checks_run', 'silenced'],
     BUMP,
   );
+});
+
+test('crawl_finished_at is the crawl’s, not the report’s', () => {
+  const built = report();
+
+  // The whole point of the key. Wiring it to `new Date()` alongside
+  // `finished_at` would produce a field that says every crawl is fresh, which
+  // is the one answer worse than saying nothing.
+  assert.equal(built.run.crawl_finished_at, CRAWL.finished_at);
+  assert.notEqual(built.run.crawl_finished_at, built.run.finished_at);
 });
 
 test('a finding carries every guaranteed key', () => {

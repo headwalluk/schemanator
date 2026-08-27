@@ -14,6 +14,7 @@ function report(overrides: Partial<Report> = {}): Report {
       site_origin: 'https://example.com',
       started_at: '2026-08-02T12:00:00Z',
       finished_at: '2026-08-02T12:05:00Z',
+      crawl_finished_at: '2026-08-02T12:04:00Z',
     },
     coverage: {
       complete: true,
@@ -322,4 +323,21 @@ test('the document is well-formed enough to open anywhere', () => {
     const close = (html.match(new RegExp(`</${tag}>`, 'g')) ?? []).length;
     assert.equal(open, close, `<${tag}> opened ${open} times, closed ${close}`);
   }
+});
+
+test('the header says how fresh the crawl is', () => {
+  const output = renderHtml(
+    report({
+      run: {
+        run_id: '20260827T100000Z',
+        site_slug: 'example.com',
+        site_origin: 'https://example.com',
+        started_at: '2026-08-21T09:00:00Z',
+        finished_at: '2026-08-27T10:00:00Z',
+        crawl_finished_at: '2026-08-21T09:15:00Z',
+      },
+    }),
+  );
+
+  assert.match(output, /Crawl 6 days old — fetched 2026-08-21/);
 });

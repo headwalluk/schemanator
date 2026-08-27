@@ -104,7 +104,12 @@ async function readCrawlSummary(workDir: WorkDir, pageCount: number): Promise<Cr
       skipped: 0,
       aborted: null,
       started_at: new Date().toISOString(),
-      finished_at: new Date().toISOString(),
+      // Empty, not `now`. This branch is the one where we do not know when the
+      // crawl happened, and `now` would put "Crawl under an hour old" at the
+      // top of a report describing a crawl of genuinely unknown age — the same
+      // untruth as the fabricated coverage this fallback exists to avoid. The
+      // freshness line renders nothing rather than guessing.
+      finished_at: '',
     };
   }
 }

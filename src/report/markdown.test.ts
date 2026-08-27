@@ -14,6 +14,7 @@ function report(overrides: Partial<Report> = {}): Report {
       site_origin: 'https://example.com',
       started_at: '2026-08-01T12:00:00Z',
       finished_at: '2026-08-01T12:05:00Z',
+      crawl_finished_at: '2026-08-01T12:04:00Z',
     },
     coverage: {
       complete: true,
@@ -223,4 +224,32 @@ test('output survives being pasted into a chat window', () => {
   // eslint-disable-next-line no-control-regex
   assert.equal(/\[/.test(output), false);
   assert.equal(/[┌┐└┘│─├┤]/.test(output), false);
+});
+
+test('the header says how fresh the crawl is, above every finding', () => {
+  const output = renderMarkdown(
+    report({
+      run: {
+        run_id: '20260827T100000Z',
+        site_slug: 'example.com',
+        site_origin: 'https://example.com',
+        started_at: '2026-08-21T09:00:00Z',
+        finished_at: '2026-08-27T10:00:00Z',
+        crawl_finished_at: '2026-08-21T09:15:00Z',
+      },
+      findings: [finding()],
+    }),
+  );
+
+  assert.match(output, /Crawl 6 days old — fetched 2026-08-21/);
+  // Above the findings, not buried after them: someone deciding whether to
+  // trust a number has to meet this before they read one.
+  assert.ok(output.indexOf('Crawl 6 days old') < output.indexOf('## Errors'));
+});
+
+test('a report from before 1.14.0 renders without a freshness line', () => {
+  const stale = report();
+  delete (stale.run as Partial<typeof stale.run>).crawl_finished_at;
+
+  assert.equal(/Crawl .* old/.test(renderMarkdown(stale)), false);
 });

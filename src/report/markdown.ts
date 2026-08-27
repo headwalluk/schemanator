@@ -13,6 +13,7 @@
 
 import type { Finding, Severity } from '../checks/run.ts';
 import type { Report } from './build.ts';
+import { describeCrawlFreshness } from './freshness.ts';
 
 const SEVERITY_LABEL: Record<Severity, string> = {
   error: 'Error',
@@ -139,6 +140,16 @@ export function renderMarkdown(report: Report): string {
   lines.push('');
   lines.push(`Run \`${report.run.run_id}\` • schemanator ${report.schemanator.version}`);
   lines.push('');
+
+  // Unconditional, including on a run that crawled seconds ago. A line that
+  // appears only when something is stale is a line nobody has learnt to look
+  // for; one that is always in the same place is read at a glance, and the
+  // reader who sees "6 days" has already been reading "under an hour".
+  const freshness = describeCrawlFreshness(report.run);
+  if (freshness !== null) {
+    lines.push(freshness);
+    lines.push('');
+  }
 
   // The coverage caveat goes FIRST, before any finding. It is the single most
   // misleading thing about a partial report (`05`).

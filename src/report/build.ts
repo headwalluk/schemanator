@@ -17,6 +17,20 @@ export interface Report {
     site_origin: string;
     started_at: string;
     finished_at: string;
+    /**
+     * When the **crawl** finished — which is what freshness depends on, and is
+     * not derivable from the two fields above.
+     *
+     * They sit adjacent, they are named like a pair, and on the
+     * `crawl`-then-`analyse` path they are not one: `started_at` is the crawl's
+     * beginning and `finished_at` is *this analysis's* end, so a consumer that
+     * subtracts one from the other to get a duration gets a number that means
+     * nothing. Re-analysing a week-old crawl puts seven days between them.
+     *
+     * Added in 1.14.0 rather than renaming either — adding a key is not a
+     * breaking change and renaming one is. Absent on older reports.
+     */
+    crawl_finished_at: string;
   };
   coverage: {
     complete: boolean;
@@ -116,6 +130,7 @@ export function buildReport(input: {
       site_origin: input.crawl.site_origin,
       started_at: input.crawl.started_at,
       finished_at: new Date().toISOString(),
+      crawl_finished_at: input.crawl.finished_at,
     },
     coverage: {
       complete,
