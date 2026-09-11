@@ -675,6 +675,39 @@ test('placeholders match the whole value, never a substring', () => {
   );
 });
 
+test('a role mailbox is not a placeholder email', () => {
+  // admin@ was in the placeholder pattern until 2026-09-11, where it sat beside
+  // test@, user@ and youremail@ — template leftovers nobody reads. It is not one
+  // of those: thousands of small businesses answer admin@, and it fired on a
+  // real company's genuine contact address published on a directory profile.
+  const { findings } = run([
+    node({
+      id: 'https://example.com/#org',
+      page: 'a',
+      props: { [S('email')]: value('admin@a-real-company.co.uk') },
+    }),
+  ]);
+  assert.equal(
+    findings.some((finding) => finding.check === 'value.placeholder'),
+    false,
+  );
+});
+
+test('a template email left in the settings is still a placeholder', () => {
+  // The narrowing above must not have silenced the rule it narrowed.
+  const { findings } = run([
+    node({
+      id: 'https://example.com/#org',
+      page: 'a',
+      props: { [S('email')]: value('youremail@here.com') },
+    }),
+  ]);
+  assert.equal(
+    findings.some((finding) => finding.check === 'value.placeholder'),
+    true,
+  );
+});
+
 test('placeholder matching ignores case and surrounding whitespace', () => {
   const { findings } = run([
     node({

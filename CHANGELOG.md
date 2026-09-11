@@ -2,6 +2,32 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.16.1 — 2026-09-11
+
+### Fixed
+
+- **`admin@` is no longer treated as a placeholder email.**
+
+  The rule read `^(admin|test|user|email|youremail)@`, `basis: "asserted"` — a
+  policy assertion that had never been validated against the corpus. The other
+  four are template leftovers nobody reads. `admin@` is a role mailbox that
+  thousands of small businesses genuinely answer, and it was reporting a real
+  company's real contact address as an unfilled setting.
+
+  `value.placeholder` is an **error**, and the remediation it prints is "set a
+  real email in the site or plugin settings" — advice to change something that
+  was already correct. That is the expensive kind of false positive: it is
+  confident, it is actionable, and acting on it makes the markup worse.
+
+  `data/value-heuristics.json` states the principle this follows: *the cost of a
+  missing entry is one unreported finding rather than a false one.* A site that
+  really did leave `admin@` unconfigured now goes unreported, which is the
+  cheaper of the two mistakes.
+
+  Two tests pin it in both directions — `admin@` must not fire, and
+  `youremail@` must still fire, so the narrowing cannot quietly silence the rule
+  it narrowed.
+
 ## 1.16.0 — 2026-09-11
 
 ### Added
