@@ -26,7 +26,13 @@ import { siteSlugFor } from './store/workdir.ts';
 import { coerceToUrl, looksLikeTarget, UrlCanonicalisationError } from './url/canonical.ts';
 import { UnresolvableContextError } from './extract/context.ts';
 import { EXIT, type ExitCode } from './exit-codes.ts';
-import { applyPurge, formatBytes, listSites, planPurge } from './store/inventory.ts';
+import {
+  applyPurge,
+  formatBytes,
+  listSites,
+  planPurge,
+  type PurgeScope,
+} from './store/inventory.ts';
 import {
   acquireCrawlLock,
   adoptCrawlLock,
@@ -43,6 +49,16 @@ import pathModule from 'node:path';
 
 /** Subcommands. Anything not in here, and not hostname-shaped, is an error. */
 const KNOWN_COMMANDS = new Set(['scan', 'crawl', 'analyse', 'analyze', 'sites', 'purge', 'status']);
+
+/**
+ * How many orphaned directories `purge --orphans` names before it summarises.
+ *
+ * The largest set measured across the 22-site corpus was 51 on one site, where
+ * printing every line buries the total that decides whether to go ahead. Twenty
+ * is enough to recognise what they have in common, and the remainder is
+ * declared rather than dropped — the rule every capped list here follows.
+ */
+const ORPHAN_LIST_LIMIT = 20;
 
 /** Commands that operate on the work directory rather than on one site. */
 const WORKDIR_COMMANDS = new Set(['sites', 'status']);
@@ -115,6 +131,10 @@ Options:
                          half-fixed problem shows as Changed, not as one
                          resolved plus one new.
   --html                 purge only: remove stored HTML, keep reports and nodes.
+  --orphans              purge only: remove page directories the manifest does
+                         not name. A re-crawl rewrites pages.jsonl and leaves
+                         the directories the old one named behind; nothing
+                         reads them again. Refused if pages.jsonl is unreadable.
   --yes                  purge only: actually delete. Without it, purge is a
                          dry run — re-crawling costs the site's bandwidth, not
                          just your time.
@@ -169,6 +189,7 @@ async function main(argv: string[]): Promise<ExitCode> {
       version: { type: 'boolean', default: false },
       yes: { type: 'boolean', default: false },
       html: { type: 'boolean', default: false },
+      orphans: { type: 'boolean', default: false },
       detach: { type: 'boolean', default: false },
       'allow-concurrent': { type: 'boolean', default: false },
       force: { type: 'boolean', default: false },
@@ -391,7 +412,17 @@ async function main(argv: string[]): Promise<ExitCode> {
 
   if (command === 'purge') {
     const slug = values.site ?? siteSlugFor(coerceToUrl(target));
-    const scope = values.html === true ? 'html' : 'all';
+
+    // Two scopes at once has no sensible reading: --html keeps every directory
+    // and --orphans keeps every page.html. Refused rather than resolved by
+    // precedence, which would silently do half of what was asked.
+    if (values.html === true && values.orphans === true) {
+      process.stderr.write('--html and --orphans remove different things. Pick one.\n');
+      return EXIT.FAILURE;
+    }
+
+    const scope: PurgeScope =
+      values.orphans === true ? 'orphans' : values.html === true ? 'html' : 'all';
 
     /**
      * Never delete a site out from under a running crawl.
@@ -425,11 +456,32 @@ async function main(argv: string[]): Promise<ExitCode> {
       process.stderr.write(`nothing to purge: ${plan.root} does not exist\n`);
       return EXIT.FAILURE;
     }
+
+    /**
+     * No manifest, no orphans — refused, not inferred.
+     *
+     * This scope is defined entirely against `pages.jsonl`. Reading an absent
+     * manifest as "nothing is named" would make every stored page an orphan and
+     * delete a crawl that cost the site an hour of bandwidth, so the one case
+     * where the answer is unknown is the one case that must not proceed.
+     */
+    if (plan.unreadableManifest) {
+      process.stderr.write(
+        `${slug}: no readable pages.jsonl, so nothing can be called orphaned.\n\n` +
+          `Orphans are page directories the manifest does not name, and without a\n` +
+          `manifest every directory would qualify. Nothing has been removed.\n\n` +
+          `Re-crawl to rebuild the manifest, or use --html / no flag to purge by path.\n`,
+      );
+      return EXIT.FAILURE;
+    }
+
     if (plan.files === 0) {
       process.stdout.write(
         scope === 'html'
           ? `${slug}: no stored HTML — already purged?\n`
-          : `${slug}: nothing to remove\n`,
+          : scope === 'orphans'
+            ? `${slug}: no orphaned page directories — every one is in the manifest\n`
+            : `${slug}: nothing to remove\n`,
       );
       return EXIT.OK;
     }
@@ -437,7 +489,10 @@ async function main(argv: string[]): Promise<ExitCode> {
     const what =
       scope === 'html'
         ? `${plan.files} stored page(s), ${formatBytes(plan.bytes)}, from ${slug}`
-        : `all of ${slug} — ${plan.files} file(s), ${formatBytes(plan.bytes)}`;
+        : scope === 'orphans'
+          ? `${plan.orphans.length} orphaned page director(ies) from ${slug} — ` +
+            `${plan.files} file(s), ${formatBytes(plan.bytes)}`
+          : `all of ${slug} — ${plan.files} file(s), ${formatBytes(plan.bytes)}`;
 
     // Dry by default, and the reason is not generic caution. Re-crawling costs
     // somebody else's bandwidth, an hour of it, one polite request at a time.
@@ -447,6 +502,19 @@ async function main(argv: string[]): Promise<ExitCode> {
       if (scope === 'all') {
         process.stdout.write(
           `Reports and extracted nodes go too. Re-crawling means hitting the site again.\n`,
+        );
+      } else if (scope === 'orphans') {
+        process.stdout.write(
+          `These are page directories no line of pages.jsonl names, so nothing reads them:\n\n`,
+        );
+        for (const orphan of plan.orphans.slice(0, ORPHAN_LIST_LIMIT)) {
+          process.stdout.write(`  ${orphan}\n`);
+        }
+        const omitted = plan.orphans.length - ORPHAN_LIST_LIMIT;
+        if (omitted > 0) process.stdout.write(`  … and ${omitted} more\n`);
+        process.stdout.write(
+          `\nA re-crawl rewrites the manifest and leaves the old directories behind, which\n` +
+            `is where these came from. The current crawl is untouched.\n`,
         );
       } else {
         process.stdout.write(

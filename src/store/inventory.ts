@@ -179,21 +179,83 @@ export async function listSites(workRoot: string): Promise<SiteInventory[]> {
   return sites.sort((left, right) => right.usage.total_bytes - left.usage.total_bytes);
 }
 
+export type PurgeScope = 'html' | 'all' | 'orphans';
+
 export interface PurgePlan {
   slug: string;
   root: string;
-  /** `html` reclaims stored pages; `all` removes the site entirely. */
-  scope: 'html' | 'all';
+  /**
+   * `html` reclaims stored pages; `all` removes the site entirely; `orphans`
+   * removes page directories no manifest names.
+   */
+  scope: PurgeScope;
   files: number;
   bytes: number;
   /** True when there is nothing at this path to remove. */
   missing: boolean;
+  /** `orphans` only: the directory names, sorted. Empty for every other scope. */
+  orphans: readonly string[];
+  /**
+   * `orphans` only, and set when the manifest could not be read.
+   *
+   * The scope is defined against `pages.jsonl`, so without one there is no
+   * truth to compare against — not an empty one. Treating a missing manifest as
+   * "nothing is named" would make every stored page an orphan and delete the
+   * whole crawl, which is the one outcome this scope must never produce.
+   */
+  unreadableManifest: boolean;
+}
+
+/**
+ * Page directories `pages.jsonl` does not name.
+ *
+ * A fresh crawl deletes the manifest and writes a new one (`resetCrawlState`),
+ * but nothing removes the directories the old manifest named, so a re-crawl
+ * that drops or renames a page leaves its directory behind for good. The
+ * manifest is truth (`01`), so a directory absent from it is unreachable by
+ * every other part of the tool.
+ *
+ * A failed fetch is never an orphan: `appendPageRecord` runs for those too, so
+ * the directory kept as evidence is named by the manifest that records the
+ * failure.
+ */
+async function findOrphans(
+  root: string,
+): Promise<{ orphans: string[]; unreadableManifest: boolean }> {
+  let named: Set<string>;
+  try {
+    const manifest = await fs.readFile(path.join(root, 'pages.jsonl'), 'utf8');
+    named = new Set(
+      manifest
+        .split('\n')
+        .filter((line) => line.trim() !== '')
+        .map((line) => (JSON.parse(line) as PageRecord).page_id),
+    );
+  } catch {
+    return { orphans: [], unreadableManifest: true };
+  }
+
+  let entries: import('node:fs').Dirent[];
+  try {
+    entries = await fs.readdir(path.join(root, 'pages'), { withFileTypes: true });
+  } catch {
+    // No pages directory at all. Nothing stored, so nothing orphaned.
+    return { orphans: [], unreadableManifest: false };
+  }
+
+  return {
+    orphans: entries
+      .filter((entry) => entry.isDirectory() && !named.has(entry.name))
+      .map((entry) => entry.name)
+      .sort(),
+    unreadableManifest: false,
+  };
 }
 
 export async function planPurge(
   workRoot: string,
   slug: string,
-  scope: 'html' | 'all',
+  scope: PurgeScope,
 ): Promise<PurgePlan> {
   const root = path.join(workRoot, slug);
   let missing = false;
@@ -201,6 +263,18 @@ export async function planPurge(
     await fs.stat(root);
   } catch {
     missing = true;
+  }
+
+  if (scope === 'orphans') {
+    const { orphans, unreadableManifest } = await findOrphans(root);
+    let files = 0;
+    let bytes = 0;
+    for (const orphan of orphans) {
+      const usage = await directoryUsage(path.join(root, 'pages', orphan));
+      files += usage.files;
+      bytes += usage.total_bytes;
+    }
+    return { slug, root, scope, files, bytes, missing, orphans, unreadableManifest };
   }
 
   const usage = await directoryUsage(root);
@@ -211,6 +285,8 @@ export async function planPurge(
     files: scope === 'all' ? usage.files : usage.html_files,
     bytes: scope === 'all' ? usage.total_bytes : usage.html_bytes,
     missing,
+    orphans: [],
+    unreadableManifest: false,
   };
 }
 
@@ -227,6 +303,16 @@ export async function applyPurge(plan: PurgePlan): Promise<void> {
 
   if (plan.scope === 'all') {
     await fs.rm(plan.root, { recursive: true, force: true });
+    return;
+  }
+
+  if (plan.scope === 'orphans') {
+    // The plan's list, never a fresh scan: what the operator was shown and
+    // approved is what gets removed, even if a crawl has run since.
+    if (plan.unreadableManifest) return;
+    for (const orphan of plan.orphans) {
+      await fs.rm(path.join(plan.root, 'pages', orphan), { recursive: true, force: true });
+    }
     return;
   }
 

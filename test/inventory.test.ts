@@ -246,6 +246,105 @@ test('applying a plan for a missing site does nothing at all', async () => {
   );
 });
 
+// --- orphaned page directories -----------------------------------------------
+
+/** Leave a page directory behind that no manifest line names. */
+async function orphan(workRoot: string, slug: string, id: string): Promise<string> {
+  const dir = path.join(workRoot, slug, 'pages', id);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, 'page.html'), '<html>'.repeat(50));
+  await fs.writeFile(path.join(dir, 'meta.json'), '{}');
+  return dir;
+}
+
+test('a page directory the manifest does not name is an orphan', async () => {
+  // A fresh crawl rewrites pages.jsonl and leaves the old directories in place,
+  // so a page since deleted or renamed keeps its directory for good.
+  const { workRoot, slug } = await fixture();
+  await orphan(workRoot, slug, 'stale-page-0001');
+
+  const plan = await planPurge(workRoot, slug, 'orphans');
+
+  assert.deepEqual(plan.orphans, ['stale-page-0001']);
+  assert.equal(plan.files, 2, 'page.html and meta.json');
+  assert.equal(plan.bytes > 0, true);
+});
+
+test('a directory the manifest names is never an orphan', async () => {
+  const { workRoot, slug } = await fixture();
+  const plan = await planPurge(workRoot, slug, 'orphans');
+
+  assert.deepEqual(plan.orphans, []);
+  assert.equal(plan.files, 0);
+});
+
+test('a failed fetch is not an orphan, because the manifest records it', async () => {
+  // `saveFailedPage` keeps the directory so the failure stays inspectable, and
+  // `appendPageRecord` runs for it too — so it is named, and stays.
+  const { workRoot, slug } = await fixture({
+    pages: [record('a'), record('dead', { http_status: 404, errors: ['not found'] })],
+  });
+
+  const plan = await planPurge(workRoot, slug, 'orphans');
+  assert.deepEqual(plan.orphans, []);
+});
+
+test('purging orphans removes them and leaves the crawl untouched', async () => {
+  const { workRoot, slug } = await fixture();
+  await orphan(workRoot, slug, 'stale-one');
+  await orphan(workRoot, slug, 'stale-two');
+
+  await applyPurge(await planPurge(workRoot, slug, 'orphans'));
+
+  await assert.rejects(() => fs.stat(path.join(workRoot, slug, 'pages', 'stale-one')));
+  await assert.rejects(() => fs.stat(path.join(workRoot, slug, 'pages', 'stale-two')));
+
+  const site = await readSite(workRoot, slug);
+  assert.equal(site.pages, 2, 'the manifest still describes what was crawled');
+  assert.equal(site.usage.html_files, 2, 'the pages it names keep their HTML');
+  assert.equal(site.runs, 2, 'reports are the audit history and must survive');
+});
+
+test('no manifest means nothing can be called orphaned, so nothing is removed', async () => {
+  // The dangerous reading is "nothing is named, so everything is an orphan",
+  // which would delete a crawl that cost the site an hour of bandwidth.
+  const { workRoot, slug } = await fixture();
+  await fs.rm(path.join(workRoot, slug, 'pages.jsonl'));
+
+  const plan = await planPurge(workRoot, slug, 'orphans');
+  assert.equal(plan.unreadableManifest, true);
+  assert.deepEqual(plan.orphans, []);
+
+  await applyPurge(plan);
+  const remaining = await fs.readdir(path.join(workRoot, slug, 'pages'));
+  assert.deepEqual(remaining.sort(), ['a', 'b'], 'every stored page is still there');
+});
+
+test('a malformed manifest is refused the same way an absent one is', async () => {
+  const { workRoot, slug } = await fixture();
+  await fs.writeFile(path.join(workRoot, slug, 'pages.jsonl'), 'not json at all\n');
+
+  const plan = await planPurge(workRoot, slug, 'orphans');
+  assert.equal(plan.unreadableManifest, true);
+
+  await applyPurge(plan);
+  assert.deepEqual((await fs.readdir(path.join(workRoot, slug, 'pages'))).sort(), ['a', 'b']);
+});
+
+test('orphans are removed from the plan, not from a fresh scan', async () => {
+  // What the operator was shown and approved is what gets removed. A crawl
+  // between the plan and the --yes must not widen the deletion.
+  const { workRoot, slug } = await fixture();
+  await orphan(workRoot, slug, 'stale-one');
+
+  const plan = await planPurge(workRoot, slug, 'orphans');
+  await orphan(workRoot, slug, 'appeared-later');
+  await applyPurge(plan);
+
+  await assert.rejects(() => fs.stat(path.join(workRoot, slug, 'pages', 'stale-one')));
+  await fs.stat(path.join(workRoot, slug, 'pages', 'appeared-later'));
+});
+
 // --- formatting --------------------------------------------------------------
 
 test('sizes read the way du reads them', () => {

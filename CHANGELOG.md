@@ -2,6 +2,61 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.15.0 — 2026-09-11
+
+### Added
+
+- **`purge --orphans`** — removes page directories under `pages/` that no line
+  of `pages.jsonl` names.
+
+  ```
+  Would remove 8 orphaned page director(ies) from example.com — 24 file(s), 989 KB.
+  These are page directories no line of pages.jsonl names, so nothing reads them:
+
+    guides-5fdf755b
+    …
+  ```
+
+  A fresh crawl writes a new manifest and does not remove the directories the
+  old one named, so every page since deleted, renamed, or re-canonicalised
+  leaves its directory behind for good. Across the local corpus that had reached
+  95 directories and 18.2 MB, still growing — a defect rather than a missing
+  feature, because nothing in the tool will ever read them again.
+
+  The manifest is the definition, so nothing in use can be lost: checks read
+  `nodes.jsonl` and reports read `pages.jsonl`, and neither can reach a
+  directory the manifest omits. A failed fetch is never an orphan — its
+  directory is kept deliberately so the failure stays inspectable, and the
+  manifest records it like any other page.
+
+  **An unreadable `pages.jsonl` refuses the purge, and `--yes` does not override
+  it.** The scope is defined entirely against the manifest, so treating an
+  absent one as "nothing is named" would classify every stored page as an orphan
+  and delete a crawl that cost the site an hour of its bandwidth. The one case
+  where the answer is unknown is the one case that must not proceed.
+
+  Dry by default like the rest of `purge`. `--html` and `--orphans` together are
+  refused rather than resolved by precedence, which would silently do half of
+  what was asked.
+
+### Fixed
+
+- **`entity.contradiction` no longer reports a value as contradicting itself.**
+
+  Values were compared as a sorted list rather than a set, so an entity stating
+  the same fact twice on one page and once on another produced *"name has 2
+  different values under one @id"* with the same string printed twice as the
+  evidence.
+
+  The markup that triggers it is both common and correct: a page that publishes
+  a stub reference inside `Article.author` **and** the full node under the same
+  `@id` states `name` twice once flattened, while a page carrying only the full
+  node states it once. Two real sites in the local corpus were affected, one of
+  them on every page of a 41-page trail.
+
+  `entity.multi-value` — the within-one-observation form of the same question —
+  already compared by denotation, so the two checks now agree.
+
 ## 1.14.0 — 2026-08-27
 
 ### Added

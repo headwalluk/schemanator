@@ -7,7 +7,7 @@ schemanator <site> [options]           # crawl, extract, check, report
 schemanator crawl <site> [options]     # crawl only, no analysis
 schemanator analyse <site> [options]   # re-analyse a stored crawl, no network
 schemanator sites                      # what has been crawled, and what it costs
-schemanator purge <site> [--html]      # reclaim disk
+schemanator purge <site> [--html|--orphans]   # reclaim disk
 schemanator status [site]              # progress of a running or finished crawl
 ```
 
@@ -242,6 +242,7 @@ Keep `--max-pages` the same across runs you intend to compare.
 | `--log-level <level>` | `silent`, `error`, `warn`, `info`, `debug`. Default `info` |
 | `--quiet` / `--verbose` | Aliases for `--log-level error` / `debug` |
 | `--html` | `purge` only: remove stored HTML, keep reports and nodes |
+| `--orphans` | `purge` only: remove page directories the manifest does not name |
 | `--yes` | `purge` only: actually delete. Without it, `purge` is a dry run |
 | `--help` | Show usage |
 | `--version` | Print the version and exit. One bare line, so it parses |
@@ -313,11 +314,12 @@ it as `null`; re-running `analyse` fills it in, provided the HTML is still there
 ### Reclaiming space
 
 ```sh
+schemanator purge example.com --orphans   # directories nothing references
 schemanator purge example.com --html      # stored pages only
 schemanator purge example.com             # the whole site
 ```
 
-**Both print what they would remove and delete nothing.** Add `--yes` to go
+**All three print what they would remove and delete nothing.** Add `--yes` to go
 ahead.
 
 That is not generic caution. A crawl costs an hour of somebody else's bandwidth,
@@ -326,11 +328,40 @@ inconvenience, it means going back and taking it again.
 
 | | Keeps | Loses |
 | --- | --- | --- |
+| `--orphans` | Everything the current crawl uses | Nothing — by definition |
 | `--html` | Reports, extracted nodes, the manifest | Re-analysis, until you re-crawl |
 | *(no flag)* | Nothing | Everything for that site |
 
 `--html` also sets `html_purged` in the manifest. Deleting the files by hand
 works but leaves `pages.jsonl` claiming the HTML is still there.
+
+#### Orphaned page directories
+
+A fresh crawl writes a new `pages.jsonl` and does not remove the directories the
+old one named. So a page that has since been deleted, renamed, or given a
+different canonical URL leaves its directory under `pages/` for good — taking up
+disk, appearing in `ls`, and read by nothing.
+
+`--orphans` removes exactly those, and it says which before it does:
+
+```
+Would remove 8 orphaned page director(ies) from example.com — 41 file(s), 1.0 MB.
+These are page directories no line of pages.jsonl names, so nothing reads them:
+
+  tag-firefox-3f2a91c7
+  …
+```
+
+**The manifest is the definition, so a directory it does not name is unreachable
+by every other part of the tool** — checks read `nodes.jsonl`, reports read
+`pages.jsonl`. Nothing in use can be lost.
+
+A failed fetch is never an orphan. Those directories are kept deliberately, so
+the failure can be inspected, and the manifest records them alongside every
+other page.
+
+If `pages.jsonl` cannot be read, `--orphans` **refuses and removes nothing**
+rather than treating every directory as unnamed.
 
 ## Crawling in the background
 
