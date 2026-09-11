@@ -208,9 +208,15 @@ export function denote(value: unknown, graph: EntityGraph, depth = 0): unknown {
  *
  * Rule: compare as a **set**, always. `sameAs: [A, B]` and `[B, A]` are the
  * same statement and must never register as divergence (`00`, class 4).
+ *
+ * A set has no multiplicity either, which sorting alone does not deliver: a
+ * page publishing a stub reference and the full node under one @id states the
+ * same `name` twice once flattened, and against a page stating it once that
+ * keyed as two values and reported a contradiction between a value and itself.
  */
 export function valueKey(values: readonly unknown[], graph: EntityGraph): string {
-  return JSON.stringify(values.map((value) => JSON.stringify(denote(value, graph))).sort());
+  const denoted = values.map((value) => JSON.stringify(denote(value, graph)));
+  return JSON.stringify([...new Set(denoted)].sort());
 }
 
 /** Short display form. Full IRIs internally, short names only at display time. */

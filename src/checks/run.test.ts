@@ -245,6 +245,34 @@ test('set order is never a finding', () => {
   );
 });
 
+test('a value repeated within one observation is not a second value', () => {
+  // Flattening merges a stub reference and the full node published under one
+  // @id, so a page carrying both states `name` twice with a single value. As a
+  // list that reads as divergence from a page stating it once; as a set it is
+  // the same statement (`04` rule 6 — compare what a value denotes). The
+  // within-one-observation check, `entity.multi-value`, already compares this
+  // way, and both checks are asking the same question of the same values.
+  const { findings } = run([
+    node({
+      id: 'https://example.com/#person',
+      page: 'a',
+      types: [S('Person')],
+      props: { [S('name')]: [{ '@value': 'Ada Lovelace' }, { '@value': 'Ada Lovelace' }] },
+    }),
+    node({
+      id: 'https://example.com/#person',
+      page: 'b',
+      types: [S('Person')],
+      props: { [S('name')]: value('Ada Lovelace') },
+    }),
+  ]);
+
+  assert.deepEqual(
+    findings.filter((finding) => finding.check.startsWith('entity.')),
+    [],
+  );
+});
+
 test('partiality is counted, never reported', () => {
   const { findings, silenced } = run([
     node({
