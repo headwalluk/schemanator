@@ -23,8 +23,8 @@ node graph, and reports contradictions that only appear when you look at the
 whole site at once.
 
 **Current state: the pipeline works end to end.** `schemanator <site>` crawls,
-extracts, checks and renders a report; `--since` diffs two runs. All 56 checks in
-the catalogue are built. Proven against a 22-site, 1,838-page local corpus.
+extracts, checks and renders a report; `--since` diffs two runs. All 57 checks in
+the catalogue are built. Proven against a 23-site, 2,498-page local corpus.
 
 Outstanding work is the distance between "works" and "shipped" — see
 `dev-notes/00-project-tracker.md`, which is the authority on what is left.

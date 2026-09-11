@@ -2,6 +2,37 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.16.0 — 2026-09-11
+
+### Added
+
+- **`google.self-serving-review`** — the entity a site names as its own
+  publisher, carrying an `aggregateRating` or `review` of itself.
+
+  Google treats a business reviewing itself as self-serving and ineligible for
+  the star treatment. The markup stays valid and the page keeps rendering, so
+  nothing per-page objects — the rich result simply never appears and the block
+  earns nothing.
+
+  **This is the clearest case yet of a check only a whole-site tool can make.**
+  On a single page a self-serving rating and a legitimate one are identical
+  markup: an `Organization` with an `aggregateRating`. What separates them is
+  whose site it is on, which takes the site's own graph to answer. The Rich
+  Results Test sees one URL and structurally cannot tell.
+
+  **A review site rating the businesses it lists is not reported**, because that
+  is exactly what these properties are for. Only the node the `WebSite` names as
+  its `publisher` is judged. The check was validated against that adversarial
+  case before it was trusted: a directory carrying 87 review-bearing
+  `Organization` nodes, 86 of them businesses it legitimately reviews, produces
+  exactly one finding — its own.
+
+  Warning rather than error, and it carries a trade-off: ratings kept
+  deliberately for a site's own visitors rather than for Google are a legitimate
+  choice, and the report says so instead of prescribing a fix.
+
+  57 checks.
+
 ## 1.15.0 — 2026-09-11
 
 ### Added

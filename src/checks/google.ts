@@ -591,6 +591,7 @@ const CHECK = {
   missingRequired: `${GROUP}.missing-required`,
   incompleteAlternative: `${GROUP}.incomplete-alternative`,
   missingRecommended: `${GROUP}.missing-recommended`,
+  selfServingReview: `${GROUP}.self-serving-review`,
 } as const;
 
 const missingRequired: Check = {
@@ -680,4 +681,134 @@ const missingRecommended: Check = {
   ],
 };
 
-export const GOOGLE_CHECKS: Check[] = [missingRequired, incompleteAlternative, missingRecommended];
+// --- google.self-serving-review ----------------------------------------------
+
+/**
+ * The entity that publishes the site, carrying a rating of itself.
+ *
+ * Google treats a review of the reviewed entity's own publisher as
+ * self-serving and ineligible for the star treatment, and has since 2019. The
+ * markup stays valid, the page keeps rendering, and nothing in a per-page tool
+ * objects — the rich result simply never appears.
+ *
+ * ## Why only a whole-site tool can judge this
+ *
+ * On one page, a self-serving rating and a legitimate one are **identical
+ * markup**: an `Organization` with an `aggregateRating`. What separates them is
+ * whose site it is on, which takes the site's own graph to answer. The Rich
+ * Results Test sees one URL and cannot tell; this is the same shape of question
+ * as `entity.contradiction`, and the reason the group's boundary note says a
+ * publisher policy applied across a whole site is not a reimplementation of a
+ * per-page validator.
+ *
+ * ## Identifying the publisher, and the design that failed first
+ *
+ * `WebSite.publisher` names it, and resolves to exactly one node on all 23
+ * corpus sites.
+ *
+ * The first design used page share instead — the `Organization` appearing on
+ * ≥80% of pages — because across 19 sites the publisher sat at 100% and the
+ * runner-up below 5%. A review directory broke it: its own `Organization`
+ * appears on 15% of pages, because the other 85% are profile pages carrying the
+ * *reviewed* business instead. The measurement was real and the rule drawn from
+ * it was wrong, which is what a corpus of conventional business sites will do
+ * to a threshold. `publisher` is a statement rather than an inference, so it
+ * does not care how the site is laid out.
+ *
+ * ## Why the reviewed businesses on such a site stay silent
+ *
+ * A directory carrying 86 other companies' ratings is doing exactly what Google
+ * recommends the properties for. Only the one node the `WebSite` names as its
+ * own publisher is judged, so a legitimate review site sees nothing — which is
+ * the case this check was tested against before it was trusted.
+ */
+const selfServingReview: Check = {
+  id: CHECK.selfServingReview,
+  group: GROUP,
+  run({ graph, pages, hierarchy }): Finding[] {
+    const pageIndex = indexPagesById(pages);
+
+    // The publisher as the WebSite states it. Read off `graph.index`, which is
+    // deduplicated by @id and therefore the right map for following a
+    // reference, then collected from `allNodes` so every observation counts.
+    const publisherIds = new Set<string>();
+    for (const node of graph.allNodes) {
+      if (!closure(node.types, hierarchy).has('WebSite')) continue;
+      for (const target of targetsOf(node, 'publisher', graph)) publisherIds.add(target.node_id);
+    }
+
+    const findings: Finding[] = [];
+    for (const publisherId of publisherIds) {
+      const observations = graph.groups.get(publisherId)?.observations ?? [];
+      const carrying = observations.filter(
+        (node) =>
+          valuesOf(node, 'aggregateRating').length > 0 || valuesOf(node, 'review').length > 0,
+      );
+      if (carrying.length === 0) continue;
+
+      const first = carrying[0];
+      if (first === undefined) continue;
+
+      // Restricted to the types Google's policy names. A sole trader publishing
+      // under a `Person` is out of scope rather than silently judged by a rule
+      // written for businesses — one corpus site does exactly that.
+      const types = closure(first.types, hierarchy);
+      if (!types.has('Organization') && !types.has('LocalBusiness')) continue;
+
+      const held = [
+        ...(carrying.some((node) => valuesOf(node, 'aggregateRating').length > 0)
+          ? ['aggregateRating']
+          : []),
+        ...(carrying.some((node) => valuesOf(node, 'review').length > 0) ? ['review'] : []),
+      ];
+      const pageCount = new Set(carrying.map((node) => node.page_id)).size;
+
+      findings.push({
+        finding_id: findingId(CHECK.selfServingReview, publisherId),
+        check: CHECK.selfServingReview,
+        severity: 'warning',
+        origin: 'check',
+        title: `The site's own publisher carries ${inWords(held)} of itself`,
+        subject: { kind: 'entity', id: publisherId, property: held.join(', ') },
+        summary:
+          `${publisherId} is what this site's WebSite names as its publisher, and it carries ` +
+          `${inWords(held)} describing itself, on ${pageCount} page(s). Google treats a business ` +
+          `reviewing itself as self-serving and ineligible for the star treatment, so this will not ` +
+          `produce the rich result it was written for however the markup is spelled. The markup is ` +
+          `valid and nothing is broken — it simply earns nothing. ${SEARCH_CONSOLE_NOTE}`,
+        expected: "No aggregateRating or review on the site's own publisher.",
+        ...sampleObserved([
+          {
+            value: publisherId,
+            observation_count: carrying.length,
+            page_count: pageCount,
+            provenance: provenanceOf(carrying, pageIndex),
+          },
+        ]),
+        pages_affected: pageCount,
+        coverage_qualified: false,
+        remediation:
+          `Remove ${inWords(held)} from the publisher entity, or move it onto the Product, Service ` +
+          `or other entity the ratings are genuinely about. Google's policy: ` +
+          `https://developers.google.com/search/docs/appearance/structured-data/review-snippet`,
+        tradeoff:
+          'Reviews of other entities are exactly what these properties are for, so a directory or ' +
+          'review site rating the businesses it lists is doing the right thing and is not reported ' +
+          "here — only the site's own publisher is judged. If the ratings are real and you are " +
+          'keeping them for your own visitors rather than for Google, that is a legitimate choice ' +
+          'and this finding is the trade-off named rather than an error to fix.',
+        pattern: CHECK.selfServingReview,
+        page_ids: [...new Set(carrying.map((node) => node.page_id))],
+      });
+    }
+
+    return findings;
+  },
+};
+
+export const GOOGLE_CHECKS: Check[] = [
+  missingRequired,
+  incompleteAlternative,
+  missingRecommended,
+  selfServingReview,
+];

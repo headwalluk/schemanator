@@ -444,6 +444,30 @@ so every finding here carries that trade-off with it.
 `bestRating` and `worstRating` are recommended by Google and deliberately **not**
 reported: they default to 5 and 1, so their absence says nothing.
 
+### `google.self-serving-review` — Warning
+
+The entity your site names as its own publisher carries an `aggregateRating` or
+`review` describing itself.
+
+> `https://example.com/#organization` is the site's publisher, and rates itself
+> 4.9 from 127 reviews.
+
+**Why it matters:** Google treats a business reviewing itself as self-serving and
+ineligible for the star treatment. The markup stays valid and the page keeps
+rendering — the rich result simply never appears, so the block earns nothing.
+
+**How to fix:** remove the property from the publisher entity, or move it onto
+the `Product`, `Service` or other entity the ratings are genuinely about.
+
+**A review site rating the businesses it lists is not reported.** That is exactly
+what these properties are for. Only the one node your `WebSite` names as its
+`publisher` is judged, so a directory carrying hundreds of other companies'
+ratings sees nothing.
+
+This is the clearest case of a check that needs the whole site. On a single page
+a self-serving rating and a legitimate one are identical markup; what separates
+them is whose site it is on.
+
 ---
 
 ## `robots` — can a machine fetch the site at all?

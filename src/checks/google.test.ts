@@ -910,3 +910,140 @@ test('a blank node reports the page it is on, not its internal id', () => {
   );
   assert.match(finding?.observed[0]?.value ?? '', /^https:\/\/example\.com\//);
 });
+
+// --- google.self-serving-review ----------------------------------------------
+
+const SELF_SERVING = 'google.self-serving-review';
+
+/** A site whose WebSite names an Organization as its publisher. */
+function publishedSite(publisherProps: Record<string, unknown[]> = {}): ExtractedNode[] {
+  return [
+    node({
+      id: 'https://example.com/#website',
+      types: [S('WebSite')],
+      props: { [S('publisher')]: ref('https://example.com/#organization') },
+    }),
+    node({
+      id: 'https://example.com/#organization',
+      types: [S('Organization')],
+      props: { [S('name')]: value('Example Ltd'), ...publisherProps },
+    }),
+  ];
+}
+
+test('the publisher rating itself is reported', () => {
+  const findings = google(
+    publishedSite({ [S('aggregateRating')]: ref('https://example.com/#rating') }),
+  );
+  const finding = findings.find((candidate) => candidate.check === SELF_SERVING);
+
+  assert.notEqual(finding, undefined, 'the self-serving rating should be reported');
+  assert.equal(finding?.severity, 'warning');
+  assert.equal(finding?.subject.id, 'https://example.com/#organization');
+});
+
+test('a publisher with no rating of its own is silent', () => {
+  const findings = google(publishedSite());
+  assert.equal(
+    findings.some((finding) => finding.check === SELF_SERVING),
+    false,
+  );
+});
+
+test('a review site rating the businesses it lists is not self-serving', () => {
+  // The case this check was tested against before it was trusted: a directory
+  // carrying other companies' ratings is doing exactly what Google recommends
+  // the properties for. Only the node the WebSite names as publisher is judged.
+  const reviewed = ['one', 'two', 'three'].map((slug) =>
+    node({
+      id: `https://example.com/reviews/${slug}/#organization`,
+      page: 'b',
+      types: [S('Organization')],
+      props: {
+        [S('name')]: value(slug),
+        [S('aggregateRating')]: ref(`https://example.com/reviews/${slug}/#rating`),
+      },
+    }),
+  );
+
+  const findings = google([...publishedSite(), ...reviewed]);
+  assert.equal(
+    findings.some((finding) => finding.check === SELF_SERVING),
+    false,
+    'the reviewed businesses are not the publisher and must not be reported',
+  );
+});
+
+test('page share is not the signal, so a publisher on few pages is still caught', () => {
+  // The design this replaced used "appears on >=80% of pages". A review
+  // directory's own Organization sits at 15%, because the other 85% of pages
+  // carry the reviewed business instead — so the threshold missed the one site
+  // in twenty that had the defect.
+  const manyOtherPages = ['b', 'c', 'd', 'e', 'f', 'g'].map((id) =>
+    node({
+      id: `https://example.com/reviews/${id}/#organization`,
+      page: id,
+      types: [S('Organization')],
+      props: { [S('name')]: value(id) },
+    }),
+  );
+  const pages = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(page);
+
+  const findings = google(
+    [
+      ...publishedSite({ [S('aggregateRating')]: ref('https://example.com/#rating') }),
+      ...manyOtherPages,
+    ],
+    pages,
+  );
+  assert.equal(
+    findings.some((finding) => finding.check === SELF_SERVING),
+    true,
+    'the publisher is on 1 of 7 pages and must still be judged',
+  );
+});
+
+test('a sole trader publishing under a Person is out of scope', () => {
+  // Google's policy names businesses. One corpus site publishes a Person as its
+  // WebSite publisher, and judging it by a rule written for Organizations would
+  // be applying a policy that does not mention it.
+  const findings = google([
+    node({
+      id: 'https://example.com/#website',
+      types: [S('WebSite')],
+      props: { [S('publisher')]: ref('https://example.com/#person') },
+    }),
+    node({
+      id: 'https://example.com/#person',
+      types: [S('Person')],
+      props: {
+        [S('name')]: value('A Sole Trader'),
+        [S('aggregateRating')]: ref('https://example.com/#rating'),
+      },
+    }),
+  ]);
+  assert.equal(
+    findings.some((finding) => finding.check === SELF_SERVING),
+    false,
+  );
+});
+
+test('review is caught as well as aggregateRating', () => {
+  const findings = google(publishedSite({ [S('review')]: ref('https://example.com/#review') }));
+  const finding = findings.find((candidate) => candidate.check === SELF_SERVING);
+
+  assert.notEqual(finding, undefined);
+  assert.match(finding?.title ?? '', /review/);
+});
+
+test('the finding names the trade-off rather than prescribing a fix', () => {
+  // Rule 5. Ratings kept deliberately for visitors rather than for Google are a
+  // legitimate choice, and the report says so instead of calling it an error.
+  const findings = google(
+    publishedSite({ [S('aggregateRating')]: ref('https://example.com/#rating') }),
+  );
+  const finding = findings.find((candidate) => candidate.check === SELF_SERVING);
+
+  assert.notEqual(finding?.tradeoff, null);
+  assert.match(finding?.tradeoff ?? '', /directory or review site|legitimate choice/);
+});
