@@ -345,7 +345,7 @@ disk, appearing in `ls`, and read by nothing.
 `--orphans` removes exactly those, and it says which before it does:
 
 ```
-Would remove 8 orphaned page director(ies) from example.com — 41 file(s), 1.0 MB.
+Would remove 8 orphaned page director(ies) from example.com — 24 file(s), 989 KB.
 These are page directories no line of pages.jsonl names, so nothing reads them:
 
   tag-firefox-3f2a91c7
