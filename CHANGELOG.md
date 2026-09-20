@@ -2,6 +2,46 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.18.0 — 2026-09-20
+
+### Added
+
+- **`url.mixed-script`** — a URL that spells a Latin word using Cyrillic letters.
+
+  > `/blog/reviews-реrmаjеts-silk/` — the `р`, `е` and `а` are Cyrillic, each
+  > visually identical to the Latin letter it stands in for.
+
+  Nothing can match it to the spelling a person would type, so the obvious URL
+  404s and the page cannot be linked by hand. Nobody proof-reading catches it
+  either, because on screen there is no difference. **That is the argument for a
+  machine check rather than a review step:** it is a defect that is invisible to
+  the only faculty anyone would use to look for it.
+
+  **Values are percent-decoded before being tested, which is the whole check.**
+  The markup carries `%D1%80%D0%B5rm…` — pure ASCII until decoded. A version that
+  tested the raw value found nothing at all on the one site in the corpus that
+  has the defect.
+
+  Three decisions keep it quiet, each measured against 2,519 pages:
+
+  - **Greek is never reported.** It earns its place in technical identifiers —
+    `380μm`, `μTFP12`, `(ΔSV)` are all real corpus values on two sites. Cyrillic
+    in an English-language URL essentially never does, and flagging both would
+    have reported three legitimate product URLs.
+  - **A word must mix the two scripts inside itself.** A slug placing a Cyrillic
+    word beside a Latin one is ordinary multilingual content; only `реrmаjеts` is
+    a substitution. Splitting on every non-letter is the difference.
+  - **Fragments are ignored**, so a page its generator gives `#article`,
+    `#breadcrumb` and `#primaryimage` ids reports once rather than four times.
+
+  Across the corpus it fires twice, on one site, with nothing on the other 22.
+
+  Six tests, each confirmed to fail against a deliberately broken
+  implementation — which is how two of them were found to be worthless. One
+  asserted nothing at all, because a fixture node with no properties never
+  reaches the graph; the other could not distinguish a single finding from three
+  that had been aggregated back into one.
+
 ## 1.17.0 — 2026-09-20
 
 ### Added

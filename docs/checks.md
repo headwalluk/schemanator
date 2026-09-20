@@ -225,6 +225,39 @@ Canonicalisation deliberately leaves these alone so this check can see them. To
 anything comparing IRIs as strings — which is what consumers do — they are two
 resources where you meant one.
 
+### `url.mixed-script` — Warning
+
+A URL that spells a Latin word using Cyrillic letters.
+
+> `/blog/reviews-реrmаjеts-silk/` — the `р`, `е` and `а` are Cyrillic, and each
+> is visually identical to the Latin letter it stands in for.
+
+**Why it matters:** nothing can match it to the spelling a person would type, so
+the obvious all-Latin URL 404s and the page cannot be linked by hand. Nobody
+proof-reading catches it either, because on screen there is no difference.
+
+**Values are percent-decoded before being tested**, which is the whole check —
+the markup carries `%D1%80%D0%B5rm…`, pure ASCII until it is decoded.
+
+**Greek letters are never reported.** They earn their place in technical
+identifiers — `380μm`, `μTFP12` — whereas Cyrillic in an English-language URL
+essentially never does.
+
+A word must mix the two scripts **inside itself**. A slug placing a Cyrillic word
+beside a Latin one is ordinary multilingual content and stays silent; only
+`реrmаjеts` is a substitution.
+
+Reported once per URL, with the fragment ignored, so a page whose generator gives
+it `#article`, `#breadcrumb` and `#primaryimage` ids reports one finding rather
+than four.
+
+**Common cause:** a title pasted from another source, homoglyphs included. The
+slug is generated from it, and editing the title afterwards does not regenerate
+the slug — so a clean title can sit above a permanently dirty URL.
+
+**How to fix:** retype the affected words. Where the page is published, give it a
+clean slug and redirect the old one.
+
 ### `url.foreign-media-host` — Warning
 
 Images referenced from a host that is neither this site, a subdomain of it, nor

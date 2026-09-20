@@ -846,6 +846,121 @@ const foreignMediaHost: Check = {
   },
 };
 
+// --- url.mixed-script --------------------------------------------------------
+
+/**
+ * Cyrillic only, and deliberately not Greek.
+ *
+ * Both blocks hold letters that are visually identical to Latin ones, but they
+ * are not equally suspicious in an English-language identifier. Greek earns its
+ * place in technical prose — `380μm`, `μTFP12`, `(ΔSV)` are all real values in
+ * the corpus, on two sites. Cyrillic essentially never does: across 2,519 pages
+ * the only mixed Cyrillic-Latin tokens anywhere were a homoglyph substitution.
+ * Flagging both would have reported three legitimate product URLs.
+ *
+ * Built from a string rather than written as `/[Ѐ-ӿ]/`, because
+ * Prettier rewrites an escape inside a regex literal into the character itself
+ * — leaving `/[Ѐ-ӿ]/` in the source. A file about letters that are impossible
+ * to tell apart by eye is the last place to put two of them where the range
+ * bounds should be.
+ */
+const CYRILLIC_LETTER = new RegExp('[\\u0400-\\u04FF]');
+const LATIN_LETTER = /[A-Za-z]/;
+
+/**
+ * Split on anything that is not a letter or a number.
+ *
+ * Hyphens and underscores have to break a token, or a legitimate multilingual
+ * slug becomes a finding: `статья-about-us` is Cyrillic and Latin *words* side
+ * by side, which is normal, while `реrmаjеts` is Cyrillic and Latin letters
+ * inside **one** word, which is a substitution. Only the second is reportable,
+ * and splitting is the whole difference between them.
+ */
+const NON_WORD = /[^\p{L}\p{N}]+/u;
+
+/** True when one word mixes Cyrillic with Latin — see {@link CYRILLIC_LETTER}. */
+function mixedScriptTokens(text: string): string[] {
+  // Percent-encoding hides the whole defect: the markup carries
+  // `%D1%80%D0%B5rm...`, which is pure ASCII until it is decoded.
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(text);
+  } catch {
+    decoded = text;
+  }
+  return decoded
+    .split(NON_WORD)
+    .filter((token) => CYRILLIC_LETTER.test(token) && LATIN_LETTER.test(token));
+}
+
+const mixedScript: Check = {
+  id: 'url.mixed-script',
+  group: 'url',
+  run({ graph, pages }) {
+    const pageIndex = indexPagesById(pages);
+    const hits = new Map<string, { tokens: Set<string>; nodes: ExtractedNode[] }>();
+
+    const record = (text: string, nodes: readonly ExtractedNode[]): void => {
+      // Keyed and tested without the fragment, because the fragment is node
+      // identity within a page and the defect is the page's slug. One post
+      // otherwise reports four times — `#article`, `#breadcrumb`,
+      // `#primaryimage` and the bare URL — for a single thing to fix.
+      const url = text.split('#')[0] as string;
+      const tokens = mixedScriptTokens(url);
+      if (tokens.length === 0) return;
+      const existing = hits.get(url) ?? { tokens: new Set<string>(), nodes: [] };
+      for (const token of tokens) existing.tokens.add(token);
+      existing.nodes.push(...nodes);
+      hits.set(url, existing);
+    };
+
+    // Two passes, because an `@id` is reachable two ways and the defect lives in
+    // both: as the identity of a node here, and as a value pointing at it below.
+    for (const group of graph.groups.values()) record(group.node_id, group.observations);
+    eachValue(graph, (node, _property, text, kind) => {
+      if (kind === 'id') record(text, [node]);
+    });
+
+    return [...hits.entries()].map(([url, hit]) => {
+      const pageIds = [...new Set(hit.nodes.map((node) => node.page_id))];
+      const tokens = [...hit.tokens].sort();
+      return {
+        finding_id: findingId(mixedScript.id, url),
+        check: mixedScript.id,
+        severity: 'warning' as const,
+        origin: 'check' as const,
+        title: 'A URL spells a Latin word with Cyrillic letters',
+        aggregate_title: 'URLs spelling Latin words with Cyrillic letters',
+        subject: { kind: 'entity' as const, id: url },
+        summary:
+          `${tokens.join(', ')} looks like ordinary Latin text and is not: it mixes Cyrillic ` +
+          `letters into a Latin word, where each one is visually identical to the letter it ` +
+          `replaces. Nothing reading this can match it to the spelling a person would type, and ` +
+          `nobody proof-reading it can see the difference, because on screen there is none.`,
+        expected: 'An identifier spelled entirely in Latin letters.',
+        observed: [
+          {
+            value: url,
+            detail: `Cyrillic in: ${tokens.join(', ')}`,
+            observation_count: hit.nodes.length,
+            page_count: pageIds.length,
+            provenance: provenanceOf(hit.nodes, pageIndex),
+          },
+        ],
+        pages_affected: pageIds.length,
+        coverage_qualified: false,
+        remediation:
+          'Retype the affected words in Latin letters. Where the URL is a page that is already ' +
+          'published, give it a clean slug and redirect the old one — the existing spelling ' +
+          'cannot be typed or linked by hand, so nothing will reach it otherwise.',
+        tradeoff: null,
+        pattern: 'Cyrillic homoglyphs in an identifier',
+        page_ids: pageIds,
+      };
+    });
+  },
+};
+
 // --- coverage.competing-syntax -----------------------------------------------
 
 /**
@@ -1057,6 +1172,7 @@ export const ALL_CHECKS: Check[] = [
   emptyValue,
   insecureSelfReference,
   foreignMediaHost,
+  mixedScript,
   competingSyntax,
   noStructuredData,
   ...STRUCTURE_CHECKS,

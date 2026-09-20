@@ -549,6 +549,135 @@ test('a genuinely different declared canonical is a warning', () => {
   );
 });
 
+// --- url.mixed-script --------------------------------------------------------
+
+const mixedScript = <T extends { check: string }>(findings: T[]): T[] =>
+  findings.filter((finding) => finding.check === 'url.mixed-script');
+
+/**
+ * `реrmаjеts` — р(U+0440) е(U+0435) а(U+0430) are Cyrillic, the rest Latin.
+ *
+ * Percent-encoded, because that is how it reaches the markup. Undecoded it is
+ * pure ASCII and the whole defect is invisible.
+ */
+const HOMOGLYPH_URL = 'https://fixture.test/blog/reviews-%D1%80%D0%B5rm%D0%B0j%D0%B5ts-silk/';
+
+test('a URL spelling a Latin word with Cyrillic letters is a warning', () => {
+  const { findings } = run([
+    node({
+      id: HOMOGLYPH_URL,
+      page: 'a',
+      types: [S('Article')],
+      props: { [S('name')]: value('Reviews') },
+    }),
+  ]);
+  const found = mixedScript(findings);
+  assert.equal(found.length, 1);
+  assert.equal(found[0]?.severity, 'warning');
+});
+
+/** The defect is percent-encoded in the source, so decoding is the check. */
+test('the homoglyph is found even though the markup is pure ASCII', () => {
+  assert.equal(/^[\x20-\x7E]+$/.test(HOMOGLYPH_URL), true, 'fixture is not ASCII');
+  const { findings } = run([
+    node({ id: 'https://fixture.test/#a', page: 'a', props: { [S('url')]: ref(HOMOGLYPH_URL) } }),
+  ]);
+  assert.equal(mixedScript(findings).length, 1);
+});
+
+/**
+ * Greek is legitimate in technical identifiers and must never fire.
+ *
+ * `380μm` for microns and `μTFP12` for a print head are both real corpus values.
+ */
+test('Greek letters mixed with Latin are not a finding', () => {
+  const { findings } = run([
+    node({
+      id: 'https://fixture.test/product/lamination-film-380%CE%BCm/',
+      page: 'a',
+      types: [S('Product')],
+      props: { [S('url')]: ref('https://fixture.test/product/head-%CE%BCTFP12/') },
+    }),
+  ]);
+  assert.deepEqual(mixedScript(findings), []);
+});
+
+/**
+ * A multilingual slug is Cyrillic and Latin *words* side by side, which is
+ * normal. Only a mix inside one word is a substitution, so hyphens must split.
+ */
+test('a Cyrillic word beside a Latin word in one slug is not a finding', () => {
+  const { findings } = run([
+    node({
+      id: 'https://fixture.test/ru/%D1%81%D1%82%D0%B0%D1%82%D1%8C%D1%8F-about-us/',
+      page: 'a',
+      types: [S('Article')],
+      // A node with no props is not a substantive observation, so it never
+      // reaches the graph and this asserted nothing at all until it had one.
+      props: { [S('name')]: value('Статья') },
+    }),
+  ]);
+  assert.deepEqual(mixedScript(findings), []);
+});
+
+test('one offending URL reports once, however many nodes point at it', () => {
+  const { findings } = run([
+    node({
+      id: HOMOGLYPH_URL,
+      page: 'a',
+      types: [S('Article')],
+      props: { [S('name')]: value('Reviews') },
+    }),
+    node({ id: 'https://fixture.test/#b', page: 'a', props: { [S('url')]: ref(HOMOGLYPH_URL) } }),
+    node({
+      id: 'https://fixture.test/#c',
+      page: 'b',
+      props: { [S('mainEntityOfPage')]: ref(HOMOGLYPH_URL) },
+    }),
+  ]);
+  const found = mixedScript(findings);
+  assert.equal(found.length, 1);
+  assert.equal(found[0]?.pages_affected, 2);
+});
+
+/**
+ * One post, one finding.
+ *
+ * Yoast gives a page four ids — the bare URL plus `#article`, `#breadcrumb` and
+ * `#primaryimage` — so keying on the raw value reported a single bad slug four
+ * times. The operator has one thing to fix.
+ */
+test('fragments on one page collapse into a single finding', () => {
+  const { findings } = run([
+    node({
+      id: HOMOGLYPH_URL,
+      page: 'a',
+      types: [S('Article')],
+      props: { [S('name')]: value('Reviews') },
+    }),
+    node({
+      id: `${HOMOGLYPH_URL}#article`,
+      page: 'a',
+      types: [S('Article')],
+      props: { [S('name')]: value('Reviews') },
+    }),
+    node({
+      id: `${HOMOGLYPH_URL}#breadcrumb`,
+      page: 'a',
+      types: [S('BreadcrumbList')],
+      props: { [S('name')]: value('Crumbs') },
+    }),
+  ]);
+  const found = mixedScript(findings);
+  assert.equal(found.length, 1);
+  // Not `found.length` alone: three separate findings would hit
+  // AGGREGATE_THRESHOLD and collapse back to one, so the count cannot tell the
+  // two apart. One row, and no instance_count, is what says they never split.
+  assert.equal(found[0]?.instance_count, undefined, 'reported as an aggregate of several');
+  assert.equal(found[0]?.observed.length, 1);
+  assert.equal(found[0]?.observed[0]?.value, HOMOGLYPH_URL);
+});
+
 // --- graph.unidentified-page -------------------------------------------------
 
 const unidentified = <T extends { check: string }>(findings: T[]): T[] =>
