@@ -2,6 +2,62 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.17.0 — 2026-09-20
+
+### Added
+
+- **`graph.unidentified-page`** — a page whose `WebPage` nodes all claim to be a
+  *different* page.
+
+  > `/shop/page/2/` carries one `CollectionPage`, and both its `@id` and its
+  > `url` say `/shop/`. Nothing on page 2 says it is page 2.
+
+  The page cannot be matched to itself — not by a search engine, not by another
+  page's reference, not by this tool's own graph. Every node is individually
+  valid, so per-page validators pass it.
+
+  **Rule 2 is why nothing caught this before.** Nineteen pages emitting an
+  identical `WebPage` node is textbook repetition, and correctly ignored. What
+  makes it a defect is not that the nodes repeat but that *the page underneath
+  them differs*, and no check had looked at that relationship.
+  `url.canonical-mismatch` compares the declared canonical against the URL
+  served — two witnesses, neither of them the schema — while its own summary
+  text already speculated about "schema url and @id values on this page" pointing
+  somewhere the page disclaims.
+
+  **A node satisfies the check by `@id` or by `url`, and that distinction is the
+  whole thing.** A paginated archive whose `@id` is the series and whose `url` is
+  the page in hand is saying "page 2 of this collection", which is correct and
+  stays silent. That is what Yoast emits, confirmed against a live crawl, so
+  requiring the `@id` to match would have reported every paginated archive on
+  every Yoast site. The rule survived that counter-case by one word.
+
+  Only `WebPage` and its subtypes count. An `Article` describes the content
+  rather than the page, and content legitimately carries a different identity
+  when it is syndicated.
+
+  The `pattern` names the relationship — a parameterised view naming its base
+  URL, a paginated archive naming page 1, a sub-page naming an ancestor — so one
+  generator setting reports once rather than once per page.
+
+  **Which side is wrong is not the check's call.** A page disagreeing with its
+  own markup needs the two reconciled; whether the markup moves or the canonical
+  does is a decision about the site, and the remediation says so rather than
+  choosing.
+
+  Seven tests, each confirmed to fail against a deliberately broken
+  implementation. Two of them were worthless on the first pass and passed against
+  an implementation with the behaviour removed — the percent-encoding case twice
+  over, because canonicalisation normalises hex to upper case and the fixture had
+  been written in the direction that masked it.
+
+### Changed
+
+- **`url.schema-url-mismatch` leaves the "Not yet implemented" table.** It
+  promised "a node's `url` disagreeing with the page it was found on", which is
+  the above in the naive form that fires on every `Organization` node. Listing
+  both would promise a check that duplicates one that exists.
+
 ## 1.16.1 — 2026-09-11
 
 ### Fixed

@@ -7,11 +7,11 @@
  */
 
 import type { ExtractedNode } from '../extract/types.ts';
-import { canonicaliseUrl } from '../url/canonical.ts';
+import { canonicaliseUrl, tryCanonicaliseUrl } from '../url/canonical.ts';
 import { isHopPage, type PageRecord, type StoredLink } from '../store/workdir.ts';
 import { isFunctional, loadCardinalityRules } from './cardinality.ts';
 import { buildGraph, denote, shortIri, valueKey, type EntityGraph } from './graph.ts';
-import { loadHierarchy, typeSetRelation } from './hierarchy.ts';
+import { isSubClassOf, loadHierarchy, typeSetRelation } from './hierarchy.ts';
 import {
   isBenignMediaHost,
   isMediaProperty,
@@ -408,6 +408,138 @@ const identityFracture: Check = {
           });
         }
       }
+    }
+    return findings;
+  },
+};
+
+// --- graph.unidentified-page -------------------------------------------------
+
+const WEB_PAGE = 'http://schema.org/WebPage';
+
+/**
+ * The identity a page-level node claims, by `@id` or by `url`.
+ *
+ * Both, because a paginated archive legitimately splits them: Yoast gives the
+ * `CollectionPage` an `@id` of the series and a `url` of the page in hand, which
+ * says "page 2 of this collection" and is correct. Requiring the `@id` to match
+ * would report every paginated archive on every Yoast site.
+ */
+function claimedIdentities(node: ExtractedNode): string[] {
+  const claims = node.is_blank ? [] : [node.node_id.split('#')[0] as string];
+  for (const value of node.props[URL_PROP] ?? []) {
+    if (typeof value === 'string') claims.push(value);
+    else if (value !== null && typeof value === 'object' && '@id' in value)
+      claims.push(String(value['@id']));
+    else if (value !== null && typeof value === 'object' && '@value' in value)
+      claims.push(String(value['@value']));
+  }
+  return claims;
+}
+
+/** How the identity the nodes name relates to the page they are on. */
+function identityRelationship(pageUrl: string, named: string): string {
+  let relationship = 'names an unrelated URL';
+  try {
+    const page = new URL(pageUrl);
+    const other = new URL(named);
+    const pagePath = page.pathname.replace(/\/$/, '');
+    const otherPath = other.pathname.replace(/\/$/, '');
+
+    if (pagePath === otherPath && page.search !== '' && other.search === '') {
+      relationship = 'parameterised view names the base URL';
+    } else if (
+      /\/page\/\d+$/.test(pagePath) &&
+      pagePath.replace(/\/page\/\d+$/, '') === otherPath
+    ) {
+      relationship = 'paginated archive names page 1';
+    } else if (otherPath !== '' && pagePath.startsWith(`${otherPath}/`)) {
+      relationship = 'sub-page names an ancestor';
+    } else if (otherPath === '' && pagePath !== '') {
+      relationship = 'sub-page names the home page';
+    }
+  } catch {
+    // An unparseable URL is still a finding; it just has no relationship to name.
+  }
+  return relationship;
+}
+
+const unidentifiedPage: Check = {
+  id: 'graph.unidentified-page',
+  group: 'graph',
+  run({ graph, pages, hierarchy }) {
+    const findings: Finding[] = [];
+    const pageIndex = indexPagesById(pages);
+
+    const nodesByPage = new Map<string, ExtractedNode[]>();
+    for (const node of graph.allNodes) {
+      const existing = nodesByPage.get(node.page_id);
+      if (existing === undefined) nodesByPage.set(node.page_id, [node]);
+      else existing.push(node);
+    }
+
+    for (const page of pages) {
+      // The page's own canonical is its identity claim where it has one; the URL
+      // it was served at otherwise.
+      const target = tryCanonicaliseUrl(page.declared_canonical ?? page.canonical_url);
+      if (!target.ok) continue;
+
+      const pageLevel = (nodesByPage.get(page.page_id) ?? []).filter((node) =>
+        node.types.some((type) => type === WEB_PAGE || isSubClassOf(type, WEB_PAGE, hierarchy)),
+      );
+
+      const named = new Set<string>();
+      let claimed = false;
+      for (const node of pageLevel) {
+        for (const claim of claimedIdentities(node)) {
+          const resolved = tryCanonicaliseUrl(claim);
+          if (!resolved.ok) continue;
+          if (resolved.url === target.url) claimed = true;
+          else named.add(resolved.url);
+        }
+      }
+      // Nothing named means nothing to contradict: either the page carries no
+      // page-level node at all, which is coverage.no-structured-data's finding
+      // rather than this one, or the nodes it has are blank with no url.
+      // Conflating the first case with this one reported 33 pages on a site that
+      // simply has no markup — dev-notes/13.
+      if (claimed || named.size === 0) continue;
+
+      const namedList = [...named].sort();
+      const first = namedList[0] as string;
+      findings.push({
+        finding_id: findingId(unidentifiedPage.id, page.page_id),
+        check: unidentifiedPage.id,
+        severity: 'warning',
+        origin: 'check',
+        title: 'No structured data node identifies this page',
+        aggregate_title: 'pages whose structured data identifies a different page',
+        subject: { kind: 'page', id: page.canonical_url },
+        summary:
+          `This page carries ${pageLevel.length} page-level node(s), and not one of them claims ` +
+          `to be ${target.url} — by @id or by url. They name ${first} instead. Anything reading ` +
+          `the markup is told this page is a different page, and every per-page validator passes ` +
+          `it, because each node is individually valid.`,
+        expected: `A WebPage node whose @id or url is ${target.url}.`,
+        ...sampleObserved(
+          namedList.map((value) => ({
+            value,
+            detail: 'named instead of this page',
+            observation_count: 1,
+            page_count: 1,
+            provenance: provenanceOf(pageLevel, pageIndex),
+          })),
+        ),
+        pages_affected: 1,
+        coverage_qualified: false,
+        remediation:
+          'Give the page-level node the identity of the page it is on, or reconcile the ' +
+          'canonical with the identity the markup already publishes. Which of the two moves ' +
+          'is a decision about the site, not about the markup.',
+        tradeoff: null,
+        page_ids: [page.page_id],
+        pattern: identityRelationship(target.url, first),
+      });
     }
     return findings;
   },
@@ -919,6 +1051,7 @@ export const ALL_CHECKS: Check[] = [
   typeConflict,
   dangling,
   identityFracture,
+  unidentifiedPage,
   canonicalMismatch,
   placeholderValue,
   emptyValue,

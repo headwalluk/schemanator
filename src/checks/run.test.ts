@@ -549,6 +549,139 @@ test('a genuinely different declared canonical is a warning', () => {
   );
 });
 
+// --- graph.unidentified-page -------------------------------------------------
+
+const unidentified = <T extends { check: string }>(findings: T[]): T[] =>
+  findings.filter((finding) => finding.check === 'graph.unidentified-page');
+
+test('a sub-page whose only WebPage node names its parent is a warning', () => {
+  const { findings } = run(
+    [
+      node({
+        id: 'https://fixture.test/my-account/',
+        page: 'a',
+        types: [S('WebPage')],
+        props: { [S('url')]: ref('https://fixture.test/my-account/') },
+      }),
+    ],
+    [page('a', { canonical_url: 'https://fixture.test/my-account/lost-password/' })],
+  );
+  const found = unidentified(findings);
+  assert.equal(found.length, 1);
+  assert.equal(found[0]?.severity, 'warning');
+  assert.equal(found[0]?.pattern, 'sub-page names an ancestor');
+});
+
+test('a paginated archive naming page 1 by both @id and url is a warning', () => {
+  const { findings } = run(
+    [
+      node({
+        id: 'https://fixture.test/shop/',
+        page: 'a',
+        types: [S('CollectionPage')],
+        props: { [S('url')]: ref('https://fixture.test/shop/') },
+      }),
+    ],
+    [page('a', { canonical_url: 'https://fixture.test/shop/page/2/' })],
+  );
+  assert.equal(unidentified(findings)[0]?.pattern, 'paginated archive names page 1');
+});
+
+/**
+ * The regression that decides whether this check is shippable.
+ *
+ * Yoast gives a paginated archive an `@id` of the series and a `url` of the page
+ * in hand. That is coherent — one collection, and this is the view of it — so
+ * matching on `@id` alone would report every paginated archive on every Yoast
+ * site. Confirmed against a live crawl of headwall-hosting.com, dev-notes/13.
+ */
+test('a paginated archive whose url names the page is silent, even though its @id does not', () => {
+  const { findings } = run(
+    [
+      node({
+        id: 'https://fixture.test/blog/',
+        page: 'a',
+        types: [S('CollectionPage')],
+        props: { [S('url')]: ref('https://fixture.test/blog/page/2/') },
+      }),
+    ],
+    [page('a', { canonical_url: 'https://fixture.test/blog/page/2/' })],
+  );
+  assert.deepEqual(unidentified(findings), []);
+});
+
+test('a parameterised view whose nodes name the base URL is a warning', () => {
+  const { findings } = run(
+    [
+      node({
+        id: 'https://fixture.test/tool/',
+        page: 'a',
+        types: [S('WebPage')],
+        props: { [S('url')]: ref('https://fixture.test/tool/') },
+      }),
+    ],
+    [page('a', { canonical_url: 'https://fixture.test/tool/?variant=star-trek' })],
+  );
+  assert.equal(unidentified(findings)[0]?.pattern, 'parameterised view names the base URL');
+});
+
+/** Conflating the two reported 33 pages on a site that simply has no markup. */
+test('a page with no page-level node is coverage.no-structured-data, not this', () => {
+  const { findings } = run(
+    [node({ id: 'https://fixture.test/#org', page: 'a', types: [S('Organization')] })],
+    [page('a', { canonical_url: 'https://fixture.test/anything/' })],
+  );
+  assert.deepEqual(unidentified(findings), []);
+});
+
+/**
+ * Same URL, different encoding, and not a finding.
+ *
+ * Found in the corpus: a site whose slugs carry non-ASCII characters publishes
+ * them percent-encoded in one place and literally in another.
+ *
+ * Every claim on the node is spelled in lower-case hex, and canonicalisation
+ * normalises to upper — so the claim side only matches if it is canonicalised
+ * too. Two earlier versions of this test passed against a deliberately
+ * un-canonicalised implementation: the first gave the `url` the page's own
+ * spelling, the second spelled the claims upper-case, which is what the page
+ * canonicalises *to*.
+ */
+test('an identity differing from the page only in percent-encoding is silent', () => {
+  const { findings } = run(
+    [
+      node({
+        id: 'https://fixture.test/a%ef%b8%8f/',
+        page: 'a',
+        types: [S('WebPage')],
+        props: { [S('url')]: ref('https://fixture.test/a%ef%b8%8f/') },
+      }),
+    ],
+    [page('a', { canonical_url: 'https://fixture.test/a%ef%b8%8f/' })],
+  );
+  assert.deepEqual(unidentified(findings), []);
+});
+
+test('the declared canonical is the identity the page is judged against', () => {
+  const { findings } = run(
+    [
+      node({
+        id: 'https://fixture.test/real/',
+        page: 'a',
+        types: [S('WebPage')],
+        props: { [S('url')]: ref('https://fixture.test/real/') },
+      }),
+    ],
+    [
+      page('a', {
+        canonical_url: 'https://fixture.test/served/',
+        declared_canonical: 'https://fixture.test/real/',
+      }),
+    ],
+  );
+  assert.deepEqual(unidentified(findings), []);
+});
+
 // --- engine ------------------------------------------------------------------
 
 test('a disabled check does not run', () => {

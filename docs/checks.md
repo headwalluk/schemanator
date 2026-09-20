@@ -136,6 +136,35 @@ Syntactically valid, so every per-page tool passes it. Under a partial crawl thi
 is marked as qualified by coverage — the definition may live on a page that was
 not fetched.
 
+### `graph.unidentified-page` — Warning
+
+A page whose `WebPage` nodes all claim to be a *different* page.
+
+> `/shop/page/2/` carries one `CollectionPage`, and both its `@id` and its `url`
+> say `/shop/`. Nothing on page 2 says it is page 2.
+
+**Why it matters:** the page cannot be matched to itself — not by a search
+engine, not by another page's reference, not by this tool's graph. Each node is
+individually valid, so per-page validators pass it.
+
+A node satisfies this by `@id` **or** by `url`, and the distinction is the whole
+check. A paginated archive whose `@id` is the series and whose `url` is the page
+in hand is saying "page 2 of this collection", which is correct and stays
+silent — it is what Yoast emits, so requiring the `@id` to match would report
+every paginated archive on every Yoast site.
+
+Only `WebPage` and its subtypes count. An `Article` describes the content rather
+than the page, and content legitimately carries a different identity when it is
+syndicated.
+
+The `pattern` names the relationship — a parameterised view naming its base URL,
+a paginated archive naming page 1, a sub-page naming an ancestor — so one
+generator setting reports once rather than once per page.
+
+**Which side is wrong is not this check's call.** A page disagreeing with its own
+markup needs the two reconciled; whether the markup moves or the canonical does
+is a decision about the site.
+
 ### `graph.relative-id` — Warning
 
 An entity published under a fragment-only `@id` such as `"#organization"`.
@@ -834,5 +863,4 @@ Designed and specified, but **not built** — they will not appear in a report:
 | Check | Would report |
 | --- | --- |
 | `entity.formatting-drift` | Values differing only in spelling — `+44 118 334 4955` against `+441183344955` |
-| `url.schema-url-mismatch` | A node's `url` disagreeing with the page it was found on |
 | `url.host-drift` | Schema URLs using a different host spelling than the crawl |
