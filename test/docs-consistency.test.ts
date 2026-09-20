@@ -199,12 +199,20 @@ test('every documented environment variable is read somewhere', () => {
 });
 
 /**
+ * Our own sites, which may be named freely in our own evidence.
+ *
+ * Kept as its own pattern rather than as prose in the comment below, because
+ * the drift test needs to ask the question mechanically: *is this host ours, or
+ * has it escaped the leak check?*
+ */
+const OUR_SITES = /headwall-hosting|power-plugins|vulnz|verifytrusted/i;
+
+/**
  * Sites that must never appear in anything published.
  *
- * Three are deliberately absent — `headwall-hosting.com`, `power-plugins.com`
- * and `vulnz.net` are ours, and naming our own sites in our own evidence is
- * fine. Everything else in the corpus belongs to a client, and naming a client
- * alongside a defect on their site is not ours to do.
+ * The four in {@link OUR_SITES} are deliberately absent. Everything else in the
+ * corpus belongs to a client, and naming a client alongside a defect on their
+ * site is not ours to do.
  *
  * Case-insensitive, because the leak that got closest was not a hostname at all
  * — it was a client's page title, `"PermaJet Inkjet Paper | FREE NEXT DAY
@@ -213,6 +221,62 @@ test('every documented environment variable is read somewhere', () => {
  */
 const CLIENT_NAMES =
   /bravanark|footballinberkshire|rcem\.ac\.uk|permajet|activehands|aurahear|tgfelectrical|intrepiddesign|the-observatory|emdrtherapy|jupiterartland|graphenstone|cheeselogs|clearpipe|heathcote|skintechacademy|burleighdesign|webidaze|ahc\.co\.uk/i;
+
+test('every site in the corpus is either ours or covered by the leak check', (t) => {
+  // CLIENT_NAMES is hand-maintained, so a site added to the corpus and never
+  // added to it falls outside the only guard standing between a client's name
+  // and a public repository — silently, because a name nobody checks for reads
+  // exactly like a name nobody has written. One site had already drifted out
+  // this way before this test existed.
+  //
+  // Both sources, because they are not the same set and the difference is where
+  // the risk lives. `sites.txt` is the *target list*; `work/` is what was
+  // *actually crawled*, and an ad-hoc crawl of one client's site never enters
+  // the list. Reading only `sites.txt` missed a crawled site that was outside
+  // the leak check — which is precisely the case this test exists to catch.
+  //
+  // Both are gitignored, so this can only run where the corpus lives. Absent,
+  // it says so rather than passing: a leak check that quietly stops covering
+  // something is worse than no leak check, which is the same reason
+  // `docFiles()` recurses.
+  const listPath = path.join(ROOT, 'sites.txt');
+  const workPath = path.join(ROOT, 'work');
+  const haveList = fs.existsSync(listPath);
+  const haveWork = fs.existsSync(workPath);
+  if (!haveList && !haveWork) {
+    t.skip('sites.txt and work/ are both gitignored and absent from this checkout');
+    return;
+  }
+
+  const targeted = haveList
+    ? fs
+        .readFileSync(listPath, 'utf8')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line !== '' && !line.startsWith('#'))
+    : [];
+  const crawled = haveWork
+    ? fs
+        .readdirSync(workPath, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+        .map((entry) => entry.name)
+    : [];
+
+  const uncovered = [...targeted, ...crawled]
+    .map((line) =>
+      line
+        .replace(/^[a-z]+:\/\//i, '')
+        .replace(/\/.*$/, '')
+        .replace(/^www\./i, ''),
+    )
+    .filter((host) => !CLIENT_NAMES.test(host) && !OUR_SITES.test(host));
+
+  assert.deepEqual(
+    [...new Set(uncovered)].sort(),
+    [],
+    'crawled but outside the leak check — add to CLIENT_NAMES, or to OUR_SITES if it is ours',
+  );
+});
 
 test('docs never name a real client site', () => {
   // `dev-notes/` names real sites and their defects; `docs/` is written to be

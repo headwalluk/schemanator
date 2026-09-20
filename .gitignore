@@ -35,3 +35,7 @@ dist/
 .env.*
 !.env.example
 *~
+
+# Third-party SEO tool exports and other ad-hoc working files. Contains crawl
+# data about real sites, same as work/, and none of it is project source.
+var/
