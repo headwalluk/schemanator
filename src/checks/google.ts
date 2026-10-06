@@ -242,7 +242,7 @@ export function loadGoogleRules(configPath?: string): GoogleRules {
  * mixed-vintage markup arrives as `http://` and expands to a different IRI. A
  * lookup that picks one silently misses every site on the other.
  */
-function valuesOf(node: ExtractedNode, field: string): readonly unknown[] {
+export function valuesOf(node: ExtractedNode, field: string): readonly unknown[] {
   return (
     node.props[`https://schema.org/${field}`] ?? node.props[`http://schema.org/${field}`] ?? []
   );
@@ -251,7 +251,7 @@ function valuesOf(node: ExtractedNode, field: string): readonly unknown[] {
 /** Nodes reached through a property. `graph.index` is the right map here: the
  * question is "what does this reference point at", which is exactly what it is
  * deduplicated for. */
-function targetsOf(node: ExtractedNode, field: string, graph: EntityGraph): ExtractedNode[] {
+export function targetsOf(node: ExtractedNode, field: string, graph: EntityGraph): ExtractedNode[] {
   const targets: ExtractedNode[] = [];
   for (const value of valuesOf(node, field)) {
     if (value === null || typeof value !== 'object') continue;

@@ -108,10 +108,13 @@ export interface ObservedSample {
   observation_total: number;
 }
 
-export function sampleObserved(rows: readonly Observed[]): ObservedSample {
+export function sampleObserved(
+  rows: readonly Observed[],
+  cap: number = OBSERVED_SAMPLE,
+): ObservedSample {
   return {
-    observed: rows.slice(0, OBSERVED_SAMPLE),
-    omitted_count: Math.max(0, rows.length - OBSERVED_SAMPLE),
+    observed: rows.slice(0, cap),
+    omitted_count: Math.max(0, rows.length - cap),
     // Summed over all rows rather than the surviving ones: an aggregate asks its
     // constituents how much they saw, and a truncated constituent that answers
     // with its sample undercounts by however much it dropped.

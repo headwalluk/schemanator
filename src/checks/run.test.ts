@@ -1018,6 +1018,145 @@ test('empty values are grouped by property, not per page', () => {
   assert.equal(findings.filter((finding) => finding.check === 'value.empty').length, 1);
 });
 
+// --- value.zero-price ---------------------------------------------------------
+
+/** A product and its offer, shaped the way WooCommerce core writes them. */
+function pricedProduct(options: {
+  page: string;
+  name?: string;
+  type?: string;
+  offerType?: string;
+  prices: Record<string, unknown[]>;
+  specification?: Record<string, unknown[]>;
+}): ExtractedNode[] {
+  const offerId = `_:${options.page}/offer`;
+  const specificationId = `_:${options.page}/spec`;
+  const offerProps: Record<string, unknown[]> = { ...options.prices };
+  if (options.specification !== undefined) {
+    offerProps[S('priceSpecification')] = ref(specificationId);
+  }
+  return [
+    node({
+      id: `https://example.com/${options.page}#product`,
+      page: options.page,
+      types: [S(options.type ?? 'Product')],
+      props: { [S('name')]: value(options.name ?? 'A product'), [S('offers')]: ref(offerId) },
+    }),
+    node({
+      id: offerId,
+      page: options.page,
+      types: [S(options.offerType ?? 'Offer')],
+      props: offerProps,
+    }),
+    ...(options.specification === undefined
+      ? []
+      : [
+          node({
+            id: specificationId,
+            page: options.page,
+            types: [S('PriceSpecification')],
+            props: options.specification,
+          }),
+        ]),
+  ];
+}
+
+const zeroPriced = (nodes: ExtractedNode[], pages: PageRecord[] = [page('a'), page('b')]) =>
+  run(nodes, pages).findings.filter((finding) => finding.check === 'value.zero-price');
+
+test('a product whose every price is zero is listed by page, name and price', () => {
+  const findings = zeroPriced(
+    pricedProduct({
+      page: 'a',
+      name: 'Starter Bundle',
+      prices: { [S('price')]: value('0.00') },
+      specification: { [S('price')]: value('0.00') },
+    }),
+  );
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.severity, 'warning');
+  assert.equal(findings[0]?.observed[0]?.value, 'https://example.com/a');
+  assert.equal(findings[0]?.observed[0]?.detail, 'Starter Bundle — price 0.00');
+  // The offer, not the product, is where the zero is written.
+  assert.equal(findings[0]?.observed[0]?.provenance[0]?.page_id, 'a');
+});
+
+test('every zero-priced product is listed, past the usual sample cap', () => {
+  // The owner reads the list and says which are really free, so a list cut at
+  // the ordinary cap of 10 is a list they cannot check.
+  const ids = Array.from({ length: 12 }, (_unused, index) => `p${index}`);
+  const findings = zeroPriced(
+    ids.flatMap((id) => pricedProduct({ page: id, prices: { [S('price')]: value('0') } })),
+    ids.map((id) => page(id)),
+  );
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.pages_affected, 12);
+  assert.equal(findings[0]?.omitted_count, 0);
+  assert.deepEqual(
+    findings[0]?.observed.map((observed) => observed.value),
+    ids.map((id) => `https://example.com/${id}`),
+  );
+});
+
+test('a numeric zero and a product subtype both count', () => {
+  const findings = zeroPriced(
+    pricedProduct({
+      page: 'a',
+      type: 'IndividualProduct',
+      prices: { [S('price')]: [{ '@value': 0 }] },
+    }),
+  );
+  assert.equal(findings.length, 1);
+});
+
+test('a zero written only in priceSpecification counts', () => {
+  // Real corpus shape: some generators put the price nowhere else.
+  const findings = zeroPriced(
+    pricedProduct({
+      page: 'a',
+      prices: { [S('priceCurrency')]: value('GBP') },
+      specification: { [S('price')]: value('0') },
+    }),
+  );
+  assert.equal(findings.length, 1);
+});
+
+test('a free event is not a zero-priced product', () => {
+  // Most zero-priced offers in the corpus sit on events, and are free events.
+  assert.deepEqual(
+    zeroPriced(pricedProduct({ page: 'a', type: 'Event', prices: { [S('price')]: value('0') } })),
+    [],
+  );
+});
+
+test('a price range starting at zero is a free tier, not a free product', () => {
+  assert.deepEqual(
+    zeroPriced(
+      pricedProduct({
+        page: 'a',
+        offerType: 'AggregateOffer',
+        prices: { [S('lowPrice')]: value('0.00'), [S('highPrice')]: value('13.00') },
+      }),
+    ),
+    [],
+  );
+});
+
+test('a priced product is not reported', () => {
+  assert.deepEqual(
+    zeroPriced(
+      pricedProduct({
+        page: 'a',
+        prices: { [S('price')]: value('49.00') },
+        specification: { [S('price')]: value('49.00') },
+      }),
+    ),
+    [],
+  );
+});
+
 // --- url.insecure-self-reference ---------------------------------------------
 
 test('an http self-reference on an https site is a warning', () => {

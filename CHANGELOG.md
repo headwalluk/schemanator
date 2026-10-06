@@ -2,6 +2,30 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.20.0 — 2026-10-06
+
+### Added
+
+- **`value.zero-price`** — products whose every stated price is zero. Consumers
+  read that as "this is free", and a shopping listing shows it that way.
+
+  Found on a client's WooCommerce store, where product bundles reached the
+  markup as `0.00` while the page displayed "From: £…". Nothing reported it
+  before: zero is a valid price, so no check had a reason to look.
+
+  Zero is also a legitimate price — free samples, catalogues, downloads — so the
+  finding asks rather than asserts, and **lists every product** by URL, name and
+  price for the owner to confirm. Free `Event`s are not judged, and a price
+  range starting at zero (a free ticket tier) is not a free product. Across the
+  test corpus it fires on 4 of 23 sites; on the client site all 27 listed
+  products were bundles displaying a real price.
+
+### Changed
+
+- **`sampleObserved()` takes an optional cap.** Every check still lists 10 rows
+  by default; `value.zero-price` lists up to 100, because a list the owner has
+  to check item by item is useless truncated.
+
 ## 1.19.0 — 2026-10-06
 
 ### Added

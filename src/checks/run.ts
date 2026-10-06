@@ -11,7 +11,7 @@ import { canonicaliseUrl, tryCanonicaliseUrl } from '../url/canonical.ts';
 import { isHopPage, type PageRecord, type StoredLink } from '../store/workdir.ts';
 import { isFunctional, loadCardinalityRules } from './cardinality.ts';
 import { buildGraph, denote, shortIri, valueKey, type EntityGraph } from './graph.ts';
-import { isSubClassOf, loadHierarchy, typeSetRelation } from './hierarchy.ts';
+import { closure, isSubClassOf, loadHierarchy, typeSetRelation } from './hierarchy.ts';
 import {
   isBenignMediaHost,
   isMediaProperty,
@@ -19,7 +19,7 @@ import {
   matchPlaceholder,
 } from './values.ts';
 import { BREADCRUMB_CHECKS } from './breadcrumb.ts';
-import { GOOGLE_CHECKS, loadGoogleRules } from './google.ts';
+import { GOOGLE_CHECKS, loadGoogleRules, targetsOf, valuesOf } from './google.ts';
 import { CONTENT_CHECKS } from './content.ts';
 import { PAGE_CHECKS } from './page.ts';
 import { INDEXING_CHECKS } from './indexing.ts';
@@ -729,6 +729,129 @@ const emptyValue: Check = {
   },
 };
 
+// --- value.zero-price ---------------------------------------------------------
+
+const PRODUCT_TYPE = 'Product';
+const OFFERS_FIELD = 'offers';
+const PRICE_SPECIFICATION_FIELD = 'priceSpecification';
+const NAME_FIELD = 'name';
+
+/** Every price an offer states, as written: single, range bounds, and specification. */
+const OFFER_PRICE_FIELDS = ['price', 'lowPrice', 'highPrice'] as const;
+
+/**
+ * Rows listed before the sample is cut, well above {@link OBSERVED_SAMPLE}.
+ *
+ * The list is the finding: the owner reads it and says which products really
+ * are free, and a truncated list cannot be checked. 27 on the client site that
+ * prompted this; 100 still bounds a store where every product reads zero, which
+ * is one generator setting and needs no more examples to prove it.
+ */
+const ZERO_PRICE_SAMPLE = 100;
+
+/** `0`, `0.00`, `0,00` — zero however it is spelled. Other text is not a number here. */
+const ZERO_PRICE = /^0+(?:[.,]0+)?$/;
+const PRICE_NUMBER = /^\d+(?:[.,]\d+)?$/;
+
+/** The literal prices on one offer, `priceSpecification` included. */
+function offerPrices(offer: ExtractedNode, graph: EntityGraph): string[] {
+  const holders = [offer, ...targetsOf(offer, PRICE_SPECIFICATION_FIELD, graph)];
+  const prices: string[] = [];
+  for (const holder of holders) {
+    for (const field of OFFER_PRICE_FIELDS) {
+      for (const value of valuesOf(holder, field)) {
+        if (value === null || typeof value !== 'object') continue;
+        const literal = (value as Record<string, unknown>)['@value'];
+        if (typeof literal === 'string' || typeof literal === 'number') {
+          prices.push(String(literal).trim());
+        }
+      }
+    }
+  }
+  return prices;
+}
+
+/**
+ * A product whose every stated price is zero.
+ *
+ * Zero is a legitimate price — a free catalogue, a free plugin, a free booking
+ * — so this asks rather than asserts, and lists every product so the owner can
+ * say which are really free. Only products are judged: a free `Event` is
+ * ordinary and is where most zero-priced offers in the corpus sit.
+ *
+ * "Every" price, not "any": an `AggregateOffer` running from `0.00` to `13.00`
+ * is a ticket with a free tier, not a free product.
+ */
+const zeroPrice: Check = {
+  id: 'value.zero-price',
+  group: 'value',
+  run({ graph, pages, hierarchy }) {
+    const pageIndex = indexPagesById(pages);
+    const free: { product: ExtractedNode; offers: ExtractedNode[]; prices: string[] }[] = [];
+
+    // `allNodes`, never `index`: a product repeated across pages is listed on each.
+    for (const product of graph.allNodes) {
+      if (!closure(product.types, hierarchy).has(PRODUCT_TYPE)) continue;
+      const offers = targetsOf(product, OFFERS_FIELD, graph);
+      const prices = offers
+        .flatMap((offer) => offerPrices(offer, graph))
+        .filter((price) => PRICE_NUMBER.test(price));
+      if (prices.length === 0 || !prices.every((price) => ZERO_PRICE.test(price))) continue;
+      free.push({ product, offers, prices });
+    }
+    if (free.length === 0) return [];
+
+    const pageIds = [...new Set(free.map(({ product }) => product.page_id))];
+
+    return [
+      {
+        finding_id: findingId(zeroPrice.id, 'site'),
+        check: zeroPrice.id,
+        severity: 'warning',
+        origin: 'check',
+        title: `${free.length} product(s) are priced at zero`,
+        subject: { kind: 'site', id: 'site' },
+        summary:
+          `${free.length} product(s) on ${pageIds.length} page(s) carry offers whose every price ` +
+          `is zero. Consumers read that as "this is free", and a shopping listing will show it ` +
+          `that way.\n\n` +
+          `**Check the list against what is actually free.** Some will be — samples, catalogues, ` +
+          `free downloads. Any that are not mean the structured data is not reading the price the ` +
+          `page shows. Products whose price is calculated rather than stored, such as bundles ` +
+          `with optional items, are one way this happens: the generator reads a stored base ` +
+          `price of zero while the page displays the calculated one.`,
+        expected: 'A zero price only on products that are genuinely free.',
+        ...sampleObserved(
+          free.map(({ product, offers, prices }) => {
+            const name = valuesOf(product, NAME_FIELD)
+              .map((value) =>
+                value !== null && typeof value === 'object'
+                  ? (value as Record<string, unknown>)['@value']
+                  : undefined,
+              )
+              .find((value): value is string => typeof value === 'string');
+            return {
+              value: pageIndex.get(product.page_id)?.canonical_url ?? product.page_id,
+              detail: `${name ?? 'unnamed product'} — price ${[...new Set(prices)].join(', ')}`,
+              observation_count: 1,
+              page_count: 1,
+              provenance: provenanceOf(offers, pageIndex),
+            };
+          }),
+          ZERO_PRICE_SAMPLE,
+        ),
+        pages_affected: pageIds.length,
+        coverage_qualified: false,
+        remediation:
+          'For each product that is not really free, find what generates its offer and make it ' +
+          'publish the price the page displays. Products that genuinely are free need nothing.',
+        tradeoff: null,
+        page_ids: pageIds,
+      },
+    ];
+  },
+};
+
 const insecureSelfReference: Check = {
   id: 'url.insecure-self-reference',
   group: 'url',
@@ -1170,6 +1293,7 @@ export const ALL_CHECKS: Check[] = [
   canonicalMismatch,
   placeholderValue,
   emptyValue,
+  zeroPrice,
   insecureSelfReference,
   foreignMediaHost,
   mixedScript,

@@ -301,6 +301,29 @@ entirely blank `PostalAddress` is the usual instance.
 **How to fix:** fill it in, or stop emitting the property when there is nothing
 to say.
 
+### `value.zero-price` — Warning
+
+Products whose every stated price is zero — `price`, `lowPrice`, `highPrice`
+and `priceSpecification.price` on all of their offers. Consumers read that as
+"this is free", and a shopping listing will show it that way.
+
+> 12 product(s) are priced at zero — `/product/starter-bundle/` publishes
+> `price: "0.00"` while the page displays "From: £49.00".
+
+**Zero is a legitimate price**, so this asks rather than asserts. Free
+samples, catalogues and downloads are real, and every product is listed by URL,
+name and price so the owner can say which ones are. Any that are not free mean
+the structured data is not reading the price the page shows. Products whose
+price is calculated rather than stored, such as bundles with optional items, are
+one way this happens.
+
+Only products are judged; a free `Event` is ordinary. A price range starting at
+zero — an `AggregateOffer` from `0.00` to `13.00` — is a free tier, not a free
+product, and is not reported.
+
+**How to fix:** for each product that is not really free, make whatever
+generates its offer publish the price the page displays.
+
 ---
 
 ## `coverage` — absence and opportunity
