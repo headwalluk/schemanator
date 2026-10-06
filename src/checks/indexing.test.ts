@@ -421,3 +421,104 @@ test('a measured site with no repeats is silent, not empty-handed', () => {
     [],
   );
 });
+
+// --- sitemap-noindex ---------------------------------------------------------
+
+/** A page record whose own `<meta name="robots">` says `raw`. */
+function withRobots(record: PageRecord, raw: string, words = 400): PageRecord {
+  return {
+    ...record,
+    page_facts: {
+      title: 'A page',
+      meta_description: null,
+      heading_levels: [1],
+      robots: {
+        index: !raw.includes('noindex'),
+        follow: !raw.includes('nofollow'),
+        raw,
+      },
+      hreflang: [],
+      html_lang: 'en-GB',
+      landmarks: { has_main: true, has_article: false },
+      images: { total: 0, missing_alt: 0, suspect_alt: [] },
+      text: {
+        dom_words: words,
+        extractable_words: words,
+        main_words: words,
+        aside_words: 0,
+        hidden_words: 0,
+      },
+      content_simhash: 'abcdef0123456789',
+    },
+  };
+}
+
+test('a sitemap URL whose page says noindex is a warning, naming the file', () => {
+  const findings = only(
+    [
+      withRobots(page({ id: 'cart' }), 'noindex, follow'),
+      withRobots(page({ id: 'my-account' }), 'noindex, follow'),
+      withRobots(page({ id: 'about' }), 'index, follow'),
+    ],
+    'indexing.sitemap-noindex',
+  );
+
+  assert.equal(findings.length, 1, 'one generator behaviour, one finding');
+  assert.equal(findings[0]?.severity, 'warning');
+  assert.equal(findings[0]?.pages_affected, 2);
+  assert.deepEqual(
+    findings[0]?.observed.map((observed) => observed.value),
+    ['https://example.com/cart', 'https://example.com/my-account'],
+  );
+  assert.equal(
+    findings[0]?.observed[0]?.detail,
+    'robots "noindex, follow" — listed in https://example.com/s.xml',
+  );
+});
+
+test('a noindex page found by following a link is not in any sitemap to contradict', () => {
+  assert.deepEqual(
+    only(
+      [withRobots(page({ id: 'a', fromSitemap: false }), 'noindex, follow')],
+      'indexing.sitemap-noindex',
+    ),
+    [],
+  );
+});
+
+test('a sitemap URL redirecting to a noindex page belongs to sitemap-redirects', () => {
+  // Both ways a redirect is stored: a record of its own, and an alias folded
+  // into a destination that was reached some other way.
+  const ownRecord = withRobots(
+    page({
+      id: 'old',
+      url: 'https://example.com/old',
+      canonical: 'https://example.com/new',
+      redirects: ['https://example.com/new'],
+    }),
+    'noindex, follow',
+  );
+  const folded = withRobots(
+    {
+      ...withAlias({ url: 'https://example.com/was', redirects: ['https://example.com/target'] }),
+      source: 'link:https://example.com/',
+    },
+    'noindex, follow',
+  );
+
+  const pages = [ownRecord, folded];
+  assert.deepEqual(only(pages, 'indexing.sitemap-noindex'), []);
+  assert.equal(only(pages, 'indexing.sitemap-redirects').length, 1);
+});
+
+test('a thin noindex page is billed once, as noindex rather than thin', () => {
+  // `thin-sitemap-entry` advises setting these pages to noindex, which on a
+  // WooCommerce cart has already been done.
+  const thinPage = page({ id: 'thin' });
+  const indexable = [withRobots(thinPage, 'index, follow', 3)];
+  const refused = [withRobots(thinPage, 'noindex, follow', 3)];
+
+  assert.equal(only(indexable, 'indexing.thin-sitemap-entry').length, 1);
+  assert.deepEqual(only(refused, 'indexing.thin-sitemap-entry'), []);
+  assert.equal(only(refused, 'indexing.sitemap-noindex').length, 1);
+});

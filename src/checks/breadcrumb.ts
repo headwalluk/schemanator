@@ -41,9 +41,11 @@ import {
   findingId,
   indexPagesById,
   provenanceOf,
+  requestsOf,
   sampleObserved,
   type Check,
   type CheckContext,
+  type CrawlRequest,
   type Finding,
   type Observed,
 } from './framework.ts';
@@ -524,6 +526,11 @@ const multipleParents: Check = {
  *
  * Off-site crumbs are skipped for the same reason — we do not fetch other
  * people's hosts, so we know nothing about them.
+ *
+ * A crumb that redirects is reported separately from one that errors, because
+ * the fix differs: repoint the crumb rather than restore a page. Until 1.19.0
+ * the lookup was keyed by the URL each page *landed on*, so a redirecting crumb
+ * either found its destination (a 200) or nothing at all and was never seen.
  */
 const brokenTrailItem: Check = {
   id: 'breadcrumb.broken-trail-item',
@@ -532,35 +539,62 @@ const brokenTrailItem: Check = {
     const { sequences } = trailContext(context);
     const { siteHost } = context;
 
-    const byUrl = new Map<string, PageRecord>();
+    // Keyed by the URL that was *requested*: a crumb naming a URL that
+    // redirected must find the redirect, not the page it landed on. Landing
+    // URLs fill the gaps, as a request served directly at that address.
+    const byUrl = new Map<string, CrawlRequest>();
     for (const page of context.pages) {
-      const canonical = tryCanonicaliseUrl(page.canonical_url);
-      if (canonical.ok) byUrl.set(canonical.url, page);
+      const landed = tryCanonicaliseUrl(page.canonical_url);
+      if (!landed.ok) continue;
+      byUrl.set(landed.url, {
+        url: page.canonical_url,
+        source: page.source,
+        http_status: page.http_status,
+        redirect_chain: [],
+        page,
+      });
+    }
+    for (const request of requestsOf(context.pages)) {
+      const requested = tryCanonicaliseUrl(request.url);
+      if (requested.ok) byUrl.set(requested.url, request);
     }
 
     const broken = new Map<string, { status: number; pages: Set<string> }>();
+    const redirecting = new Map<
+      string,
+      { status: number; destination: string; pages: Set<string> }
+    >();
 
     for (const { trail, urls } of sequences) {
       for (const url of urls) {
-        let host: string;
-        try {
-          host = new URL(url).host;
-        } catch {
-          continue;
-        }
-        if (host !== siteHost) continue;
+        // Crumb URLs are canonicalised by `crumbUrl`, so they always parse.
+        if (URL.parse(url)?.host !== siteHost) continue;
 
         // Never crawled is never a finding — see the note above.
-        const page = byUrl.get(url);
-        if (page === undefined || page.http_status === null || page.http_status === 200) continue;
+        const request = byUrl.get(url);
+        if (request === undefined || request.http_status === null) continue;
 
-        const record = broken.get(url) ?? { status: page.http_status, pages: new Set<string>() };
-        record.pages.add(trail.page_id);
-        broken.set(url, record);
+        const firstHop = request.redirect_chain[0];
+        if (request.http_status !== 200) {
+          const record = broken.get(url) ?? {
+            status: request.http_status,
+            pages: new Set<string>(),
+          };
+          record.pages.add(trail.page_id);
+          broken.set(url, record);
+        } else if (firstHop !== undefined) {
+          const record = redirecting.get(url) ?? {
+            status: firstHop.status,
+            destination: request.page.canonical_url,
+            pages: new Set<string>(),
+          };
+          record.pages.add(trail.page_id);
+          redirecting.set(url, record);
+        }
       }
     }
 
-    return [...broken.entries()].map(([url, record]) => ({
+    const brokenFindings: Finding[] = [...broken.entries()].map(([url, record]) => ({
       finding_id: findingId('breadcrumb.broken-trail-item', url),
       check: 'breadcrumb.broken-trail-item',
       severity: 'warning' as const,
@@ -588,6 +622,41 @@ const brokenTrailItem: Check = {
       aggregate_title: 'breadcrumb targets return an error status',
       page_ids: [...record.pages],
     }));
+
+    const redirectFindings: Finding[] = [...redirecting.entries()].map(([url, record]) => ({
+      finding_id: findingId('breadcrumb.broken-trail-item', url),
+      check: 'breadcrumb.broken-trail-item',
+      severity: 'warning' as const,
+      origin: 'check' as const,
+      title: `A breadcrumb links to a URL that redirects`,
+      subject: { kind: 'page' as const, id: url },
+      summary:
+        `${record.pages.size} breadcrumb trail(s) link to ${pathOf(url)}, which answered ` +
+        `HTTP ${record.status} and redirected to ${pathOf(record.destination)} when crawled. The ` +
+        `trail names it as an ancestor of the current page, and the site itself says that page ` +
+        `lives somewhere else.`,
+      expected: 'Every crumb linking directly to the page it names.',
+      observed: [
+        {
+          value: url,
+          detail: `${record.status} → ${record.destination}`,
+          observation_count: record.pages.size,
+          page_count: record.pages.size,
+          provenance: [],
+        },
+      ],
+      pages_affected: record.pages.size,
+      coverage_qualified: false,
+      remediation:
+        'Point the crumb at the destination, or drop it if the destination is not really an ' +
+        'ancestor of these pages.',
+      tradeoff: null,
+      pattern: 'crumb target redirects',
+      aggregate_title: 'breadcrumb targets that redirect',
+      page_ids: [...record.pages],
+    }));
+
+    return [...brokenFindings, ...redirectFindings];
   },
 };
 

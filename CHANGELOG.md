@@ -2,6 +2,48 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.19.0 — 2026-10-06
+
+### Added
+
+- **`indexing.sitemap-noindex`** — a sitemap lists a URL whose page carries
+  `noindex`. The sitemap asks for the page to be indexed and the page refuses;
+  Search Console reports the same thing as "Submitted URL marked 'noindex'".
+
+  Found on a client site whose owner believed their cart and account pages were
+  already out of the sitemap. WooCommerce marks them `noindex`; the SEO plugin
+  writing the sitemap does not know, and keeps listing them. Across the test
+  corpus it fires on 7 of 23 sites, 9 URLs, every one a real contradiction — and
+  not only WooCommerce: the WordPress core sitemap does it too.
+
+  Each URL is listed with its robots value and the sitemap file it came from,
+  because the fix belongs to whichever generator owns that file. Keeping a
+  newly noindexed URL in the sitemap so it drops out of the index sooner is a
+  recognised tactic, and the finding says so rather than staying silent.
+
+  Reads `<meta name="robots">` only. The crawl does not store response
+  headers, so an `X-Robots-Tag: noindex` is not seen.
+
+### Changed
+
+- **`breadcrumb.broken-trail-item` now reports crumbs that redirect.** It was
+  documented as "a non-200 status" and had never seen one: the lookup was keyed
+  by where each page *landed*, so a crumb naming a redirecting URL found either
+  its destination, which returned 200, or nothing at all. Since 1.12.0 folded
+  redirects into the page they reach, the most common case was not even a page
+  record.
+
+  A redirecting crumb is reported separately from an erroring one, with its own
+  `pattern`, because the fix is different — repoint the crumb rather than
+  restore a page. **Sites that previously reported nothing here may gain a
+  finding on re-analysis**; on power-plugins.com it is the WooCommerce `/shop/`
+  crumb, which redirects to `/plugins/`, on 19 product pages. Existing 404 and
+  5xx findings keep their finding ids, so `--since` still matches them.
+
+- **`indexing.thin-sitemap-entry` skips pages already marked `noindex`.** Its
+  advice for them was to set them to `noindex`, which had been done.
+  `indexing.sitemap-noindex` now reports them, with the right fix.
+
 ## 1.18.0 — 2026-09-20
 
 ### Added

@@ -19,54 +19,19 @@
 
 import { SITEMAP_SOURCE, type PageRecord } from '../store/workdir.ts';
 import { tryCanonicaliseUrl } from '../url/canonical.ts';
-import { findingId, sampleObserved, type Check } from './framework.ts';
+import {
+  findingId,
+  requestsOf,
+  sampleObserved,
+  type Check,
+  type CrawlRequest,
+} from './framework.ts';
 
 /** Did this URL come from a sitemap, and which one? Null when it did not. */
-function sitemapOf(page: PageRecord): string | null {
-  return page.source.startsWith(SITEMAP_SOURCE) ? page.source.slice(SITEMAP_SOURCE.length) : null;
-}
-
-/**
- * One request the crawl made, and the page it landed on.
- *
- * **A page record is no longer one request.** Since 1.12.0 a URL that redirects
- * to a page the crawl already has is folded into that page as an alias, so the
- * destination is stored once instead of twice — which is what stopped one page's
- * markup being counted under two `page_id`s (`dev-notes/10`, finding 9).
- *
- * Three checks here ask questions about *requests* rather than about pages —
- * does this URL redirect, how many hops, does that canonical target redirect —
- * and reading them off page records alone silently loses every folded request.
- * That regression is real and was caught by the fixture: `indexing.sitemap-
- * redirects` stopped reporting a URL it had always reported, because the
- * redirect had correctly moved onto the alias.
- */
-interface CrawlRequest {
-  url: string;
-  source: string;
-  http_status: number | null;
-  redirect_chain: { url: string; status: number; location: string }[];
-  /** The page this request resolved to. Several requests can share one. */
-  page: PageRecord;
-}
-
-function requestsOf(pages: readonly PageRecord[]): CrawlRequest[] {
-  return pages.flatMap((page) => [
-    {
-      url: page.url,
-      source: page.source,
-      http_status: page.http_status,
-      redirect_chain: page.redirect_chain,
-      page,
-    },
-    ...(page.aliases ?? []).map((alias) => ({
-      url: alias.url,
-      source: alias.source,
-      http_status: alias.http_status,
-      redirect_chain: alias.redirect_chain,
-      page,
-    })),
-  ]);
+function sitemapOf(record: { source: string }): string | null {
+  return record.source.startsWith(SITEMAP_SOURCE)
+    ? record.source.slice(SITEMAP_SOURCE.length)
+    : null;
 }
 
 /** Distinct pages behind a set of requests — several can land on one. */
@@ -232,6 +197,81 @@ const sitemapRedirects: Check = {
         coverage_qualified: false,
         remediation: 'Update the sitemap to list the destination URLs. Keep the redirects.',
         tradeoff: null,
+        page_ids: landing.map((page) => page.page_id),
+      },
+    ];
+  },
+};
+
+// --- indexing.sitemap-noindex ------------------------------------------------
+
+/**
+ * A sitemap lists a URL whose page says `noindex`.
+ *
+ * Two claims about one URL, directly opposed: the sitemap asks for it to be
+ * indexed and the page refuses. Search Console reports the same condition as
+ * "Submitted URL marked 'noindex'".
+ *
+ * Only requests served without a redirect are judged. A sitemap URL that
+ * redirects to a `noindex` page is `sitemap-redirects`' finding, because the
+ * sitemap is not naming the page that says `noindex`.
+ *
+ * Reads `<meta name="robots">` only: bot-specific meta such as `googlebot` is
+ * not extracted, and the crawl stores no response headers, so `X-Robots-Tag`
+ * is invisible here.
+ */
+function listedButNoindex(request: CrawlRequest): boolean {
+  return (
+    sitemapOf(request) !== null &&
+    request.http_status === 200 &&
+    request.redirect_chain.length === 0 &&
+    request.page.page_facts?.robots.index === false
+  );
+}
+
+const sitemapNoindex: Check = {
+  id: 'indexing.sitemap-noindex',
+  group: 'indexing',
+  run({ pages }) {
+    const refused = requestsOf(pages).filter(listedButNoindex);
+    if (refused.length === 0) return [];
+
+    const landing = pagesBehind(refused);
+
+    return [
+      {
+        finding_id: findingId('indexing.sitemap-noindex', 'site'),
+        check: 'indexing.sitemap-noindex',
+        severity: 'warning',
+        origin: 'check',
+        title: `${refused.length} sitemap URL(s) are marked noindex`,
+        subject: { kind: 'site', id: 'sitemap' },
+        summary:
+          `${refused.length} URL(s) listed in the sitemap serve a page carrying \`noindex\`. The ` +
+          `sitemap asks search engines to index them and the pages refuse, so one of the two ` +
+          `claims is wrong. This usually means two generators disagree: one writes the sitemap, ` +
+          `another sets robots, and neither knows about the other — WooCommerce marking cart and ` +
+          `account pages \`noindex\` while an SEO plugin keeps listing them is the common case.`,
+        expected: 'Every sitemap URL indexable, or absent from the sitemap.',
+        ...sampleObserved(
+          refused.map((request) => ({
+            value: request.url,
+            detail: `robots "${request.page.page_facts?.robots.raw ?? ''}" — listed in ${sitemapOf(request) ?? ''}`,
+            observation_count: 1,
+            page_count: 1,
+            provenance: [],
+          })),
+        ),
+        pages_affected: landing.length,
+        coverage_qualified: false,
+        remediation:
+          'Remove these URLs from the sitemap, in whichever generator owns the file each one is ' +
+          'listed in. If a page is meant to be found in search, remove its noindex instead. Which ' +
+          'claim is wrong is your decision; the tool can only see that they disagree.',
+        tradeoff:
+          'Keeping a newly noindexed URL in the sitemap for a short while is a recognised way to ' +
+          'get it re-crawled and dropped from the index sooner. If that is what is happening, ' +
+          'this is expected: take them out of the sitemap once they have left the index.',
         page_ids: landing.map((page) => page.page_id),
       },
     ];
@@ -545,6 +585,8 @@ const thinSitemapEntry: Check = {
         page.http_status === 200 &&
         page.redirect_chain.length === 0 &&
         page.page_facts !== null &&
+        // A noindex page is `indexing.sitemap-noindex`'s finding, with a different fix.
+        page.page_facts.robots.index &&
         page.page_facts.text.extractable_words < THIN_SITEMAP_WORDS,
     );
     if (thin.length === 0) return [];
@@ -742,6 +784,7 @@ export const INDEXING_CHECKS: Check[] = [
   thinSitemapEntry,
   sitemapDeadUrl,
   sitemapRedirects,
+  sitemapNoindex,
   redirectChain,
   canonicalToRedirect,
   canonicalChain,

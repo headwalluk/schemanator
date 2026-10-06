@@ -375,9 +375,17 @@ differs:
 
 ### `breadcrumb.broken-trail-item` — Warning
 
-A crumb linking to a page that returned a non-200 status when crawled.
+A crumb linking to a URL that returned an error status, or redirected, when
+crawled. The two are reported separately because the fixes differ:
 
-Only pages actually fetched are judged. A crumb pointing somewhere the crawl
+- **An error status** (404, 5xx) — the ancestor the trail names cannot be
+  reached. Restore the page, or repoint the trail.
+- **A redirect** — the trail names an ancestor that the site itself says lives
+  somewhere else, for instance a `/services/` crumb that 301s to the homepage.
+  Point the crumb at the destination, or drop it if the destination is not
+  really an ancestor.
+
+Only URLs actually requested are judged. A crumb pointing somewhere the crawl
 never visited is **not** reported: a sitemap-driven crawl routinely never sees
 section landing pages, and calling those broken would be a guess dressed as a
 finding. Off-site crumbs are not judged either, since we do not fetch other
@@ -609,6 +617,28 @@ which URL is real.
 
 Keep the redirects; update the sitemap to list the destinations.
 
+### `indexing.sitemap-noindex` — Warning
+
+A sitemap lists URLs whose pages carry `noindex`. The sitemap asks for them to
+be indexed and the pages refuse. Search Console reports the same thing as
+"Submitted URL marked 'noindex'".
+
+It usually means two generators disagree: one owns the sitemap, another owns
+robots. WooCommerce marking cart, checkout and account pages `noindex` while an
+SEO plugin keeps listing them is the common case. Each URL is listed with its
+robots value and the sitemap file it came from, because the fix belongs to
+whichever generator owns that file.
+
+Remove the URLs from the sitemap, or, if a page is meant to be found, remove its
+`noindex`. Keeping a newly noindexed URL in the sitemap for a short while is a
+recognised way to get it dropped from the index sooner; if that is what is
+happening, the finding is expected and should clear on its own.
+
+Only URLs served directly are judged — a sitemap URL that redirects to a
+`noindex` page is `indexing.sitemap-redirects`. Only `<meta name="robots">` is
+read: bot-specific meta such as `googlebot` is not, and the crawl does not
+store response headers, so an `X-Robots-Tag: noindex` header is not seen.
+
 ### `indexing.redirect-chain` — Opportunity
 
 Two or more hops before a page is served. Chains are usually accidental — two
@@ -636,7 +666,8 @@ usual set.
 **Read the list before acting.** Word count cannot tell a cart from a contact
 page: a contact page is often a form and a phone number, and belongs in the
 sitemap. Transactional and account pages generally do not, and are usually
-better set to `noindex`.
+better set to `noindex`. A page that already is `noindex` is left to
+`indexing.sitemap-noindex`, which says so directly.
 
 It does **not** claim to find low-value *archives*. That was designed and then
 measured away: on the test corpus a WooCommerce product archive renders full

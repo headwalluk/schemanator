@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import type { ExtractedNode } from '../extract/types.ts';
 import type { PageRecord } from '../store/workdir.ts';
+import { findingId } from './framework.ts';
 import { runChecks } from './run.ts';
 
 const S = (name: string): string => `http://schema.org/${name}`;
@@ -284,6 +285,79 @@ test('a crumb pointing at a non-200 page is a warning', () => {
   const broken = findings.filter((finding) => finding.check === 'breadcrumb.broken-trail-item');
   assert.equal(broken.length, 1);
   assert.match(broken[0]?.title ?? '', /404/);
+  // Cross-run diffs match on this id, so the request-based lookup must not move it.
+  assert.equal(
+    broken[0]?.finding_id,
+    findingId('breadcrumb.broken-trail-item', 'https://example.com/gone'),
+  );
+});
+
+const brokenOnly = (nodes: ExtractedNode[], pages: PageRecord[]) =>
+  run(nodes, pages).filter((finding) => finding.check === 'breadcrumb.broken-trail-item');
+
+const middleCrumb = (item: string) =>
+  trail({
+    page: 'a',
+    crumbs: [
+      { name: 'Home', item: 'https://example.com/' },
+      { name: 'Services', item },
+      { name: 'A', item: null },
+    ],
+  });
+
+test('a crumb whose request was folded into the page it redirected to is reported', () => {
+  // The regression. `/services/` redirected to a homepage the crawl already
+  // had, so it exists only as an alias on that record, and a lookup keyed by
+  // where pages landed never sees it.
+  const home = page('home', {
+    url: 'https://example.com/',
+    canonical_url: 'https://example.com/',
+    aliases: [
+      {
+        url: 'https://example.com/services/',
+        source: 'link:https://example.com/a',
+        http_status: 200,
+        redirect_chain: [
+          {
+            url: 'https://example.com/services/',
+            status: 301,
+            location: 'https://example.com/#our-services',
+          },
+        ],
+        fetched_at: '2026-08-01T00:00:00Z',
+      },
+    ],
+  });
+
+  const findings = brokenOnly(middleCrumb('https://example.com/services/'), [page('a'), home]);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.pattern, 'crumb target redirects');
+  assert.equal(findings[0]?.observed[0]?.value, 'https://example.com/services/');
+  assert.equal(findings[0]?.observed[0]?.detail, '301 → https://example.com/');
+});
+
+const contactRedirect = page('contact', {
+  url: 'https://example.com/contact',
+  canonical_url: 'https://example.com/about',
+  redirect_chain: [
+    { url: 'https://example.com/contact', status: 301, location: 'https://example.com/about' },
+  ],
+});
+
+test('a crumb naming a record that redirected on its own is reported', () => {
+  const findings = brokenOnly(middleCrumb('https://example.com/contact'), [
+    page('a'),
+    contactRedirect,
+  ]);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.observed[0]?.detail, '301 → https://example.com/about');
+});
+
+test('a crumb naming where a redirect landed is not a redirect', () => {
+  assert.deepEqual(
+    brokenOnly(middleCrumb('https://example.com/about'), [page('a'), contactRedirect]),
+    [],
+  );
 });
 
 test('a crumb pointing at a page the crawl never saw is NOT a finding', () => {

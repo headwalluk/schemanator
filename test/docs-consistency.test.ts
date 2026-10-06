@@ -212,7 +212,8 @@ const OUR_SITES = /headwall-hosting|power-plugins|vulnz|verifytrusted/i;
  *
  * The four in {@link OUR_SITES} are deliberately absent. Everything else in the
  * corpus belongs to a client, and naming a client alongside a defect on their
- * site is not ours to do.
+ * site is not ours to do. {@link NEVER_CRAWL} sites are here for the same
+ * reason, without being clients.
  *
  * Case-insensitive, because the leak that got closest was not a hostname at all
  * — it was a client's page title, `"PermaJet Inkjet Paper | FREE NEXT DAY
@@ -220,7 +221,15 @@ const OUR_SITES = /headwall-hosting|power-plugins|vulnz|verifytrusted/i;
  * data wears more shapes than a domain.
  */
 const CLIENT_NAMES =
-  /bravanark|footballinberkshire|rcem\.ac\.uk|permajet|activehands|aurahear|tgfelectrical|intrepiddesign|the-observatory|emdrtherapy|jupiterartland|graphenstone|cheeselogs|clearpipe|heathcote|skintechacademy|burleighdesign|webidaze|ahc\.co\.uk/i;
+  /bravanark|footballinberkshire|rcem\.ac\.uk|permajet|activehands|aurahear|tgfelectrical|intrepiddesign|the-observatory|emdrtherapy|jupiterartland|graphenstone|cheeselogs|clearpipe|heathcote|skintechacademy|burleighdesign|webidaze|insightgroup|woodleybusinessclub|austynsmith|ahc\.co\.uk/i;
+
+/**
+ * Sites that are neither ours nor a client's, and are never part of the test cycle.
+ *
+ * Crawling one for testing puts our requests in a stranger's hosting logs, about
+ * a site nobody here can change. Live crawls of them are deliberate one-offs.
+ */
+const NEVER_CRAWL = /austynsmith/i;
 
 test('every site in the corpus is either ours or covered by the leak check', (t) => {
   // CLIENT_NAMES is hand-maintained, so a site added to the corpus and never
@@ -275,6 +284,15 @@ test('every site in the corpus is either ours or covered by the leak check', (t)
     [...new Set(uncovered)].sort(),
     [],
     'crawled but outside the leak check — add to CLIENT_NAMES, or to OUR_SITES if it is ours',
+  );
+
+  // The shakedown reads `work/` and `tools/crawl-batch.sh` reads `sites.txt`,
+  // so a site in neither is outside the test cycle.
+  const forbidden = [...targeted, ...crawled].filter((host) => NEVER_CRAWL.test(host));
+  assert.deepEqual(
+    forbidden,
+    [],
+    'in the test cycle but not ours to crawl — remove from sites.txt and purge from work/',
   );
 });
 

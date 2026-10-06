@@ -292,3 +292,42 @@ export function provenanceOf(
 export function indexPagesById(pages: readonly PageRecord[]): Map<string, PageRecord> {
   return new Map(pages.map((page) => [page.page_id, page]));
 }
+
+/**
+ * One request the crawl made, and the page it landed on.
+ *
+ * **A page record is not one request.** Since 1.12.0 a URL that redirects to a
+ * page the crawl already has is folded into that page as an alias, so a check
+ * asking about *requests* — does this URL redirect, what did it return — must
+ * read aliases too, or it silently loses every folded request. That regression
+ * was real: `indexing.sitemap-redirects` stopped reporting a URL it had always
+ * reported, and `breadcrumb.broken-trail-item` missed redirects until 1.19.0.
+ */
+export interface CrawlRequest {
+  url: string;
+  source: string;
+  http_status: number | null;
+  redirect_chain: { url: string; status: number; location: string }[];
+  /** The page this request resolved to. Several requests can share one. */
+  page: PageRecord;
+}
+
+/** Every request behind a set of page records, folded aliases included. */
+export function requestsOf(pages: readonly PageRecord[]): CrawlRequest[] {
+  return pages.flatMap((page) => [
+    {
+      url: page.url,
+      source: page.source,
+      http_status: page.http_status,
+      redirect_chain: page.redirect_chain,
+      page,
+    },
+    ...(page.aliases ?? []).map((alias) => ({
+      url: alias.url,
+      source: alias.source,
+      http_status: alias.http_status,
+      redirect_chain: alias.redirect_chain,
+      page,
+    })),
+  ]);
+}
