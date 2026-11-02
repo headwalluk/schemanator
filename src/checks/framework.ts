@@ -23,6 +23,7 @@ import type { EntityGraph } from './graph.ts';
 import type { GoogleRules } from './google.ts';
 import type { AiCrawlers, RobotsFile } from './robots.ts';
 import type { Hierarchy } from './hierarchy.ts';
+import type { TrackingParameters } from './tracking.ts';
 import type { ValueHeuristics } from './values.ts';
 
 export type { SitemapDuplicate };
@@ -202,6 +203,8 @@ export interface CheckContext {
   robots: RobotsFile | null;
   /** The AI crawler list. Group `robots` only. */
   aiCrawlers: AiCrawlers;
+  /** Click, campaign and recipient query parameters. `url.tracking-parameter` only. */
+  trackingParameters: TrackingParameters;
   /** Sitemaps the crawl actually found, however it found them. */
   sitemapsFound: readonly string[];
   /**
@@ -228,10 +231,12 @@ export interface CheckContext {
   /**
    * The internal link graph. Empty on a crawl that never extracted one.
    *
-   * Group `link` only. Empty and "not extracted" are indistinguishable here,
-   * which is safe *only* because {@link linkHopRan} is what actually gates the
-   * findings — a site with no links at all and a crawl with no link file both
-   * produce nothing, and neither should report every page as an orphan.
+   * Group `link`, plus `url.tracking-parameter`. Empty and "not extracted" are
+   * indistinguishable here, which is safe *only* because {@link linkHopRan} is
+   * what actually gates `link`'s absence claims — a site with no links at all
+   * and a crawl with no link file both produce nothing, and neither should
+   * report every page as an orphan. `url.tracking-parameter` claims presence,
+   * so an empty list is silence rather than a false finding.
    */
   links: readonly StoredLink[];
   /**

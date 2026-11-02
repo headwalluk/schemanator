@@ -2,6 +2,27 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.22.0 — 2026-11-02
+
+### Added
+
+- **`url.tracking-parameter`** — internal links carrying a click, campaign or
+  visit identifier: `srsltid`, `gclid`, `gbraid`, `wbraid`, `fbclid`, `utm_*`.
+  Analytics credits every visit through such a link to the click it names, and
+  each value is another URL for the same page.
+
+  Found on a client's WooCommerce store, where category pages served one Google
+  Shopping visitor's `srsltid` in every "Add to basket" and pagination link:
+  the page had been built from that visitor's request URL and cached. The
+  finding separates that cause from a URL pasted into content, by whether each
+  link points back at its own page, and lists the pasted ones first. Across the
+  test corpus it fires on 2 of 23 sites, both causes present, including a
+  `utm_source=chatgpt.com` frozen into a comment form's "Cancel reply" link.
+
+  The parameter list is `data/tracking-parameters.json`, guarded by a strict
+  parser like every other rules file; each entry cites its operator's own
+  documentation.
+
 ## 1.21.0 — 2026-11-02
 
 ### Added

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "retrieved": "2026-11-02",
+
+  "_what_this_is": [
+    "Query parameters that identify one click, one campaign or one recipient.",
+    "`url.tracking-parameter` reports internal links that carry one: a value",
+    "meant for a single visitor's arrival, served to everyone who reads the page.",
+    "",
+    "Hand-curated. Each entry cites the operator's own documentation. A parameter",
+    "with only third-party evidence (Mailchimp's mc_cid / mc_eid, at the time of",
+    "writing) stays out until its operator documents it.",
+    "",
+    "`match` is `exact` for a parameter name, or `prefix` for a family such as",
+    "utm_*. Names are compared lowercase."
+  ],
+
+  "parameters": [
+    {
+      "name": "utm_",
+      "match": "prefix",
+      "operator": "Google Analytics campaign tagging",
+      "source": "https://support.google.com/analytics/answer/10917952"
+    },
+    {
+      "name": "gclid",
+      "match": "exact",
+      "operator": "Google Ads auto-tagging",
+      "source": "https://support.google.com/google-ads/answer/3095550"
+    },
+    {
+      "name": "gbraid",
+      "match": "exact",
+      "operator": "Google Ads, iOS app measurement",
+      "source": "https://support.google.com/google-ads/answer/10417364"
+    },
+    {
+      "name": "wbraid",
+      "match": "exact",
+      "operator": "Google Ads, iOS web measurement",
+      "source": "https://support.google.com/google-ads/answer/10417364"
+    },
+    {
+      "name": "srsltid",
+      "match": "exact",
+      "operator": "Google Merchant Center auto-tagging",
+      "source": "https://support.google.com/merchants/answer/15191080"
+    },
+    {
+      "name": "fbclid",
+      "match": "exact",
+      "operator": "Meta click ID",
+      "source": "https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/fbp-and-fbc"
+    }
+  ]
+}

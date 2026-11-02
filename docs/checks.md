@@ -258,6 +258,38 @@ the slug — so a clean title can sit above a permanently dirty URL.
 **How to fix:** retype the affected words. Where the page is published, give it a
 clean slug and redirect the old one.
 
+### `url.tracking-parameter` — Warning
+
+Internal links carrying a parameter that identifies one click, campaign or
+visit: `srsltid` (Google Shopping), `gclid`, `gbraid`, `wbraid` (Google Ads),
+`fbclid` (Meta) and the `utm_*` family. They belong on the URL a visitor
+arrives at, never on a link the site serves to everyone.
+
+**Why it matters:** analytics credits every visit that follows such a link to
+the click or campaign it names, not to how the visitor really arrived. Each
+value is also another URL for the same page, held together only by its
+canonical tag.
+
+**Two causes, and the finding tells them apart** by where each link points:
+
+- **Back at its own page** — pagination, "Add to basket", "Cancel reply". The
+  platform built the link from the request URL of a visitor who arrived with the
+  parameter, and that copy of the page was cached and served to everyone. A
+  WooCommerce category page carrying one shopper's `srsltid` in all seventeen
+  of its "Add to basket" buttons is the typical case.
+- **At another page** — someone copied a URL from their address bar after
+  arriving from an ad, a shopping result or an email, and pasted it into the
+  content. These are listed first, because each one needs its own edit.
+
+**How to fix:** for generated links, strip these parameters from the request
+before the page is rendered, or keep such requests out of the page cache, then
+purge it. For pasted links, edit the content.
+
+Reported once for the site, over links found on audited pages. A page the
+crawl reached only by following one of these links is not counted again. The
+parameter list is `data/tracking-parameters.json`; each entry cites its
+operator's documentation.
+
 ### `url.foreign-media-host` — Warning
 
 Images referenced from a host that is neither this site, a subdomain of it, nor

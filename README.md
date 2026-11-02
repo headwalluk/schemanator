@@ -3,8 +3,8 @@
 [![npm](https://img.shields.io/npm/v/@headwall/schemanator)](https://www.npmjs.com/package/@headwall/schemanator)
 [![licence](https://img.shields.io/npm/l/@headwall/schemanator)](LICENSE)
 [![node](https://img.shields.io/node/v/@headwall/schemanator)](https://nodejs.org/)
-[![tests: 655](https://img.shields.io/badge/tests-655-success)](#)
-[![checks: 61](https://img.shields.io/badge/checks-61-blue)](docs/checks.md)
+[![tests: 661](https://img.shields.io/badge/tests-661-success)](#)
+[![checks: 62](https://img.shields.io/badge/checks-62-blue)](docs/checks.md)
 
 **Whole-site structured-data integrity checking.** Crawls a site, reconstructs
 its structured-data graph across every page, and reports the contradictions that

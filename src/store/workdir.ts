@@ -109,7 +109,7 @@ export function isHopPage(page: Pick<PageRecord, 'source'>): boolean {
   return page.source.startsWith(LINK_HOP_SOURCE);
 }
 
-/** One line of `graph/links.jsonl`. Written by extraction, read by group `link`. */
+/** One line of `graph/links.jsonl`. Written by extraction; read by group `link` and `url.tracking-parameter`. */
 export interface StoredLink {
   /** `page_id` of the page the link was found on. */
   from: string;

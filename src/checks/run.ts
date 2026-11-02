@@ -27,6 +27,7 @@ import { LINK_CHECKS } from './link.ts';
 import { ROBOTS_CHECKS, loadAiCrawlers, type RobotsFile } from './robots.ts';
 import { SYNTAX_CHECKS } from './syntax.ts';
 import { STRUCTURE_CHECKS } from './structure.ts';
+import { TRACKING_CHECKS, loadTrackingParameters } from './tracking.ts';
 import {
   findingId,
   indexPagesById,
@@ -1308,6 +1309,7 @@ export const ALL_CHECKS: Check[] = [
   ...CONTENT_CHECKS,
   ...PAGE_CHECKS,
   ...LINK_CHECKS,
+  ...TRACKING_CHECKS,
 ];
 
 /**
@@ -1647,7 +1649,7 @@ export function runChecks(options: {
   /** Sitemaps the crawl found, however it found them. */
   sitemapsFound?: readonly string[];
   sitemapDuplicates?: readonly SitemapDuplicate[] | null;
-  /** The extracted link graph. Group `link` only. */
+  /** The extracted link graph. Group `link` and `url.tracking-parameter`. */
   links?: readonly StoredLink[];
   /** The crawl's link hop. Undefined and null both mean "it did not happen". */
   linkHop?: CheckContext['linkHop'];
@@ -1704,6 +1706,7 @@ export function runChecks(options: {
     google: loadGoogleRules(),
     robots: options.robots ?? null,
     aiCrawlers: loadAiCrawlers(),
+    trackingParameters: loadTrackingParameters(),
     sitemapsFound: options.sitemapsFound ?? [],
     // Undefined and null both mean "not measured". A caller that has the
     // measurement passes it; a caller that does not must not be able to

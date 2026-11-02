@@ -28,6 +28,7 @@ import { parseCardinalityRules } from './checks/cardinality.ts';
 import { parseGoogleRules } from './checks/google.ts';
 import { parseAiCrawlers } from './checks/robots.ts';
 import { parseHierarchy } from './checks/hierarchy.ts';
+import { parseTrackingParameters } from './checks/tracking.ts';
 import { parseValueHeuristics } from './checks/values.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,6 +41,7 @@ const GUARDED: Record<string, (json: string, source?: string) => unknown> = {
   'google-rich-results.json': parseGoogleRules,
   'schema-subclasses.json': parseHierarchy,
   'value-heuristics.json': parseValueHeuristics,
+  'tracking-parameters.json': parseTrackingParameters,
 };
 
 /**
