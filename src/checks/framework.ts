@@ -15,6 +15,7 @@
 import { createHash } from 'node:crypto';
 
 import type { DuplicateEntry as SitemapDuplicate } from '../crawl/sitemaps.ts';
+import { HEADER, robotsTagNoindex } from '../extract/response-headers.ts';
 import type { ExtractedNode } from '../extract/types.ts';
 import type { PageRecord, StoredLink } from '../store/workdir.ts';
 import type { CardinalityRules } from './cardinality.ts';
@@ -333,4 +334,15 @@ export function requestsOf(pages: readonly PageRecord[]): CrawlRequest[] {
       page,
     })),
   ]);
+}
+
+/**
+ * Whether a page asks not to be indexed: `<meta name="robots">` or an unscoped
+ * `X-Robots-Tag`. Unknown (no facts, no headers) reads as indexable.
+ */
+export function isNoindex(page: PageRecord | undefined): boolean {
+  return (
+    page?.page_facts?.robots.index === false ||
+    robotsTagNoindex(page?.response_headers?.[HEADER.robotsTag])
+  );
 }

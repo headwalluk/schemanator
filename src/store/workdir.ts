@@ -16,6 +16,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import type { PageFacts } from '../extract/page-facts.ts';
+import { headersFromMeta } from '../extract/response-headers.ts';
 
 import type { FetchRecord } from '../net/fetcher.ts';
 
@@ -199,6 +200,14 @@ export interface PageRecord {
    * for the same reason, at a far larger scale (`07`).
    */
   page_facts: PageFacts | null;
+  /**
+   * The security and robots headers the page was served with, lowercase keys.
+   *
+   * Filled by extraction from `meta.json`, which survives `purge --html`, so a
+   * re-run of `analyse` fills it on any stored crawl. Absent until extraction
+   * has run; null when `meta.json` recorded no headers.
+   */
+  response_headers?: Record<string, string> | null;
   errors: string[];
 }
 
@@ -452,6 +461,25 @@ export class WorkDir {
       this.pagesManifest,
       records.map((record) => `${JSON.stringify(record)}\n`).join(''),
     );
+  }
+
+  /** Every response header in a page's `meta.json`; null when the file or its `headers` is absent. */
+  async readPageHeaders(pageId: string): Promise<Record<string, string> | null> {
+    const file = path.join(this.pageDir(pageId), 'meta.json');
+    let raw: string;
+    try {
+      raw = await fs.readFile(file, 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw error;
+    }
+    let meta: unknown;
+    try {
+      meta = JSON.parse(raw);
+    } catch (error) {
+      throw new Error(`${file}: ${(error as Error).message}`, { cause: error });
+    }
+    return headersFromMeta(meta, file);
   }
 
   async readPageHtml(pageId: string): Promise<string | null> {

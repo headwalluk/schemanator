@@ -424,6 +424,9 @@ export const DEFECT_PATHS = {
    * this shape the fixture cannot tell the narrowed rule from the naive one:
    * every other page here hides nothing at all, and `hidden > visible` is false
    * for all of them however the floor is written.
+   *
+   * Also served with `X-Robots-Tag: noindex` while its meta robots says nothing,
+   * so `indexing.sitemap-noindex` can only see it through the stored headers.
    */
   sparseHidden: '/swatch',
   /** No `<title>` and no `lang`. `page.title-missing`, `page.lang-missing`. */
@@ -738,11 +741,14 @@ ${options.hidden === undefined ? '' : `<div hidden><p>${options.hidden}</p></div
     // Under the floor on both sides, and above `indexing.thin-sitemap-entry`'s
     // 25 words on the visible one, so the only thing keeping this quiet is the
     // rule this fixture is here to hold in place.
-    [DEFECT_PATHS.sparseHidden]: htmlPage({
-      title: 'Swatch',
-      body: filler('swatch', 30),
-      hidden: filler('swatchnote', 40),
-    }),
+    [DEFECT_PATHS.sparseHidden]: (() => {
+      const route = htmlPage({
+        title: 'Swatch',
+        body: filler('swatch', 30),
+        hidden: filler('swatchnote', 40),
+      });
+      return { ...route, headers: { ...route.headers, 'x-robots-tag': 'noindex' } };
+    })(),
 
     [DEFECT_PATHS.bareHead]: htmlPage({ title: null, lang: false }),
   });

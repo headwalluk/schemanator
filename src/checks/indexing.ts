@@ -19,8 +19,10 @@
 
 import { SITEMAP_SOURCE, type PageRecord } from '../store/workdir.ts';
 import { tryCanonicaliseUrl } from '../url/canonical.ts';
+import { HEADER } from '../extract/response-headers.ts';
 import {
   findingId,
+  isNoindex,
   requestsOf,
   sampleObserved,
   type Check,
@@ -216,17 +218,24 @@ const sitemapRedirects: Check = {
  * redirects to a `noindex` page is `sitemap-redirects`' finding, because the
  * sitemap is not naming the page that says `noindex`.
  *
- * Reads `<meta name="robots">` only: bot-specific meta such as `googlebot` is
- * not extracted, and the crawl stores no response headers, so `X-Robots-Tag`
- * is invisible here.
+ * Reads `<meta name="robots">` and an unscoped `X-Robots-Tag`. Bot-specific
+ * forms — `<meta name="googlebot">`, `X-Robots-Tag: googlebot: noindex` — are
+ * not read.
  */
 function listedButNoindex(request: CrawlRequest): boolean {
   return (
     sitemapOf(request) !== null &&
     request.http_status === 200 &&
     request.redirect_chain.length === 0 &&
-    request.page.page_facts?.robots.index === false
+    isNoindex(request.page)
   );
+}
+
+/** Where the `noindex` came from, quoted, for the finding's evidence. */
+function noindexSource(page: PageRecord): string {
+  return page.page_facts?.robots.index === false
+    ? `robots "${page.page_facts.robots.raw ?? ''}"`
+    : `X-Robots-Tag "${page.response_headers?.[HEADER.robotsTag] ?? ''}"`;
 }
 
 const sitemapNoindex: Check = {
@@ -256,7 +265,7 @@ const sitemapNoindex: Check = {
         ...sampleObserved(
           refused.map((request) => ({
             value: request.url,
-            detail: `robots "${request.page.page_facts?.robots.raw ?? ''}" — listed in ${sitemapOf(request) ?? ''}`,
+            detail: `${noindexSource(request.page)} — listed in ${sitemapOf(request) ?? ''}`,
             observation_count: 1,
             page_count: 1,
             provenance: [],
@@ -586,7 +595,7 @@ const thinSitemapEntry: Check = {
         page.redirect_chain.length === 0 &&
         page.page_facts !== null &&
         // A noindex page is `indexing.sitemap-noindex`'s finding, with a different fix.
-        page.page_facts.robots.index &&
+        !isNoindex(page) &&
         page.page_facts.text.extractable_words < THIN_SITEMAP_WORDS,
     );
     if (thin.length === 0) return [];

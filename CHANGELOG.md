@@ -2,6 +2,36 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.21.0 — 2026-11-02
+
+### Added
+
+- **Response headers on the page record.** Each `pages.jsonl` row carries
+  `response_headers`: the `Content-Security-Policy`, `Strict-Transport-Security`,
+  `Referrer-Policy`, `Permissions-Policy`, `X-Content-Type-Options`,
+  `X-Frame-Options` and `X-Robots-Tag` the page was served with. The crawl has
+  always kept every header in each page's `meta.json`; extraction now copies
+  these onto the manifest, so re-running `analyse` fills them in on any stored
+  crawl, including one whose HTML has been purged.
+
+  No check reports on the security headers. `docs/usage.md` shows how to
+  query them across a site with `jq`.
+
+### Changed
+
+- **`X-Robots-Tag: noindex` counts as `noindex`.** `indexing.sitemap-noindex`
+  reports a sitemap URL refused by the header as well as by
+  `<meta name="robots">`, and its evidence names which. `indexing.thin-sitemap-entry`
+  and `link.noindex-only-inbound` read it too, through one shared rule, so a
+  header-noindexed page is billed once, as noindex. Directives scoped to one
+  crawler (`googlebot: noindex`) are not read, the same as `<meta name="googlebot">`.
+
+  No finding changes on the test corpus: the one page there that sends the
+  header says the same in its meta robots.
+
+- **A corrupt `meta.json` is recorded, not fatal.** Extraction logs a warning,
+  adds the error to that page's `errors`, and carries on.
+
 ## 1.20.0 — 2026-10-06
 
 ### Added

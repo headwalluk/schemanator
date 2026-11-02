@@ -658,9 +658,10 @@ recognised way to get it dropped from the index sooner; if that is what is
 happening, the finding is expected and should clear on its own.
 
 Only URLs served directly are judged — a sitemap URL that redirects to a
-`noindex` page is `indexing.sitemap-redirects`. Only `<meta name="robots">` is
-read: bot-specific meta such as `googlebot` is not, and the crawl does not
-store response headers, so an `X-Robots-Tag: noindex` header is not seen.
+`noindex` page is `indexing.sitemap-redirects`. Both `<meta name="robots">` and
+an `X-Robots-Tag: noindex` response header count, and each URL's evidence says
+which one it was. Forms aimed at one crawler — `<meta name="googlebot">`,
+`X-Robots-Tag: googlebot: noindex` — are not read.
 
 ### `indexing.redirect-chain` — Opportunity
 

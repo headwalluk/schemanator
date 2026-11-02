@@ -522,3 +522,46 @@ test('a thin noindex page is billed once, as noindex rather than thin', () => {
   assert.deepEqual(only(refused, 'indexing.thin-sitemap-entry'), []);
   assert.equal(only(refused, 'indexing.sitemap-noindex').length, 1);
 });
+
+/** A record served with `X-Robots-Tag: value` and an indexable `<meta name="robots">`. */
+function withRobotsTag(record: PageRecord, value: string, words = 400): PageRecord {
+  return {
+    ...withRobots(record, 'index, follow', words),
+    response_headers: { 'x-robots-tag': value },
+  };
+}
+
+test('a sitemap URL refused by an X-Robots-Tag header is reported, quoting the header', () => {
+  const findings = only(
+    [
+      withRobotsTag(page({ id: 'download' }), 'noindex'),
+      withRobots(page({ id: 'about' }), 'index'),
+    ],
+    'indexing.sitemap-noindex',
+  );
+
+  assert.equal(findings.length, 1);
+  assert.deepEqual(
+    findings[0]?.observed.map((observed) => observed.value),
+    ['https://example.com/download'],
+  );
+  assert.equal(
+    findings[0]?.observed[0]?.detail,
+    'X-Robots-Tag "noindex" — listed in https://example.com/s.xml',
+  );
+});
+
+test('an X-Robots-Tag scoped to one crawler is not read as noindex', () => {
+  // Matches how only `<meta name="robots">` is read, never `<meta name="googlebot">`.
+  assert.deepEqual(
+    only([withRobotsTag(page({ id: 'a' }), 'googlebot: noindex')], 'indexing.sitemap-noindex'),
+    [],
+  );
+});
+
+test('a thin page refused by X-Robots-Tag is billed as noindex, not thin', () => {
+  const refused = [withRobotsTag(page({ id: 'thin' }), 'noindex', 3)];
+
+  assert.deepEqual(only(refused, 'indexing.thin-sitemap-entry'), []);
+  assert.equal(only(refused, 'indexing.sitemap-noindex').length, 1);
+});

@@ -30,6 +30,7 @@
 import { isSitemapPage, type PageRecord, type StoredLink } from '../store/workdir.ts';
 import {
   findingId,
+  isNoindex,
   sampleObserved,
   type CheckContext,
   type Check,
@@ -67,11 +68,6 @@ function inboundBySource(
   }
 
   return inbound;
-}
-
-/** Is this page asking not to be indexed? Null `page_facts` means we cannot say. */
-function isNoIndex(page: PageRecord | undefined): boolean {
-  return page?.page_facts?.robots?.index === false;
 }
 
 /**
@@ -203,10 +199,10 @@ const noIndexOnlyInbound: Check = {
 
     const cutOff = context.allPages.filter((page) => {
       if (!isSitemapPage(page)) return false;
-      if (isNoIndex(page)) return false; // Its own request not to be indexed wins.
+      if (isNoindex(page)) return false; // Its own request not to be indexed wins.
       const sources = inbound.get(page.page_id);
       if (sources === undefined || sources.size === 0) return false; // `link.orphan`'s.
-      return [...sources].every((from) => isNoIndex(byId.get(from)));
+      return [...sources].every((from) => isNoindex(byId.get(from)));
     });
 
     if (cutOff.length === 0) return [];

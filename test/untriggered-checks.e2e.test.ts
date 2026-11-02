@@ -254,6 +254,16 @@ test('a canonical chain is reported once, from its start', async () => {
   ]);
 });
 
+test('a sitemap URL refused only by an X-Robots-Tag header is reported', async () => {
+  // The page's meta robots says nothing, so this passes only if the header
+  // travels fetch → meta.json → extraction → page record.
+  const { report, site } = await analysed();
+  const findings = firedFor(report, 'indexing.sitemap-noindex');
+
+  assert.deepEqual(observedValues(findings), [site.url(DEFECT_PATHS.sparseHidden)]);
+  assert.match(findings[0]?.observed[0]?.detail ?? '', /^X-Robots-Tag "noindex"/);
+});
+
 test('two URLs serving byte-identical bodies are reported as one page', async () => {
   const { report, site } = await analysed();
   const values = observedValues(firedFor(report, 'indexing.duplicate-content'));

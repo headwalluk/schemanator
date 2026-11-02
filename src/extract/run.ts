@@ -23,6 +23,7 @@ import {
 } from './page-facts.ts';
 import type { WorkDir } from '../store/workdir.ts';
 import { extract } from './index.ts';
+import { selectRecordedHeaders } from './response-headers.ts';
 import type { ExtractedNode } from './types.ts';
 
 export interface ExtractionRunSummary {
@@ -53,6 +54,9 @@ export interface ExtractionRunOptions {
  * The threshold is not applied at all rather than applied badly.
  */
 const MIN_PAGES_FOR_CHROME = 5;
+
+/** Marks this pass's own entry in `record.errors`, so a re-extract replaces rather than appends. */
+const META_ERROR_PREFIX = 'meta-json: ';
 
 export async function runExtraction(options: ExtractionRunOptions): Promise<ExtractionRunSummary> {
   const { workDir, logger = SILENT_LOGGER, emitByType = true } = options;
@@ -99,6 +103,19 @@ export async function runExtraction(options: ExtractionRunOptions): Promise<Extr
   }
 
   for (const record of records) {
+    // Before the HTML read: `meta.json` outlives `purge --html`, and a page
+    // with no body still had headers.
+    record.errors = record.errors.filter((error) => !error.startsWith(META_ERROR_PREFIX));
+    try {
+      const headers = await workDir.readPageHeaders(record.page_id);
+      record.response_headers = headers === null ? null : selectRecordedHeaders(headers);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`Unreadable meta.json for ${record.url}: ${message}`);
+      record.errors.push(`${META_ERROR_PREFIX}${message}`);
+      record.response_headers = null;
+    }
+
     const html = await workDir.readPageHtml(record.page_id);
     if (html === null) {
       // Expected for a 404 or a rejected content-type: the crawl kept the

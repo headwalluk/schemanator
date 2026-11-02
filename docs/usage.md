@@ -311,6 +311,22 @@ and `content` checks read: title, heading levels, robots directives, `hreflang`,
 image and alt counts, word counts, and a content fingerprint. Older crawls have
 it as `null`; re-running `analyse` fills it in, provided the HTML is still there.
 
+`response_headers` carries the security and robots headers each page was served
+with — `Content-Security-Policy`, `Strict-Transport-Security`,
+`Referrer-Policy`, `Permissions-Policy`, `X-Content-Type-Options`,
+`X-Frame-Options` and `X-Robots-Tag`, names lowercased. It is copied from the
+page's `meta.json`, which keeps every header and survives `purge --html`, so
+re-running `analyse` fills it in on any stored crawl. No check reports on the
+security headers; the manifest answers *"does every page send it?"* directly:
+
+```sh
+jq -r '.response_headers["content-security-policy"] // "none"' \
+  <work-dir>/example.com/pages.jsonl | sort | uniq -c
+```
+
+The headers are as they were when the page was fetched, so a change to the
+server shows up on the next crawl, not on a re-run of `analyse`.
+
 ### Reclaiming space
 
 ```sh
