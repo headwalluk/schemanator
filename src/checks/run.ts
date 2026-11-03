@@ -27,7 +27,8 @@ import { LINK_CHECKS } from './link.ts';
 import { ROBOTS_CHECKS, loadAiCrawlers, type RobotsFile } from './robots.ts';
 import { SYNTAX_CHECKS } from './syntax.ts';
 import { STRUCTURE_CHECKS } from './structure.ts';
-import { TRACKING_CHECKS, loadTrackingParameters } from './tracking.ts';
+import { loadTrackingParameters } from '../url/tracking-parameters.ts';
+import { TRACKING_CHECKS } from './tracking.ts';
 import {
   findingId,
   indexPagesById,

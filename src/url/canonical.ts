@@ -11,28 +11,15 @@
  * Helpfully collapsing them would destroy the signal we exist to report.
  */
 
-/** Query parameters stripped by default. `utm_*` is matched by prefix. */
-export const DEFAULT_TRACKING_PARAMS: readonly string[] = [
-  'fbclid',
-  'gclid',
-  'msclkid',
-  'mc_cid',
-  'mc_eid',
-  '_ga',
-  '_gl',
-  'igshid',
-  'ttclid',
-  'twclid',
-];
-
-/** Prefixes stripped by default. */
-export const DEFAULT_TRACKING_PREFIXES: readonly string[] = ['utm_'];
+import {
+  isTrackingParameter,
+  loadTrackingParameters,
+  type TrackingParameters,
+} from './tracking-parameters.ts';
 
 export interface CanonicaliseOptions {
-  /** Exact-match parameter names to strip. Defaults to {@link DEFAULT_TRACKING_PARAMS}. */
-  trackingParams?: readonly string[];
-  /** Parameter name prefixes to strip. Defaults to {@link DEFAULT_TRACKING_PREFIXES}. */
-  trackingPrefixes?: readonly string[];
+  /** Query parameters to strip. Defaults to `data/tracking-parameters.json`. */
+  trackingParameters?: TrackingParameters;
   /** Sort remaining query parameters by key. Default true; `--no-sort-query` disables. */
   sortQuery?: boolean;
   /** Base URL for resolving a relative input. */
@@ -114,12 +101,8 @@ function serialiseQuery(pairs: readonly QueryPair[]): string {
  * @throws {UrlCanonicalisationError} on unparseable input or a non-HTTP scheme.
  */
 export function canonicaliseUrl(input: string, options: CanonicaliseOptions = {}): string {
-  const {
-    trackingParams = DEFAULT_TRACKING_PARAMS,
-    trackingPrefixes = DEFAULT_TRACKING_PREFIXES,
-    sortQuery = true,
-    base,
-  } = options;
+  const { sortQuery = true, base } = options;
+  const trackingParameters = options.trackingParameters ?? loadTrackingParameters();
 
   // Leading/trailing whitespace is endemic in sitemap XML text nodes.
   const trimmed = input.trim();
@@ -144,12 +127,9 @@ export function canonicaliseUrl(input: string, options: CanonicaliseOptions = {}
   const host = parsed.host;
   const path = normalisePercentEncoding(parsed.pathname);
 
-  const trackingSet = new Set(trackingParams.map((name) => name.toLowerCase()));
-  const retained = parseQuery(parsed.search).filter((pair) => {
-    const key = pair.decodedKey.toLowerCase();
-    if (trackingSet.has(key)) return false;
-    return !trackingPrefixes.some((prefix) => key.startsWith(prefix.toLowerCase()));
-  });
+  const retained = parseQuery(parsed.search).filter(
+    (pair) => !isTrackingParameter(pair.decodedKey, trackingParameters),
+  );
 
   if (sortQuery) {
     // Sort by key only, and rely on the sort being stable so that repeated

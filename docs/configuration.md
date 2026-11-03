@@ -240,9 +240,12 @@ and host, punycode, default ports stripped, dot-segments resolved,
 percent-encoding normalised, fragments stripped, tracking parameters removed,
 query parameters sorted.
 
-The built-in tracking-parameter list covers `utm_*`, `fbclid`, `gclid` and
-friends. Extending it needs the config file. Use `--no-sort-query` if your site
-is order-sensitive.
+The tracking parameters are the ones in `data/tracking-parameters.json` —
+`utm_*`, `gclid`, `srsltid`, `fbclid`, `msclkid` and others, each citing its
+operator's documentation. It is the same list
+[`url.tracking-parameter`](checks.md#urltracking-parameter--warning) reports on,
+so a parameter stripped from URLs is always one reported in links. Use
+`--no-sort-query` if your site is order-sensitive.
 
 **Three things are deliberately *not* normalised:** trailing slash, `www` versus
 bare host, and `http` versus `https`. Collapsing those would hide exactly the

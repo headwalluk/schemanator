@@ -10,6 +10,8 @@ import {
   tryCanonicaliseUrl,
   UrlCanonicalisationError,
 } from './canonical.ts';
+import { trackingKeys } from '../checks/tracking.ts';
+import { loadTrackingParameters } from './tracking-parameters.ts';
 
 interface Case {
   name: string;
@@ -114,6 +116,11 @@ const CASES: Case[] = [
     name: 'strips named tracking params',
     input: 'https://example.com/a?fbclid=x&gclid=y&p=1',
     expected: 'https://example.com/a?p=1',
+  },
+  {
+    name: 'strips a Google Shopping click id, keeping the cart action',
+    input: 'https://example.com/shop/?srsltid=AfmBOo&add-to-cart=7',
+    expected: 'https://example.com/shop/?add-to-cart=7',
   },
   {
     name: 'strips a percent-encoded tracking key',
@@ -235,8 +242,10 @@ test('canonicaliseUrl honours --no-sort-query', () => {
 test('canonicaliseUrl honours a custom tracking list', () => {
   assert.equal(
     canonicaliseUrl('https://example.com/a?ref=x&utm_source=y', {
-      trackingParams: ['ref'],
-      trackingPrefixes: [],
+      trackingParameters: {
+        schemaVersion: 1,
+        parameters: [{ name: 'ref', match: 'exact', operator: 'test', source: 'https://x' }],
+      },
     }),
     'https://example.com/a?utm_source=y',
   );
@@ -314,4 +323,14 @@ test('looksLikeTarget separates hostnames from subcommands', () => {
   assert.equal(looksLikeTarget('crawl'), false);
   assert.equal(looksLikeTarget('report'), false);
   assert.equal(looksLikeTarget('localhost'), false);
+});
+
+test('canonicalisation strips exactly what url.tracking-parameter reports', () => {
+  const rules = loadTrackingParameters();
+  for (const parameter of rules.parameters) {
+    const key = parameter.match === 'prefix' ? `${parameter.name}source` : parameter.name;
+    const tagged = `https://example.com/a?${key}=x&keep=1`;
+    assert.equal(canonicaliseUrl(tagged), 'https://example.com/a?keep=1', key);
+    assert.deepEqual(trackingKeys(tagged, rules), [key], key);
+  }
 });

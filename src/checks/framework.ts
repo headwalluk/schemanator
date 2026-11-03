@@ -23,7 +23,7 @@ import type { EntityGraph } from './graph.ts';
 import type { GoogleRules } from './google.ts';
 import type { AiCrawlers, RobotsFile } from './robots.ts';
 import type { Hierarchy } from './hierarchy.ts';
-import type { TrackingParameters } from './tracking.ts';
+import type { TrackingParameters } from '../url/tracking-parameters.ts';
 import type { ValueHeuristics } from './values.ts';
 
 export type { SitemapDuplicate };

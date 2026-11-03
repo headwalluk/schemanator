@@ -28,7 +28,7 @@ import { parseCardinalityRules } from './checks/cardinality.ts';
 import { parseGoogleRules } from './checks/google.ts';
 import { parseAiCrawlers } from './checks/robots.ts';
 import { parseHierarchy } from './checks/hierarchy.ts';
-import { parseTrackingParameters } from './checks/tracking.ts';
+import { parseTrackingParameters } from './url/tracking-parameters.ts';
 import { parseValueHeuristics } from './checks/values.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

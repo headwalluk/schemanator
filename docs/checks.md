@@ -262,7 +262,8 @@ clean slug and redirect the old one.
 
 Internal links carrying a parameter that identifies one click, campaign or
 visit: `srsltid` (Google Shopping), `gclid`, `gbraid`, `wbraid` (Google Ads),
-`fbclid` (Meta) and the `utm_*` family. They belong on the URL a visitor
+`fbclid` (Meta), `msclkid` (Microsoft Advertising), `ttclid` (TikTok), `_gl`
+(Google's cross-domain linker) and the `utm_*` family. They belong on the URL a visitor
 arrives at, never on a link the site serves to everyone.
 
 **Why it matters:** analytics credits every visit that follows such a link to
@@ -288,7 +289,8 @@ purge it. For pasted links, edit the content.
 Reported once for the site, over links found on audited pages. A page the
 crawl reached only by following one of these links is not counted again. The
 parameter list is `data/tracking-parameters.json`; each entry cites its
-operator's documentation.
+operator's documentation. URL canonicalisation strips the same list, so the
+crawl treats a tagged URL as the page it tags.
 
 ### `url.foreign-media-host` — Warning
 

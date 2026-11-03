@@ -2,6 +2,33 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.23.0 — 2026-11-03
+
+### Changed
+
+- **One tracking-parameter list.** URL canonicalisation and
+  `url.tracking-parameter` both read `data/tracking-parameters.json`. Until now
+  the canonicaliser kept its own list in code, and the two disagreed: a URL
+  could carry a parameter the check reported but the crawler did not strip,
+  and the reverse. A test now holds them together.
+
+  What moves:
+
+  - **Now stripped from URLs:** `srsltid`, `gbraid`, `wbraid`. A crawl that
+    meets `?srsltid=…` links treats them as the page they tag, instead of
+    fetching each one as a page of its own.
+  - **Now reported in links:** `msclkid` (Microsoft Advertising), `ttclid`
+    (TikTok), `_gl` (Google's cross-domain linker). All three were already
+    stripped.
+  - **No longer stripped:** `mc_cid`, `mc_eid`, `twclid`, `igshid` and `_ga`.
+    The first four have no documentation from their operator, which every entry
+    in the file must cite; `_ga` was Universal Analytics' linker, replaced by
+    `_gl`. None of them occurs in the test corpus.
+
+  Re-analysing a stored crawl changes no finding on the test corpus: page
+  identities were fixed when the crawl ran. The difference appears on the next
+  crawl.
+
 ## 1.22.0 — 2026-11-02
 
 ### Added

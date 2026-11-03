@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 
 import type { PageRecord, StoredLink } from '../store/workdir.ts';
 import { runChecks } from './run.ts';
-import { loadTrackingParameters, parseTrackingParameters, trackingKeys } from './tracking.ts';
+import { loadTrackingParameters, parseTrackingParameters } from '../url/tracking-parameters.ts';
+import { trackingKeys } from './tracking.ts';
 
 const CHECK = 'url.tracking-parameter';
 
