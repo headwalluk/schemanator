@@ -305,7 +305,7 @@ export function renderHtml(report: Report): string {
   );
   if ((report.coverage.pages_linked ?? 0) > 0) {
     parts.push(
-      `<tr><td>Linked pages followed</td><td>${report.coverage.pages_linked} — not in any sitemap, checked by group <code>link</code> only</td></tr>`,
+      `<tr><td>Linked pages followed</td><td>${report.coverage.pages_linked} — not in any sitemap. Read by group <code>link</code> only; no other finding counts them</td></tr>`,
     );
   }
   parts.push(`<tr><td>Nodes extracted</td><td>${report.graph.nodes}</td></tr>`);

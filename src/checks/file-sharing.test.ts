@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import type { ExternalScript, PageFacts } from '../extract/page-facts.ts';
+import type { Report } from '../report/build.ts';
+import { diffReports } from '../report/diff.ts';
 import type { PageRecord } from '../store/workdir.ts';
 import { fileSharingHost, loadFileSharingHosts, parseFileSharingHosts } from './file-sharing.ts';
 import { runChecks } from './run.ts';
@@ -137,7 +139,10 @@ test('a script from a file-sharing host is reported once for the site, naming it
   // A per-request ?ver= is one file, not one per page.
   assert.equal(finding?.observed.length, 1);
   assert.equal(finding?.observed[0]?.page_count, 2);
-  assert.equal(finding?.observed[0]?.value, `${DROPBOX}?ver=1700000001`);
+  assert.equal(finding?.observed[0]?.value, DROPBOX);
+  // The renderer adds "on N page(s)" itself.
+  assert.equal(finding?.observed[0]?.detail, 'id "sitecheck-js", `ver` differs on every page');
+  assert.match(finding?.summary ?? '', /generated per request/);
   assert.match(finding?.summary ?? '', /handle `sitecheck`/);
   assert.match(finding?.remediation ?? '', /`dl\.dropboxusercontent\.com` and `sitecheck`/);
 });
@@ -150,6 +155,7 @@ test('distinct files on one host are separate rows of one finding', () => {
 
   assert.equal(rest.length, 0);
   assert.equal(finding?.observed.length, 2);
+  assert.equal(finding?.observed[0]?.detail, undefined);
   assert.doesNotMatch(finding?.summary ?? '', /handle/);
 });
 
@@ -181,4 +187,69 @@ test('vendor storage, SDK and embed hosts are not reported', () => {
 
 test('facts extracted before external_scripts existed are silence, not an error', () => {
   assert.deepEqual(findingsFor([page('/', undefined)]), []);
+});
+
+test('a query string that never varies is not called per-request', () => {
+  const [finding] = findingsFor([
+    page('/', [script(`${DROPBOX}?ver=2.1`)]),
+    page('/b/', [script(`${DROPBOX}?ver=2.1`)]),
+  ]);
+
+  assert.equal(finding?.observed[0]?.detail, undefined);
+  assert.doesNotMatch(finding?.summary ?? '', /per request/);
+});
+
+test('a parameter varying on some pages says how far', () => {
+  const [finding] = findingsFor([
+    page('/', [script(`${DROPBOX}?ver=1&lang=en`)]),
+    page('/b/', [script(`${DROPBOX}?ver=1&lang=en`)]),
+    page('/c/', [script(`${DROPBOX}?ver=2&lang=en`)]),
+  ]);
+
+  assert.equal(finding?.observed[0]?.detail, '`ver` takes 2 values across 3 pages');
+});
+
+/** A report around one run's findings; only `findings` and `coverage` matter to the diff. */
+function reportOf(pages: PageRecord[], runId: string): Report {
+  return {
+    schemanator: { version: '0.0.0', report_schema: 1 },
+    run: {
+      run_id: runId,
+      site_slug: 'therapy.example',
+      site_origin: 'https://therapy.example',
+      started_at: '2026-11-06T00:00:00Z',
+      finished_at: '2026-11-06T00:05:00Z',
+      crawl_finished_at: '2026-11-06T00:04:00Z',
+    },
+    coverage: {
+      complete: true,
+      urls_discovered: pages.length,
+      urls_queued: pages.length,
+      pages_fetched: pages.length,
+      pages_extracted: pages.length,
+      pages_linked: 0,
+      truncated: null,
+      sample_strategy: 'spread',
+      caveat: null,
+    },
+    graph: { nodes: 0, entities: 0, pages_with_data: 0, json_ld_blocks: 0, malformed_blocks: 0 },
+    summary: { by_severity: {}, by_check: {}, silenced: {}, checks_run: [], checks_disabled: [] },
+    findings: findingsFor(pages),
+  };
+}
+
+test('a per-request ver leaves the finding unchanged between runs, not Changed', () => {
+  const run = (base: number, runId: string): Report =>
+    reportOf(
+      [
+        page('/', [script(`${DROPBOX}?ver=${base}`, 'sitecheck-js')]),
+        page('/b/', [script(`${DROPBOX}?ver=${base + 4}`, 'sitecheck-js')]),
+      ],
+      runId,
+    );
+
+  const diff = diffReports(run(1700000001, 'BEFORE'), run(1700003601, 'AFTER'));
+
+  assert.equal(diff.changed.length, 0);
+  assert.equal(diff.unchanged.length, 1);
 });

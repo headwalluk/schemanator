@@ -111,16 +111,46 @@ export function fileSharingHost(hostname: string, rules: FileSharingHosts): File
   );
 }
 
-/** Origin and path: `?ver=` changes per request on some sites, and is not a different file. */
+/**
+ * Origin and path, which is the reported value.
+ *
+ * The query is dropped because `?ver=` can change on every request, and
+ * `--since` compares `observed[].value`: kept, the finding would read as
+ * Changed on every run of an unchanged site.
+ */
 function scriptKey(src: string): string {
   const parsed = URL.parse(src);
   return parsed === null ? src : `${parsed.origin}${parsed.pathname}`;
 }
 
 interface ScriptSeen {
-  src: string;
+  key: string;
   id: string | null;
   pageIds: Set<string>;
+  /** Every value seen for each query parameter, across pages. */
+  queryValues: Map<string, Set<string>>;
+}
+
+/** Record one page's query string against the script it loads. */
+function noteQuery(script: ScriptSeen, src: string): void {
+  const parsed = URL.parse(src);
+  if (parsed === null) return;
+  for (const [name, value] of parsed.searchParams) {
+    const values = script.queryValues.get(name) ?? new Set<string>();
+    values.add(value);
+    script.queryValues.set(name, values);
+  }
+}
+
+/** How each varying query parameter varied, e.g. "`ver` differs on every page"; empty when none did. */
+function queryVariation(script: ScriptSeen): string[] {
+  return [...script.queryValues.entries()]
+    .filter(([, values]) => values.size > 1)
+    .map(([name, values]) =>
+      values.size === script.pageIds.size
+        ? `\`${name}\` differs on every page`
+        : `\`${name}\` takes ${values.size} values across ${script.pageIds.size} pages`,
+    );
 }
 
 interface HostSeen {
@@ -133,8 +163,13 @@ interface HostSeen {
 /** One finding for one file-sharing host. */
 function hostFinding(seen: HostSeen): Finding {
   const scripts = [...seen.scripts.values()].sort(
-    (left, right) => right.pageIds.size - left.pageIds.size || left.src.localeCompare(right.src),
+    (left, right) => right.pageIds.size - left.pageIds.size || left.key.localeCompare(right.key),
   );
+  const varies = scripts.some((script) => queryVariation(script).length > 0);
+  const variationNote = varies
+    ? ' Its query string changes from page to page, so the URL is generated per request: every ' +
+      'visit fetches the file afresh, and no copy is cached that could be compared later.'
+    : '';
   const handles = [
     ...new Set(
       scripts
@@ -168,21 +203,24 @@ function hostFinding(seen: HostSeen): Finding {
       `files uploaded to a ${seen.rule.service} account. That is a file-sharing service, not a ` +
       `CDN: whoever holds the account can change what every visitor's browser runs, at any ` +
       `time, with no release and no trace on this site. Plugins, themes and tracking services ` +
-      `publish their scripts on their own domains or on a CDN.${handleNote} ` +
+      `publish their scripts on their own domains or on a CDN.${variationNote}${handleNote} ` +
       `**This is not a malware verdict** — schemanator does not fetch or read the script — but ` +
       `if nobody responsible for the site recognises it, treat the site as possibly compromised.`,
     expected: "Scripts served from this site, its own CDN, or the vendor's own domain.",
     ...sampleObserved(
-      scripts.map((script) => ({
-        value: script.src,
-        detail:
-          script.id === null
-            ? `on ${script.pageIds.size} page(s)`
-            : `id "${script.id}", on ${script.pageIds.size} page(s)`,
-        observation_count: script.pageIds.size,
-        page_count: script.pageIds.size,
-        provenance: [],
-      })),
+      scripts.map((script) => {
+        const notes = [
+          ...(script.id === null ? [] : [`id "${script.id}"`]),
+          ...queryVariation(script),
+        ];
+        return {
+          value: script.key,
+          ...(notes.length === 0 ? {} : { detail: notes.join(', ') }),
+          observation_count: script.pageIds.size,
+          page_count: script.pageIds.size,
+          provenance: [],
+        };
+      }),
     ),
     pages_affected: pageCount,
     coverage_qualified: false,
@@ -220,11 +258,13 @@ const fileSharingScript: Check = {
         };
         const key = scriptKey(script.src);
         const entry = seen.scripts.get(key) ?? {
-          src: script.src,
+          key,
           id: script.id,
           pageIds: new Set<string>(),
+          queryValues: new Map<string, Set<string>>(),
         };
         entry.pageIds.add(page.page_id);
+        noteQuery(entry, script.src);
         seen.scripts.set(key, entry);
         seen.pages.set(page.page_id, page);
         byHost.set(script.host, seen);

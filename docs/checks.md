@@ -332,6 +332,13 @@ When the element's `id` ends in `-js`, as in `sitecheck-js`, the
 finding names the WordPress enqueue handle (`sitecheck`), which is the
 string to search your theme and plugin files for.
 
+**Each file is reported without its query string**, because some of these
+scripts carry a `?ver=` that changes on every request, and a value that changed
+between runs would make `--since` call an untouched finding *Changed*. When a
+parameter does differ from page to page, the row says so — "`ver` differs on
+every page" — and the summary notes that the URL is generated per request, so
+every visit fetches the file afresh.
+
 **Only the `src` attribute of a `<script>` element is read.** A URL in text, in
 a code block or in a link is never reported, so a tutorial showing
 `curl https://raw.githubusercontent.com/…/install.sh` is not a finding.

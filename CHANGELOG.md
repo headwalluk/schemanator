@@ -2,6 +2,33 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.24.1 — 2026-11-06
+
+### Fixed
+
+- **`url.file-sharing-script` evidence is now stable between runs.** 1.24.0
+  reported the first page's full script URL, query string included. Where the
+  `?ver=` changes on every request, as it did on the site that prompted the
+  check, every `--since` diff would have shown the finding as *Changed* with
+  nothing on the site changed. The URL is now reported without its query.
+
+  **One diff against a 1.24.0 report will show this finding as Changed**, once,
+  because the value's form moved. Later diffs compare like with like.
+
+- **A query parameter that differs between pages is now reported** as evidence
+  — "`ver` differs on every page" — and the summary says the URL is generated
+  per request, so every visit fetches the file afresh.
+
+- The observed row no longer reads "on 24 page(s) — on 24 page(s)": the check
+  repeated the count the renderer already prints.
+
+### Changed
+
+- The report's "Linked pages followed" row now says that no finding outside
+  group `link` counts those pages, which answers the question for every
+  finding's *Pages affected* at once. Wording only, in the markdown and HTML
+  reports; `report.json` is unchanged.
+
 ## 1.24.0 — 2026-11-06
 
 ### Added

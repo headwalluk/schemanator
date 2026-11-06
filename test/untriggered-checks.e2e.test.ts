@@ -283,10 +283,11 @@ test('a script on a file-sharing host is reported from the stored page facts', a
 
   assert.equal(rest.length, 0);
   assert.equal(finding?.pages_affected, 1);
-  // Resolved against the page, so the protocol-relative src gains a scheme.
+  // Resolved against the page, so the protocol-relative src gains a scheme;
+  // reported without its query, which can change on every request.
   assert.deepEqual(
     finding?.observed.map((row) => row.value),
-    [`${new URL(site.origin).protocol}${DEFECT_FILE_SHARING_SCRIPT}`],
+    [`${new URL(site.origin).protocol}${DEFECT_FILE_SHARING_SCRIPT.split('?')[0] ?? ''}`],
   );
   assert.match(finding?.summary ?? '', /handle `fixtureloader`/);
 });
