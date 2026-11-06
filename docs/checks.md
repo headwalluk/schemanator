@@ -203,7 +203,7 @@ about.
 
 ---
 
-## `url` — identity hygiene
+## `url` — identity hygiene, and what the site loads from where
 
 ### `url.canonical-mismatch` — Warning
 
@@ -306,6 +306,41 @@ a recognised CDN.
 resolve.** What it can tell you is that your images depend on somebody else's
 server. Gravatar, common CDNs and your own subdomains are not reported — see
 [Configuration](configuration.md#media-hosts) to add your own.
+
+### `url.file-sharing-script` — Warning
+
+A `<script src>` on a host that serves files from a personal file-sharing or
+paste account: Dropbox, Google Drive, OneDrive, GitHub's raw-file hosts, Discord
+attachments.
+
+> 12 page(s) load 1 script(s) from `dl.dropboxusercontent.com`, which serves
+> files uploaded to a Dropbox account.
+
+**Why it matters:** a file-sharing service is not a CDN. Whoever holds the
+account can change what every visitor's browser runs, at any time, with no
+release and no trace on your site. Plugins, themes and tracking services publish
+their scripts on their own domains or on a CDN, so a script loaded this way is
+one nobody can vouch for.
+
+**This is not a malware verdict.** schemanator does not fetch or read the
+script; it reports where the code comes from, not what it does. If you recognise
+it, move the file onto your site or the vendor's CDN. If nobody does, run a
+malware scan and review recently modified files and administrator accounts
+before removing the tag, since removing it leaves whatever put it there.
+
+When the element's `id` ends in `-js`, as in `sitecheck-js`, the
+finding names the WordPress enqueue handle (`sitecheck`), which is the
+string to search your theme and plugin files for.
+
+**Only the `src` attribute of a `<script>` element is read.** A URL in text, in
+a code block or in a link is never reported, so a tutorial showing
+`curl https://raw.githubusercontent.com/…/install.sh` is not a finding.
+
+Reported once per host. The list is `data/file-sharing-hosts.json`. Cloud object
+storage such as `storage.googleapis.com` is deliberately absent, because vendors
+ship real SDKs from it, and so are the services' own embed hosts:
+`www.dropbox.com` (Dropbox's Chooser), `pastebin.com/embed_js` and
+`gist.github.com`.
 
 ---
 

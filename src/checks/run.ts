@@ -29,6 +29,7 @@ import { SYNTAX_CHECKS } from './syntax.ts';
 import { STRUCTURE_CHECKS } from './structure.ts';
 import { loadTrackingParameters } from '../url/tracking-parameters.ts';
 import { TRACKING_CHECKS } from './tracking.ts';
+import { FILE_SHARING_CHECKS, loadFileSharingHosts } from './file-sharing.ts';
 import {
   findingId,
   indexPagesById,
@@ -1311,6 +1312,7 @@ export const ALL_CHECKS: Check[] = [
   ...PAGE_CHECKS,
   ...LINK_CHECKS,
   ...TRACKING_CHECKS,
+  ...FILE_SHARING_CHECKS,
 ];
 
 /**
@@ -1708,6 +1710,7 @@ export function runChecks(options: {
     robots: options.robots ?? null,
     aiCrawlers: loadAiCrawlers(),
     trackingParameters: loadTrackingParameters(),
+    fileSharingHosts: loadFileSharingHosts(),
     sitemapsFound: options.sitemapsFound ?? [],
     // Undefined and null both mean "not measured". A caller that has the
     // measurement passes it; a caller that does not must not be able to

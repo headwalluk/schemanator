@@ -25,6 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseCardinalityRules } from './checks/cardinality.ts';
+import { parseFileSharingHosts } from './checks/file-sharing.ts';
 import { parseGoogleRules } from './checks/google.ts';
 import { parseAiCrawlers } from './checks/robots.ts';
 import { parseHierarchy } from './checks/hierarchy.ts';
@@ -42,6 +43,7 @@ const GUARDED: Record<string, (json: string, source?: string) => unknown> = {
   'schema-subclasses.json': parseHierarchy,
   'value-heuristics.json': parseValueHeuristics,
   'tracking-parameters.json': parseTrackingParameters,
+  'file-sharing-hosts.json': parseFileSharingHosts,
 };
 
 /**

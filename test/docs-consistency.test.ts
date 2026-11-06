@@ -221,7 +221,7 @@ const OUR_SITES = /headwall-hosting|power-plugins|vulnz|verifytrusted/i;
  * data wears more shapes than a domain.
  */
 const CLIENT_NAMES =
-  /bravanark|footballinberkshire|rcem\.ac\.uk|permajet|activehands|aurahear|tgfelectrical|intrepiddesign|the-observatory|emdrtherapy|jupiterartland|graphenstone|cheeselogs|clearpipe|heathcote|skintechacademy|burleighdesign|webidaze|insightgroup|woodleybusinessclub|austynsmith|ahc\.co\.uk/i;
+  /bravanark|footballinberkshire|rcem\.ac\.uk|permajet|activehands|aurahear|tgfelectrical|intrepiddesign|the-observatory|emdrtherapy|jupiterartland|graphenstone|cheeselogs|clearpipe|heathcote|skintechacademy|burleighdesign|webidaze|insightgroup|woodleybusinessclub|austynsmith|ahc\.co\.uk|riverbankpsychology/i;
 
 /**
  * Sites that are neither ours nor a client's, and are never part of the test cycle.

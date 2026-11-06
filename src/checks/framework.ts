@@ -22,6 +22,7 @@ import type { CardinalityRules } from './cardinality.ts';
 import type { EntityGraph } from './graph.ts';
 import type { GoogleRules } from './google.ts';
 import type { AiCrawlers, RobotsFile } from './robots.ts';
+import type { FileSharingHosts } from './file-sharing.ts';
 import type { Hierarchy } from './hierarchy.ts';
 import type { TrackingParameters } from '../url/tracking-parameters.ts';
 import type { ValueHeuristics } from './values.ts';
@@ -205,6 +206,8 @@ export interface CheckContext {
   aiCrawlers: AiCrawlers;
   /** Click, campaign and recipient query parameters. `url.tracking-parameter` only. */
   trackingParameters: TrackingParameters;
+  /** Personal file-sharing and paste hosts. `url.file-sharing-script` only. */
+  fileSharingHosts: FileSharingHosts;
   /** Sitemaps the crawl actually found, however it found them. */
   sitemapsFound: readonly string[];
   /**

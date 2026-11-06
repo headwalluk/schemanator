@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   extractBlocks,
+  extractExternalScripts,
   extractLinks,
   extractPageFacts,
   hammingDistance,
@@ -37,9 +38,10 @@ const PAGE = `<!doctype html>
 </body></html>`;
 
 const dom = () => loadDom(PAGE);
+const PAGE_URL = 'https://example.com/';
 
 test('facts are read from the document, not guessed', () => {
-  const facts = extractPageFacts(dom(), extractBlocks(dom()));
+  const facts = extractPageFacts(dom(), extractBlocks(dom()), PAGE_URL);
 
   assert.equal(facts.title, 'Managed hosting');
   assert.equal(facts.meta_description, 'Fast hosting.');
@@ -51,20 +53,20 @@ test('facts are read from the document, not guessed', () => {
 });
 
 test('robots directives are parsed into the two decisions that matter', () => {
-  const facts = extractPageFacts(dom(), []);
+  const facts = extractPageFacts(dom(), [], PAGE_URL);
   assert.equal(facts.robots.index, false);
   assert.equal(facts.robots.follow, true);
   assert.equal(facts.robots.raw, 'noindex, follow');
 });
 
 test('a page with no robots meta is indexable, and says so honestly', () => {
-  const facts = extractPageFacts(loadDom('<html><body><p>x</p></body></html>'), []);
+  const facts = extractPageFacts(loadDom('<html><body><p>x</p></body></html>'), [], PAGE_URL);
   assert.equal(facts.robots.index, true);
   assert.equal(facts.robots.raw, null);
 });
 
 test('images are counted, and useless alt text is sampled', () => {
-  const facts = extractPageFacts(dom(), []);
+  const facts = extractPageFacts(dom(), [], PAGE_URL);
   assert.equal(facts.images.total, 3);
   assert.equal(facts.images.missing_alt, 1, 'no alt attribute at all');
   assert.deepEqual(facts.images.suspect_alt, ['DSC00213.JPEG']);
@@ -229,4 +231,57 @@ test('markdown is readable prose rather than a dump', () => {
   assert.equal(markdown.includes('<'), false, 'no markup should survive');
   assert.equal(markdown.endsWith('\n'), true);
   assert.equal(/\n{3,}/.test(markdown), false, 'no runs of blank lines');
+});
+
+// --- external scripts ----------------------------------------------------------
+
+const TUTORIAL = `<!doctype html><html><head>
+  <script src="/wp-includes/js/jquery.min.js"></script>
+  <script src="https://example.com/local.js"></script>
+  <script id="sitecheck-js" src="//dl.dropboxusercontent.com/s/abc/x.js?ver=1"></script>
+  <script src="https://dl.dropboxusercontent.com/s/abc/second.js"></script>
+  <script src="https://www.googletagmanager.com/gtag/js?id=G-1"></script>
+  <script>var loader = 'https://pastebin.com/raw/inline';</script>
+</head><body>
+  <p>Install with the script at https://raw.githubusercontent.com/acme/tool/main/install.sh</p>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/acme/tool/main/install.sh | bash
+&lt;script src="https://gist.githubusercontent.com/acme/1/raw/x.js"&gt;&lt;/script&gt;</code></pre>
+  <a href="https://raw.githubusercontent.com/acme/tool/main/install.sh">install.sh</a>
+  <img src="https://dl.dropboxusercontent.com/s/abc/diagram.png" alt="Diagram">
+  <iframe src="https://drive.google.com/file/d/abc/preview"></iframe>
+</body></html>`;
+
+test('external scripts are read from script src attributes, never from text', () => {
+  const scripts = extractExternalScripts(loadDom(TUTORIAL), 'https://example.com/guide/');
+
+  assert.deepEqual(scripts, [
+    {
+      host: 'dl.dropboxusercontent.com',
+      src: 'https://dl.dropboxusercontent.com/s/abc/x.js?ver=1',
+      id: 'sitecheck-js',
+    },
+    {
+      host: 'www.googletagmanager.com',
+      src: 'https://www.googletagmanager.com/gtag/js?id=G-1',
+      id: null,
+    },
+  ]);
+});
+
+test('a protocol-relative src takes the page scheme', () => {
+  const [script] = extractExternalScripts(
+    loadDom('<script src="//cdn.example.net/a.js"></script>'),
+    'http://example.com/',
+  );
+
+  assert.equal(script?.src, 'http://cdn.example.net/a.js');
+});
+
+test('page facts carry the external scripts', () => {
+  const facts = extractPageFacts(loadDom(TUTORIAL), [], 'https://example.com/guide/');
+
+  assert.deepEqual(
+    facts.external_scripts?.map((script) => script.host),
+    ['dl.dropboxusercontent.com', 'www.googletagmanager.com'],
+  );
 });

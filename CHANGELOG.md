@@ -2,6 +2,42 @@
 
 Notable changes. Dates are the day the work landed, not a release date.
 
+## 1.24.0 — 2026-11-06
+
+### Added
+
+- **`url.file-sharing-script`** — a `<script src>` on a host that serves files
+  from a personal file-sharing or paste account: Dropbox, Google Drive,
+  OneDrive, GitHub's raw-file hosts, Discord attachments. Whoever holds the
+  account can change what every visitor runs, and legitimate plugins, themes
+  and services do not ship scripts this way. A Warning, reported once per host.
+
+  **Not a malware scanner.** It never fetches the script, and the finding says
+  so; it reports where the code comes from and, if nobody recognises it,
+  recommends a malware scan before removing the tag. When the element's `id`
+  ends in `-js`, the finding names the WordPress enqueue handle to search the
+  install for.
+
+  Found on a client's WordPress site, where every page loaded a Dropbox-hosted
+  script whose `?ver=` was the time of the request. Fires on none of the 23
+  test-corpus sites.
+
+  Only the `src` attribute of `<script>` elements is read, so a URL in text, a
+  code block or a link — an install command in a tutorial — is never reported.
+  The host list is `data/file-sharing-hosts.json`, with a strict parser. Cloud
+  object storage is deliberately absent, since vendors ship real SDKs from it,
+  and so are the services' own embed hosts (`www.dropbox.com`,
+  `pastebin.com/embed_js`, `gist.github.com`).
+
+- **`page_facts.external_scripts`** in `pages.jsonl`: the scripts each page
+  loads from other hosts, one per host, with the element's `id`. Re-running
+  `analyse` fills it in on any crawl whose HTML is still stored.
+
+### Changed
+
+- `docs/configuration.md` no longer says four data files ship. Six did when
+  the sentence was written, and eight do now.
+
 ## 1.23.0 — 2026-11-03
 
 ### Changed

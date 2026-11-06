@@ -308,8 +308,11 @@ before then keep whatever they stored; re-crawling reconciles them.
 
 `page_facts` on each manifest row carries the per-page measurements the `page`
 and `content` checks read: title, heading levels, robots directives, `hreflang`,
-image and alt counts, word counts, and a content fingerprint. Older crawls have
-it as `null`; re-running `analyse` fills it in, provided the HTML is still there.
+image and alt counts, word counts, a content fingerprint, and the scripts the
+page loads from other hosts (`external_scripts`, one per host, read by
+`url.file-sharing-script`). Older crawls have it as `null`, or without
+`external_scripts` before 1.24.0; re-running `analyse` fills it in, provided the
+HTML is still there.
 
 `response_headers` carries the security and robots headers each page was served
 with — `Content-Security-Policy`, `Strict-Transport-Security`,

@@ -68,9 +68,9 @@ An invalid level is a loud error rather than a silent fallback — a typo in
 
 ## Tuning the rules
 
-Four data files ship with schemanator. All are plain JSON, all are meant to be
-tuned, and all record *why* each entry is there so you can judge whether it
-applies to your site.
+The data files below ship with schemanator. All are plain JSON, all are meant
+to be tuned, and all record *why* each entry is there so you can judge whether
+it applies to your site.
 
 ### Functional properties
 
@@ -183,6 +183,30 @@ conflating them gives bad advice:
 The loader refuses an entry without a `source`: a token nobody can check against
 its origin is folklore, and this list decides what the report tells an operator
 about their own site.
+
+### File-sharing hosts
+
+`data/file-sharing-hosts.json` lists the hosts
+[`url.file-sharing-script`](checks.md#urlfile-sharing-script--warning) reports a
+script on.
+
+```jsonc
+{
+  "hosts": [
+    {
+      "host": "dropboxusercontent.com",
+      "match": "suffix",                  // or "exact" for this hostname only
+      "service": "Dropbox",
+      "why": "Shared-file download hosts, dl. and per-file subdomains"
+    }
+  ]
+}
+```
+
+A host belongs on the list only if no legitimate script is served from it, which
+is why `www.dropbox.com` is absent: Dropbox's own Chooser SDK lives there. The
+loader refuses a `host` carrying a scheme, path or capital letter, since it could
+never equal a parsed hostname and would silently match nothing.
 
 ### Google rich-result requirements
 

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "retrieved": "2026-11-06",
+
+  "_what_this_is": [
+    "Hosts that serve files uploaded to a personal file-sharing or paste account.",
+    "`url.file-sharing-script` reports a <script src> on any of them: whoever",
+    "holds the account can change what every visitor runs, and legitimate",
+    "plugins, themes and services do not distribute scripts this way.",
+    "",
+    "A host belongs here only if no legitimate script is served from it. That",
+    "rule keeps out two kinds of near miss:",
+    "",
+    "- Cloud object storage (storage.googleapis.com, *.s3.amazonaws.com,",
+    "  *.blob.core.windows.net). Real vendors ship SDKs from buckets there.",
+    "- A service's own embed or SDK host: www.dropbox.com serves Dropbox's",
+    "  Chooser (dropins.js), pastebin.com/embed_js renders a paste, and",
+    "  gist.github.com/<user>/<id>.js embeds a gist. Only the raw-file hosts",
+    "  are listed.",
+    "",
+    "`match` is `exact` for one hostname, or `suffix` for it and every",
+    "subdomain. Hostnames are lowercase."
+  ],
+
+  "hosts": [
+    {
+      "host": "dropboxusercontent.com",
+      "match": "suffix",
+      "service": "Dropbox",
+      "why": "Shared-file download hosts, dl. and per-file subdomains"
+    },
+    {
+      "host": "dl.dropbox.com",
+      "match": "exact",
+      "service": "Dropbox",
+      "why": "Direct download of a shared file"
+    },
+    {
+      "host": "drive.google.com",
+      "match": "exact",
+      "service": "Google Drive",
+      "why": "Shared-file links and uc?export=download"
+    },
+    {
+      "host": "drive.usercontent.google.com",
+      "match": "exact",
+      "service": "Google Drive",
+      "why": "Direct download of a shared file"
+    },
+    {
+      "host": "onedrive.live.com",
+      "match": "exact",
+      "service": "Microsoft OneDrive",
+      "why": "Shared-file links and downloads"
+    },
+    {
+      "host": "1drv.ms",
+      "match": "exact",
+      "service": "Microsoft OneDrive",
+      "why": "Short links to shared files"
+    },
+    {
+      "host": "raw.githubusercontent.com",
+      "match": "exact",
+      "service": "GitHub",
+      "why": "Raw repository files, served as text/plain"
+    },
+    {
+      "host": "gist.githubusercontent.com",
+      "match": "exact",
+      "service": "GitHub Gist",
+      "why": "Raw gist files, served as text/plain"
+    },
+    {
+      "host": "cdn.discordapp.com",
+      "match": "exact",
+      "service": "Discord",
+      "why": "Files attached to Discord messages"
+    }
+  ]
+}

@@ -96,6 +96,16 @@ export interface PageLink {
   block: string | null;
 }
 
+/** A `<script src>` on another host: the first one seen per host on the page. */
+export interface ExternalScript {
+  /** Lowercase hostname, as `URL` parses it. */
+  host: string;
+  /** Resolved against the page, so `//host/x.js` is recorded with its scheme. */
+  src: string;
+  /** The element's `id`, which WordPress sets to the enqueue handle plus `-js`. */
+  id: string | null;
+}
+
 /** Facts that need only this page. The site-wide ones are filled in later. */
 export interface PageFacts {
   title: string | null;
@@ -127,6 +137,13 @@ export interface PageFacts {
   };
   /** Over the de-boilerplated text. Comparison primitive, never the text. */
   content_simhash: string | null;
+  /**
+   * Scripts this page loads from other hosts, one per host.
+   *
+   * Absent on facts extracted before the field existed and kept by
+   * `purge --html`, so a reader treats absent as "not measured".
+   */
+  external_scripts?: ExternalScript[];
 }
 
 const normalise = (text: string): string => text.replace(/\s+/g, ' ').trim();
@@ -282,8 +299,36 @@ export function extractLinks($: CheerioAPI, pageUrl: string, siteHost: string): 
   return links;
 }
 
+/**
+ * Scripts loaded from a host other than the page's, first per host.
+ *
+ * Reads the `src` attribute of `<script>` elements only. A URL in text, a code
+ * block or an `href` is never a script the browser runs.
+ */
+export function extractExternalScripts($: CheerioAPI, pageUrl: string): ExternalScript[] {
+  const pageHost = URL.parse(pageUrl)?.hostname ?? '';
+  const byHost = new Map<string, ExternalScript>();
+  for (const element of $('script[src]').toArray()) {
+    const resolved = URL.parse(($(element).attr('src') ?? '').trim(), pageUrl);
+    if (resolved === null || (resolved.protocol !== 'http:' && resolved.protocol !== 'https:')) {
+      continue;
+    }
+    if (resolved.hostname === pageHost || byHost.has(resolved.hostname)) continue;
+    byHost.set(resolved.hostname, {
+      host: resolved.hostname,
+      src: resolved.href,
+      id: $(element).attr('id')?.trim() || null,
+    });
+  }
+  return [...byHost.values()];
+}
+
 /** Everything derivable from this page alone. `text.extractable_words` is provisional. */
-export function extractPageFacts($: CheerioAPI, blocks: readonly TextBlock[]): PageFacts {
+export function extractPageFacts(
+  $: CheerioAPI,
+  blocks: readonly TextBlock[],
+  pageUrl: string,
+): PageFacts {
   const robotsRaw = $('meta[name="robots"]').attr('content') ?? null;
   const robotsLower = (robotsRaw ?? '').toLowerCase();
 
@@ -351,6 +396,7 @@ export function extractPageFacts($: CheerioAPI, blocks: readonly TextBlock[]): P
       hidden_words: blocks.filter((block) => block.hidden).reduce((sum, b) => sum + b.words, 0),
     },
     content_simhash: null,
+    external_scripts: extractExternalScripts($, pageUrl),
   };
 }
 

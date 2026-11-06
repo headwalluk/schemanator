@@ -35,7 +35,9 @@ mechanism. `cardinality.ts`, `hierarchy.ts`, `values.ts` and `google.ts` all
 work this way, and each validates its file strictly on load: a typo that
 silently degraded a rules file to "nothing is required" would produce a clean,
 confident, empty report, which is the worst failure available to a tool whose
-output people act on.
+output people act on. Register the parser in `src/data-files.test.ts`, which
+fails until a new file has one, and pass the loaded rules to checks as a
+`CheckContext` field filled in `runChecks`.
 
 A check is a pure function over the graph plus page records:
 

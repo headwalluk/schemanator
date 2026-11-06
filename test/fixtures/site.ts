@@ -390,7 +390,10 @@ export const DEFECT_PATHS = {
   breadcrumbSilent: '/shop',
   /** A `Product` with a name and nothing else. `google.incomplete-alternative`. */
   product: '/shop/widget',
-  /** A block whose `@context` is not schema.org. `syntax.unresolvable-context`. */
+  /**
+   * A block whose `@context` is not schema.org. `syntax.unresolvable-context`.
+   * Also loads {@link DEFECT_FILE_SHARING_SCRIPT}.
+   */
   remoteContext: '/blog/post',
   /**
    * In the sitemap, 404s, and named as a crumb by {@link remoteContext}.
@@ -469,6 +472,12 @@ export const DEFECT_ALLOWED_BLOCK = '/wp-admin/';
 export const DEFECT_BLOCKED_CRAWLERS = ['GPTBot', 'CCBot'];
 
 /**
+ * A script on a host in `data/file-sharing-hosts.json`, protocol-relative as it
+ * was found. `url.file-sharing-script`. Nothing in the crawl fetches it.
+ */
+export const DEFECT_FILE_SHARING_SCRIPT = '//dl.dropboxusercontent.com/s/fixture/loader.js?ver=1';
+
+/**
  * A site built to make the never-fired checks fire.
  *
  * **Nineteen checks in the catalogue have never seen a true positive** — not
@@ -526,6 +535,7 @@ export async function startDefectSite(): Promise<TestServer> {
     jsonLd?: string[];
     body?: string;
     hidden?: string;
+    scripts?: string[];
   }
 
   const page = (options: DefectPage): string =>
@@ -536,6 +546,7 @@ export async function startDefectSite(): Promise<TestServer> {
 ${options.title === null ? '' : `<title>${options.title}</title>`}
 ${options.canonical === undefined ? '' : `<link rel="canonical" href="${options.canonical}">`}
 ${(options.jsonLd ?? []).map((block) => `<script type="application/ld+json">${block}</script>`).join('\n')}
+${(options.scripts ?? []).map((src) => `<script id="fixtureloader-js" src="${src}"></script>`).join('\n')}
 </head>
 <body>
 ${nav()}
@@ -664,6 +675,7 @@ ${options.hidden === undefined ? '' : `<div hidden><p>${options.hidden}</p></div
     [DEFECT_PATHS.remoteContext]: (request) =>
       htmlPage({
         title: 'Post',
+        scripts: [DEFECT_FILE_SHARING_SCRIPT],
         jsonLd: [
           // Valid JSON, and unresolvable: `03` refuses to fetch remote contexts,
           // because a crawl that depends on a third-party server being reachable

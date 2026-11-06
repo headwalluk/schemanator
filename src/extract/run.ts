@@ -154,7 +154,7 @@ export async function runExtraction(options: ExtractionRunOptions): Promise<Extr
       blocks,
       links: extractLinks(dom, record.canonical_url, siteHost),
     });
-    record.page_facts = extractPageFacts(dom, blocks);
+    record.page_facts = extractPageFacts(dom, blocks, record.canonical_url);
     // Structural faults only extraction can see belong on the page record
     // (`03`), but must not clobber the crawl's own errors.
     const blockErrors = result.blocks

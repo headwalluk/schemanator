@@ -38,6 +38,7 @@ import {
   DEFECT_ALLOWED_BLOCK,
   DEFECT_BLOCKED_CRAWLERS,
   DEFECT_BLOCKED_RESOURCE,
+  DEFECT_FILE_SHARING_SCRIPT,
   DEFECT_PATHS,
   startDefectSite,
 } from './fixtures/site.ts';
@@ -272,6 +273,22 @@ test('two URLs serving byte-identical bodies are reported as one page', async ()
   for (const twin of DEFECT_PATHS.twins) {
     assert.equal(values[0]?.includes(site.url(twin)), true, `${twin} is not in the evidence`);
   }
+});
+
+// --- url ----------------------------------------------------------------------
+
+test('a script on a file-sharing host is reported from the stored page facts', async () => {
+  const { report, site } = await analysed();
+  const [finding, ...rest] = firedFor(report, 'url.file-sharing-script');
+
+  assert.equal(rest.length, 0);
+  assert.equal(finding?.pages_affected, 1);
+  // Resolved against the page, so the protocol-relative src gains a scheme.
+  assert.deepEqual(
+    finding?.observed.map((row) => row.value),
+    [`${new URL(site.origin).protocol}${DEFECT_FILE_SHARING_SCRIPT}`],
+  );
+  assert.match(finding?.summary ?? '', /handle `fixtureloader`/);
 });
 
 // --- the fixture's own premise ----------------------------------------------
